@@ -75,3 +75,38 @@ def test_series(stem, series, index):
 )
 def test_year(stem, year):
     assert guess_from_stem(stem).year == year, f"{stem!r} should yield year {year!r}"
+
+
+@pytest.mark.parametrize(
+    "raw, authors",
+    [
+        ("Teague, Rowan &amp_ Marlowe, Petra", ["Teague, Rowan", "Marlowe, Petra"]),
+        ("Rowan Teague, Petra Marlowe", ["Rowan Teague", "Petra Marlowe"]),
+        ("Teague, Rowan", ["Teague, Rowan"]),
+        ("Okonkwo, Harriet V.", ["Okonkwo, Harriet V."]),
+        ("Rowan Teague_ Petra Marlowe", ["Rowan Teague", "Petra Marlowe"]),
+        ("Teague, Rowan; Marlowe, Petra", ["Teague, Rowan", "Marlowe, Petra"]),
+    ],
+)
+def test_split_authors_distinguishes_comma_lists_from_surname_first(raw, authors):
+    from kobolib.filenames import split_authors
+
+    assert split_authors(raw) == authors, f"{raw!r} should split into {authors}"
+
+
+@pytest.mark.parametrize(
+    "stem, title, authors, series, index, year",
+    [
+        ("Copper Hymn -- Teodor Vaskiv -- Tidewater 2, 2024 -- Lantern Press -- 9780000000001 -- 0123456789abcdef0123456789abcdef -- Anna’s Archive",
+         "Copper Hymn", ["Teodor Vaskiv"], "Tidewater", "2", "2024"),
+        ("Ashfall (Grey Tide, #2) -- Rowan Teague -- Lantern, London, 2023 -- Quill -- 9780000000002 -- 0123456789abcdef0123456789abcdef -- Anna’s Archive",
+         "Ashfall", ["Rowan Teague"], "Grey Tide", "2", "2023"),
+        ("Saltmarsh -- Penhale, Ivor -- 2010 -- Lantern -- 0123456789abcdef0123456789abcdef -- Anna’s Archive",
+         "Saltmarsh", ["Penhale, Ivor"], "", "", "2010"),
+        ("Ember -- Vaskiv, Teodor [Vaskiv, Teodor] -- Special edition, 2017;2002 -- Lantern -- 9780000000003 -- 0123456789abcdef0123456789abcdef -- Anna’s Archive",
+         "Ember", ["Vaskiv, Teodor"], "", "", "2017"),
+    ],
+)
+def test_annas_archive_names(stem, title, authors, series, index, year):
+    guess = guess_from_stem(stem)
+    assert (guess.title, guess.authors, guess.series, guess.series_index, guess.year) == (title, authors, series, index, year), f"{stem!r} should parse fully"

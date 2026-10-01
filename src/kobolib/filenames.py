@@ -22,6 +22,11 @@ AUTHOR_LIKE = re.compile(r"^\S+(?:\s\S+){0,2},\s*\S")
 EDITOR = re.compile(r"\s*\((?:ed|eds|ed\.|eds\.)\)$", re.I)
 TRAILING_ARTICLE = re.compile(r"^(?P<title>.+),\s*(?P<article>The|A|An)$")
 AUTHOR_SEPARATOR = re.compile(r"\s*(?:_|&|;)\s*")
+COMMA = re.compile(r"\s*,\s*")
+BRACKETED_ALIAS = re.compile(r"\s*\[[^\]]*\]")
+ANNA_SERIES = re.compile(r"^(?P<series>.+?)\s*,?\s*#?(?P<index>\d+(?:-\d+)?)\s*,\s*(?P<year>\d{4})\b")
+ANNA_YEAR = re.compile(r"\b(?P<year>\d{4})\b")
+PAREN_SERIES_TAIL = re.compile(r"\s*\((?P<series>[^()#]+?),?\s*#(?P<index>\d+(?:-\d+)?)\)\s*$")
 INITIAL = re.compile(r"^[A-ZА-ЯІЇЄҐ]\.?$")
 YEAR_SUFFIX = re.compile(r"\s-\s(?P<year>\d{4})$")
 STOPWORDS = {"of", "the", "a", "an", "and", "in", "on", "to", "for", "it", "is", "at", "with", "from"}
@@ -95,9 +100,24 @@ def person_score(text: str) -> int:
     return int(capitalized) + initials + surname_first - stopwords
 
 
+def looks_like_full_name(piece: str) -> bool:
+    tokens = piece.split()
+    return len(tokens) >= 2 and not tokens[0].endswith(".")
+
+
+def is_name_list(part: str) -> bool:
+    pieces = COMMA.split(part)
+    return len(pieces) > 1 and all(looks_like_full_name(p) for p in pieces)
+
+
+def split_commas(part: str) -> list[str]:
+    return COMMA.split(part) if is_name_list(part) else [part]
+
+
 def split_authors(raw: str) -> list[str]:
-    cleaned = raw.replace("&amp_", "&").replace("&amp;", "&")
-    return [a for part in AUTHOR_SEPARATOR.split(cleaned) if (a := part.strip(" _,"))]
+    cleaned = BRACKETED_ALIAS.sub("", raw.replace("&amp_", "&").replace("&amp;", "&"))
+    parts = (name for part in AUTHOR_SEPARATOR.split(cleaned) for name in split_commas(part))
+    return [a for part in parts if (a := part.strip(" _,"))]
 
 
 def title_first(first: str, rest: str) -> bool:
@@ -107,10 +127,26 @@ def title_first(first: str, rest: str) -> bool:
     return person_score(rest) > person_score(bare)
 
 
+def anna_edition(segment: str) -> tuple[str, str, str]:
+    if match := ANNA_SERIES.match(segment):
+        return match.group("series").strip(), match.group("index"), match.group("year")
+    if match := ANNA_YEAR.search(segment):
+        return "", "", match.group("year")
+    return "", "", ""
+
+
+def split_anna(stem: str) -> tuple[str, list[str], str, str, str]:
+    title, author, *rest = stem.split(" -- ")
+    series, index, year = anna_edition(rest[0]) if rest else ("", "", "")
+    if match := PAREN_SERIES_TAIL.search(title):
+        title, series, index = title[: match.start()], match.group("series").strip(), match.group("index")
+    return title.strip(), split_authors(author), series, index, year
+
+
 def split_title_author(stem: str) -> tuple[str, list[str], str]:
     if " -- " in stem:
-        title, author, *_ = stem.split(" -- ")
-        return title.strip(), split_authors(author), ""
+        title, authors, _, _, year = split_anna(stem)
+        return title, authors, year
     parts = stem.split(" - ")
     parts, year = take_trailing_year(parts)
     if len(parts) < 2:
@@ -142,12 +178,13 @@ def guess_from_stem(stem: str) -> FilenameGuess:
     stem, year, publisher = take_publisher(stem)
     stem, suffix_year = take_year_suffix(stem)
     stem, inline_series, inline_index = take_trailing_series(stem)
+    anna_series, anna_index = split_anna(stem)[2:4] if " -- " in stem else ("", "")
     title, authors, split_year = split_title_author(stem)
     return FilenameGuess(
         title=clean_title(title),
         authors=braced or authors,
-        series=series or inline_series,
-        series_index=index or inline_index,
+        series=series or inline_series or anna_series,
+        series_index=index or inline_index or anna_index,
         year=year or suffix_year or split_year,
         publisher=publisher,
     )
