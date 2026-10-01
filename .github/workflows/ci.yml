@@ -32,17 +32,26 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: Kobo-Library.alfredworkflow
           path: dist
+      - if: env.TAG == 'latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete latest --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG == 'latest' && 'Latest build' || env.TAG }}
+          prerelease: ${{ env.TAG == 'latest' }}
+          generate_release_notes: ${{ env.TAG != 'latest' }}
           files: dist/Kobo Library.alfredworkflow
-          generate_release_notes: true
