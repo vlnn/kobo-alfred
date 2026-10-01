@@ -140,3 +140,8 @@ def test_fill_thumbnails_updates_pdf_rows(index: Index, library: Path, mocker):
     (napkin,) = index.search(parse_query("napkin"))
     assert made == 1, "only the pdf without a cover should get a thumbnail"
     assert napkin.cover.endswith(".png"), "the pdf row should now carry its thumbnail path"
+
+
+def test_fingerprint_stored_per_book(index: Index):
+    (row,) = index.search(parse_query("deep"))
+    assert len(row.fingerprint) == 40, "each indexed book should carry a fingerprint"

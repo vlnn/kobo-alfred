@@ -9,7 +9,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from kobolib.filenames import guess_from_stem
-from kobolib.scan import book_format, display_stem, is_partial, relative_path
+from kobolib.scan import book_format, display_stem, fingerprint, is_partial, relative_path
 
 Cover = tuple[str, bytes]
 
@@ -39,6 +39,7 @@ class Book:
     cover: Cover | None = None
     size: int = 0
     mtime: float = 0.0
+    fingerprint: str = ""
 
 
 def text_of(root: ET.Element, xpath: str) -> str:
@@ -157,6 +158,7 @@ def read_book(path: Path, root: Path) -> Book:
         partial=is_partial(path),
         size=stat.st_size,
         mtime=stat.st_mtime,
+        fingerprint=fingerprint(path),
     )
     reader = READERS.get(book.format)
     if reader and not book.partial:

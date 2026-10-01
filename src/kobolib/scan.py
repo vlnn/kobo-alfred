@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 BOOK_SUFFIXES = {".epub", ".fb2", ".mobi", ".azw", ".azw3", ".pdf", ".djvu"}
 PARTIAL_SUFFIX = ".part"
 JUNK_SUFFIXES = {".textclipping", ".txt", ".zip"}
+FINGERPRINT_BYTES = 64 * 1024
 
 
 def book_format(path: Path) -> str:
@@ -33,6 +35,33 @@ def iter_books(root: Path) -> Iterator[Path]:
     for path in sorted(root.rglob("*")):
         if path.is_file() and not is_junk(path.name) and is_book(path):
             yield path
+
+
+def is_empty_dir(path: Path) -> bool:
+    return path.is_dir() and not any(path.iterdir())
+
+
+def is_hidden(path: Path) -> bool:
+    return path.name.startswith(".")
+
+
+def iter_junk(root: Path) -> Iterator[Path]:
+    for path in sorted(root.rglob("*")):
+        if is_hidden(path):
+            continue
+        if is_empty_dir(path) or (path.is_file() and not is_book(path)):
+            yield path
+
+
+def fingerprint(path: Path) -> str:
+    size = path.stat().st_size
+    digest = hashlib.sha1(str(size).encode())
+    with path.open("rb") as handle:
+        digest.update(handle.read(FINGERPRINT_BYTES))
+        if size > 2 * FINGERPRINT_BYTES:
+            handle.seek(-FINGERPRINT_BYTES, os.SEEK_END)
+        digest.update(handle.read(FINGERPRINT_BYTES))
+    return digest.hexdigest()
 
 
 def relative_path(path: Path, root: Path) -> str:

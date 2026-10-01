@@ -9,7 +9,7 @@ def row(**overrides) -> Row:
         title="Deep Work", authors="Cal Newport", series="Focus", series_index="2",
         folder="02_NonFiction", rel_path="02_NonFiction/x.epub", path="/lib/02_NonFiction/x.epub",
         format="epub", partial=False, language="en", year="2016", publisher="GC",
-        source="epub", cover="/cache/abc.png", size=1_500_000, mtime=0.0, norm_title="deep work",
+        source="epub", cover="/cache/abc.png", size=1_500_000, mtime=0.0, norm_title="deep work", fingerprint="f00",
     )
     return Row(**{**base, **overrides})
 

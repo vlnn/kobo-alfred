@@ -18,7 +18,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
     title, authors, series, series_index, folder, rel_path,
     path UNINDEXED, format UNINDEXED, partial UNINDEXED, language UNINDEXED,
     year UNINDEXED, publisher UNINDEXED, source UNINDEXED, cover UNINDEXED,
-    size UNINDEXED, mtime UNINDEXED, norm_title UNINDEXED,
+    size UNINDEXED, mtime UNINDEXED, norm_title UNINDEXED, fingerprint UNINDEXED,
     tokenize = 'unicode61 remove_diacritics 2'
 );
 """
@@ -26,6 +26,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 COLUMNS = (
     "title", "authors", "series", "series_index", "folder", "rel_path", "path", "format",
     "partial", "language", "year", "publisher", "source", "cover", "size", "mtime", "norm_title",
+    "fingerprint",
 )
 
 FILTER_SQL = {
@@ -55,6 +56,7 @@ class Row:
     size: int
     mtime: float
     norm_title: str
+    fingerprint: str
 
 
 @dataclass
@@ -73,6 +75,7 @@ def to_record(book: Book, cover: Path | None) -> tuple:
         str(Path(book.rel_path).parent), book.rel_path, book.path, book.format,
         int(book.partial), book.language, book.year, book.publisher, book.source,
         str(cover) if cover else "", book.size, book.mtime, normalize_title(book.title),
+        book.fingerprint,
     )
 
 
