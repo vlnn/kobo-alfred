@@ -154,12 +154,28 @@ def without_index() -> int:
     return 0
 
 
+def matches(row, query: str) -> bool:
+    return query in f"{row.title} {row.authors} {row.rel_path}".lower()
+
+
+def unclassified_rows(query: str = "") -> list:
+    store = tag_store()
+    rows = (r for r in all_rows(Index(db_path())) if not store.genre_of(r) and matches(r, query.lower()))
+    return sorted(rows, key=lambda r: r.mtime)
+
+
 def cmd_inbox(args) -> int:
     if not db_path().exists():
         return without_index()
-    store = tag_store()
-    rows = sorted((r for r in all_rows(Index(db_path())) if not store.genre_of(r)), key=lambda r: r.mtime)
-    items = [alfred.inbox_item(r, "") for r in rows] or [alfred.message_item("Inbox is empty", "Every book has a genre")]
+    items = [alfred.inbox_item(r, "") for r in unclassified_rows(args.query)] or [alfred.message_item("Inbox is empty", "Every book has a genre")]
+    print(alfred.render(items))
+    return 0
+
+
+def cmd_classify(args) -> int:
+    if not db_path().exists():
+        return without_index()
+    items = [alfred.classify_item(r, "") for r in unclassified_rows(args.query)] or [alfred.message_item("Nothing to classify", "Every book has a genre")]
     print(alfred.render(items))
     return 0
 
@@ -296,7 +312,12 @@ def build_parser() -> argparse.ArgumentParser:
     rnd.add_argument("query", nargs="?", default="")
     rnd.set_defaults(func=cmd_random)
     sub.add_parser("stats").set_defaults(func=cmd_stats)
-    sub.add_parser("inbox").set_defaults(func=cmd_inbox)
+    inbox_cmd = sub.add_parser("inbox")
+    inbox_cmd.add_argument("query", nargs="?", default="")
+    inbox_cmd.set_defaults(func=cmd_inbox)
+    classify_cmd = sub.add_parser("classify")
+    classify_cmd.add_argument("query", nargs="?", default="")
+    classify_cmd.set_defaults(func=cmd_classify)
     lint_cmd = sub.add_parser("lint")
     lint_cmd.add_argument("--text", action="store_true")
     lint_cmd.set_defaults(func=cmd_lint)

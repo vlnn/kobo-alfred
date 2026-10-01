@@ -4,7 +4,7 @@ Alfred workflow for searching an ebook library (the Kobo SD card) by metadata, w
 
 ```
 kb deep work                 full-text over title / authors / series / folder / filename
-kb author:delany fmt:epub    filters: fmt: in: author: series: lang: year: is:partial is:complete
+kb author:delany fmt:epub    filters: fmt: in: author: series: lang: year: genre: tag: is:partial is:complete
 kb in:inbox                  folder match is substring, case-insensitive
 kb                           empty query → most recently added books
 kb:index                     rebuild the index (reads epub/fb2 metadata, extracts covers)
@@ -16,6 +16,7 @@ kb:inbox                     books without a genre yet, oldest first
 kb:plan                      proposed moves/renames/trash, written to plan.tsv — ↩ applies that one line
 kb:apply                     apply plan.tsv, then rebuild the index
 kb:undo                      move the last batch back
+kb:classify                  pick an inbox book, then a genre; the inbox shrinks as you go
 ```
 
 Each result shows: title · authors · series #n · year · FORMAT size · path relative to the library root.
@@ -28,6 +29,7 @@ Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbn
 | ⌘↩           | copy library-relative path   |
 | ⌃↩           | browse the book's folder     |
 | ⇧ / ⌘Y       | Quick Look                   |
+| fn↩          | move to its genre home now   |
 | ⌘C           | copy relative path           |
 | ⌘L           | large type: title/author/path|
 
@@ -88,6 +90,10 @@ copies) and in path-mirrored `docsettings` sidecars, prunes folders left empty, 
 `journal.jsonl`, and rebuilds the index. A plan older than the index is refused. `kb:undo` reverses the last
 batch (an undo is itself a batch, so undoing twice re-applies). Nothing is ever deleted: `_trash/` and `_dups/`
 are left for you, and both are ignored by the scanner.
+
+`kb:classify` is the daily loop: type to find an inbox book, ↩, type a genre (existing ones are listed, an
+unknown one is created), ↩. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy +now -bought`.
+Genres and tags are searchable (`kb genre:fiction tag:now`); `genre:` matches by prefix.
 
 The genre folder is the existing one matching the genre; a series folder is only used when you own more than
 one book of the series. Partial downloads and unclassified books are never moved. Names are made exFAT-safe.

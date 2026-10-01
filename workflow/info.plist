@@ -84,7 +84,7 @@ Set the library root in the workflow configuration; the index lives in Alfred's 
 				<key>title</key>
 				<string>Search library</string>
 				<key>subtext</key>
-				<string>title, author, series · fmt:epub in:inbox author:x series:x lang:uk is:partial</string>
+				<string>title, author, series · fmt:epub in:inbox author:x series:x lang:uk genre:fiction tag:now is:partial</string>
 				<key>runningsubtext</key>
 				<string>Searching…</string>
 				<key>withspace</key>
@@ -579,6 +579,115 @@ nohup /usr/bin/python3 -m kobolib apply --only "$1" --notify &gt;/dev/null 2&gt;
 echo "Moving one book… you will get a notification when it finishes"</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>CLASSIFY</string>
+			<key>version</key>
+			<integer>3</integer>
+			<key>config</key>
+			<dict>
+				<key>keyword</key>
+				<string>kb:classify</string>
+				<key>title</key>
+				<string>Classify a book</string>
+				<key>subtext</key>
+				<string>type to filter the inbox · ↩ then pick a genre</string>
+				<key>runningsubtext</key>
+				<string>…</string>
+				<key>withspace</key>
+				<true/>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>queuedelaycustom</key>
+				<integer>1</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib classify "$1"</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>GENRES</string>
+			<key>version</key>
+			<integer>3</integer>
+			<key>config</key>
+			<dict>
+				<key>title</key>
+				<string>Pick a genre</string>
+				<key>subtext</key>
+				<string>type to filter · an unknown genre is created</string>
+				<key>runningsubtext</key>
+				<string>…</string>
+				<key>withspace</key>
+				<true/>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>queuedelaycustom</key>
+				<integer>1</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib genres "$1"</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>TAG_RUN</string>
+			<key>version</key>
+			<integer>2</integer>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib tag "$book" "genre=$1"</string>
+			</dict>
+		</dict>
 	</array>
 	<key>connections</key>
 	<dict>
@@ -588,6 +697,7 @@ echo "Moving one book… you will get a notification when it finishes"</string>
 			<dict><key>destinationuid</key><string>REVEAL</string><key>modifiers</key><integer>524288</integer><key>modifiersubtext</key><string>Reveal in Finder</string><key>vitoclose</key><false/></dict>
 			<dict><key>destinationuid</key><string>COPY</string><key>modifiers</key><integer>1048576</integer><key>modifiersubtext</key><string>Copy relative path</string><key>vitoclose</key><false/></dict>
 			<dict><key>destinationuid</key><string>BROWSE</string><key>modifiers</key><integer>262144</integer><key>modifiersubtext</key><string>Browse folder in Alfred</string><key>vitoclose</key><false/></dict>
+			<dict><key>destinationuid</key><string>APPLY_ONE</string><key>modifiers</key><integer>8388608</integer><key>modifiersubtext</key><string>Move to its genre home now</string><key>vitoclose</key><true/></dict>
 		</array>
 		<key>DUPS</key>
 		<array>
@@ -634,6 +744,18 @@ echo "Moving one book… you will get a notification when it finishes"</string>
 		<array>
 			<dict><key>destinationuid</key><string>INDEX_NOTIFY</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
 		</array>
+		<key>CLASSIFY</key>
+		<array>
+			<dict><key>destinationuid</key><string>GENRES</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+		</array>
+		<key>GENRES</key>
+		<array>
+			<dict><key>destinationuid</key><string>TAG_RUN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><true/></dict>
+		</array>
+		<key>TAG_RUN</key>
+		<array>
+			<dict><key>destinationuid</key><string>INDEX_NOTIFY</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+		</array>
 		<key>INDEX_KW</key>
 		<array>
 			<dict><key>destinationuid</key><string>INDEX_RUN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
@@ -660,6 +782,9 @@ echo "Moving one book… you will get a notification when it finishes"</string>
 		<key>UNDO_KW</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>1320</real></dict>
 		<key>UNDO_RUN</key><dict><key>xpos</key><real>320</real><key>ypos</key><real>1320</real></dict>
 		<key>APPLY_ONE</key><dict><key>xpos</key><real>320</real><key>ypos</key><real>1040</real></dict>
+		<key>CLASSIFY</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>1460</real></dict>
+		<key>GENRES</key><dict><key>xpos</key><real>320</real><key>ypos</key><real>1460</real></dict>
+		<key>TAG_RUN</key><dict><key>xpos</key><real>580</real><key>ypos</key><real>1460</real></dict>
 		<key>OPEN</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>60</real></dict>
 		<key>REVEAL</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>200</real></dict>
 		<key>COPY</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>340</real></dict>

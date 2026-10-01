@@ -247,3 +247,14 @@ def test_genres_offers_new_genre_from_query(env, library, capsys):
 
     items = output(capsys)["items"]
     assert items[-1]["arg"] == "fiction/mystery" and items[-1]["title"].startswith("New genre"), "an unknown genre can be created from the query"
+
+
+def test_classify_lists_unclassified_with_book_variable(env, library, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["classify", "napkin"])
+
+    items = output(capsys)["items"]
+    assert [i["title"] for i in items] == ["Napkin"], "classify should filter the inbox by the query"
+    assert items[0]["arg"] == "" and len(items[0]["variables"]["book"]) == 40, "the book travels as a variable, the query starts empty"

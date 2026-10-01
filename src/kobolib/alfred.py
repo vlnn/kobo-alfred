@@ -49,6 +49,7 @@ def modifiers(row: Row) -> dict:
         "cmd": {"arg": row.rel_path, "subtitle": f"Copy relative path: {row.rel_path}"},
         "ctrl": {"arg": row.folder, "subtitle": f"Browse folder: {row.folder}"},
         "shift": {"arg": row.path, "subtitle": "Quick Look"},
+        "fn": {"arg": row.path, "subtitle": "Move to its genre home now"},
     }
 
 
@@ -67,6 +68,10 @@ def book_item(row: Row) -> dict:
         "mods": modifiers(row),
         "variables": {"book": row.fingerprint},
     }
+
+
+def classify_item(row: Row, genre: str) -> dict:
+    return {**inbox_item(row, genre), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row, genre) + " · ↩ pick a genre"}
 
 
 def genre_item(genre: str, is_new: bool = False) -> dict:
