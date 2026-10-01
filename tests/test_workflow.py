@@ -43,3 +43,8 @@ def test_every_object_is_placed_on_the_canvas(workflow):
 @pytest.mark.parametrize("keyword", ["kb", "kb:src", "kb:index-src", "kb:classify"])
 def test_keywords_are_wired(workflow, keyword):
     assert any(o["config"].get("keyword") == keyword for o in workflow["objects"]), f"{keyword} should be a workflow entry point"
+
+
+def test_plan_row_action_tells_apart_one_row_from_apply_all(workflow):
+    script = next(o for o in workflow["objects"] if o["uid"] == "APPLY_ONE")["config"]["script"]
+    assert 'apply --only "$1"' in script and '[ -z "$1" ]' in script, "the plan row action should run the whole plan on an empty argument and say so"

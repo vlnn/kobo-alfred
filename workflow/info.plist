@@ -600,7 +600,7 @@ echo "Undoing… you will get a notification when it finishes"</string>
 				<key>script</key>
 				<string>export PYTHONPATH="$PWD"
 nohup /usr/bin/python3 -m kobolib apply --only "$1" --notify &gt;/dev/null 2&gt;&amp;1 &amp;
-echo "Moving one book… you will get a notification when it finishes"</string>
+if [ -z "$1" ]; then echo "Applying the plan… you will get a notification when it finishes"; else echo "Moving one book… you will get a notification when it finishes"; fi</string>
 			</dict>
 		</dict>
 		<dict>
