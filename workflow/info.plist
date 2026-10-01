@@ -806,7 +806,7 @@ echo "Moving one book… you will get a notification when it finishes"</string>
 			<key>uid</key>
 			<string>IMPORT_RUN</string>
 			<key>version</key>
-			<integer>3</integer>
+			<integer>2</integer>
 			<key>config</key>
 			<dict>
 				<key>concurrently</key>
@@ -829,7 +829,7 @@ echo "Importing… you will get a notification when it finishes"</string>
 			<key>uid</key>
 			<string>IMPORT_MOVE_RUN</string>
 			<key>version</key>
-			<integer>3</integer>
+			<integer>2</integer>
 			<key>config</key>
 			<dict>
 				<key>concurrently</key>
@@ -852,7 +852,7 @@ echo "Moving into the library… you will get a notification when it finishes"</
 			<key>uid</key>
 			<string>INDEX_SRC_KW</string>
 			<key>version</key>
-			<integer>3</integer>
+			<integer>1</integer>
 			<key>config</key>
 			<dict>
 				<key>keyword</key>
@@ -873,7 +873,7 @@ echo "Moving into the library… you will get a notification when it finishes"</
 			<key>uid</key>
 			<string>INDEX_SRC_RUN</string>
 			<key>version</key>
-			<integer>3</integer>
+			<integer>2</integer>
 			<key>config</key>
 			<dict>
 				<key>concurrently</key>
