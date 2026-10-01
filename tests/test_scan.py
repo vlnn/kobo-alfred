@@ -98,3 +98,18 @@ def test_iter_junk_reports_non_books_and_empty_dirs(tmp_path):
     found = sorted(p.relative_to(tmp_path).as_posix() for p in iter_junk(tmp_path))
 
     assert found == ["a/FSCK0000.000", "a/note.textClipping", "a/x.fb2.zip", "zip"], "junk should list non-book files and empty directories, skipping hidden files"
+
+
+def test_scanners_skip_trash_dups_and_excluded_dirs(tmp_path):
+    from kobolib.scan import iter_books, iter_junk
+
+    for folder in ("_trash/x", "_dups/y", "data", "ok"):
+        (tmp_path / folder).mkdir(parents=True)
+        (tmp_path / folder / "book.epub").write_bytes(b"")
+        (tmp_path / folder / "junk.txt").write_bytes(b"")
+
+    books = [p.relative_to(tmp_path).as_posix() for p in iter_books(tmp_path, exclude=(tmp_path / "data",))]
+    junk = [p.relative_to(tmp_path).as_posix() for p in iter_junk(tmp_path, exclude=(tmp_path / "data",))]
+
+    assert books == ["ok/book.epub"], "books under _trash, _dups and the excluded dir should be ignored"
+    assert junk == ["ok/junk.txt"], "junk under _trash, _dups and the excluded dir should be ignored"

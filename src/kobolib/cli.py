@@ -8,9 +8,11 @@ import sys
 from pathlib import Path
 
 from kobolib import alfred
-from kobolib.index import Index, IndexBusy, build_index, fill_thumbnails
+from kobolib.apply import apply, undo
+from kobolib.index import Index, IndexBusy, build_index, fill_thumbnails, index_busy
 from kobolib.lint import lint
-from kobolib.plan import plan, write_plan
+from kobolib.plan import plan, read_plan, write_plan
+from kobolib.scan import relative_path
 from kobolib.query import parse_query
 from kobolib.scan import probe_root
 from kobolib.tags import TagStore
@@ -38,6 +40,10 @@ def plan_path() -> Path:
     return data_dir() / "plan.tsv"
 
 
+def journal_path() -> Path:
+    return data_dir() / "journal.jsonl"
+
+
 def tag_store() -> TagStore:
     return TagStore(data_dir() / "tags.tsv").load()
 
@@ -63,7 +69,7 @@ def run_index() -> tuple[int, str]:
     if not root.exists():
         return 1, f"Library root not mounted: {root}"
     try:
-        count = build_index(root, db_path(), covers_dir(), thumbnails=False)
+        count = build_index(root, db_path(), covers_dir(), thumbnails=False, exclude=(data_dir(),))
     except IndexBusy:
         return 1, "Indexing is already running"
     if count == 0:
@@ -140,7 +146,7 @@ def text_report(findings) -> str:
 def cmd_lint(args) -> int:
     if not db_path().exists():
         return without_index()
-    findings = lint(all_rows(Index(db_path())), tag_store(), library_root())
+    findings = lint(all_rows(Index(db_path())), tag_store(), library_root(), exclude=(data_dir(),))
     if args.text:
         print(text_report(findings))
         return 0
@@ -153,7 +159,7 @@ def cmd_plan(args) -> int:
     if not db_path().exists():
         return without_index()
     rows, store = all_rows(Index(db_path())), tag_store()
-    ops = plan(rows, lint(rows, store, library_root()), store)
+    ops = plan(rows, lint(rows, store, library_root(), exclude=(data_dir(),)), store)
     write_plan(ops, plan_path())
     if args.text:
         print(plan_path().read_text(encoding="utf-8"), end="")
@@ -161,6 +167,58 @@ def cmd_plan(args) -> int:
     items = [alfred.plan_item(o, str(library_root())) for o in ops] or [alfred.message_item("Nothing to do", "Every classified book is where it belongs")]
     print(alfred.render(items))
     return 0
+
+
+def current_plan():
+    rows, store = all_rows(Index(db_path())), tag_store()
+    return plan(rows, lint(rows, store, library_root(), exclude=(data_dir(),)), store)
+
+
+def plan_is_stale() -> bool:
+    return plan_path().stat().st_mtime < db_path().stat().st_mtime
+
+
+def ops_for(only: str | None):
+    if only:
+        rel = relative_path(Path(only), library_root())
+        return [o for o in current_plan() if o.src == rel]
+    if not plan_path().exists():
+        return None
+    return None if plan_is_stale() else read_plan(plan_path())
+
+
+def refuse(message: str, should_notify: bool) -> int:
+    report(message, should_notify)
+    return 1
+
+
+def finish_with_reindex(message: str, should_notify: bool) -> int:
+    code, index_message = run_index()
+    report(f"{message} · {index_message}", should_notify)
+    return code
+
+
+def cmd_apply(args) -> int:
+    if not db_path().exists():
+        return refuse("No index yet: run kb:index", args.notify)
+    if index_busy(db_path()):
+        return refuse("Indexing is running, try again later", args.notify)
+    if not args.only and not plan_path().exists():
+        return refuse("No plan: run kb:plan first", args.notify)
+    if not args.only and plan_is_stale():
+        return refuse("Plan is stale (index changed since): run kb:plan again", args.notify)
+    result = apply(ops_for(args.only), library_root(), journal_path())
+    plan_path().unlink(missing_ok=True)
+    summary = f"Applied {result.done}" + (f", skipped {len(result.skipped)}" if result.skipped else "")
+    return finish_with_reindex(summary, args.notify)
+
+
+def cmd_undo(args) -> int:
+    if index_busy(db_path()):
+        return refuse("Indexing is running, try again later", args.notify)
+    undone = undo(library_root(), journal_path())
+    plan_path().unlink(missing_ok=True)
+    return finish_with_reindex(f"Undid {undone}", args.notify)
 
 
 def cmd_stats(args) -> int:
@@ -196,6 +254,13 @@ def build_parser() -> argparse.ArgumentParser:
     plan_cmd = sub.add_parser("plan")
     plan_cmd.add_argument("--text", action="store_true")
     plan_cmd.set_defaults(func=cmd_plan)
+    apply_cmd = sub.add_parser("apply")
+    apply_cmd.add_argument("--only")
+    apply_cmd.add_argument("--notify", action="store_true")
+    apply_cmd.set_defaults(func=cmd_apply)
+    undo_cmd = sub.add_parser("undo")
+    undo_cmd.add_argument("--notify", action="store_true")
+    undo_cmd.set_defaults(func=cmd_undo)
     return parser
 
 

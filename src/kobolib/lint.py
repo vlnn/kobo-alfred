@@ -157,13 +157,13 @@ def unclassified(rows: list[Row], store: TagStore) -> list[Finding]:
     return flag("unclassified", rows, lambda r: not store.genre_of(r), lambda r: f"{r.title}: no genre yet")
 
 
-def junk(root: Path) -> list[Finding]:
-    return [Finding("junk", f"{p.name}: not a book", [relative_path(p, root)]) for p in iter_junk(root)]
+def junk(root: Path, exclude: tuple[Path, ...] = ()) -> list[Finding]:
+    return [Finding("junk", f"{p.name}: not a book", [relative_path(p, root)]) for p in iter_junk(root, exclude)]
 
 
-def lint(rows: list[Row], store: TagStore, root: Path) -> list[Finding]:
+def lint(rows: list[Row], store: TagStore, root: Path, exclude: tuple[Path, ...] = ()) -> list[Finding]:
     return [
-        *junk(root),
+        *junk(root, exclude),
         *partials(rows),
         *double_extensions(rows),
         *noisy_names(rows),

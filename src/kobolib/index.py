@@ -79,8 +79,8 @@ def to_record(book: Book, cover: Path | None) -> tuple:
     )
 
 
-def records(root: Path, cover_cache: Path):
-    for path in iter_books(root):
+def records(root: Path, cover_cache: Path, exclude: tuple[Path, ...]):
+    for path in iter_books(root, exclude):
         book = read_book(path, root)
         yield to_record(book, ensure_cover(book, cover_cache, thumbnails=False))
 
@@ -118,32 +118,37 @@ def lock_path(db_path: Path) -> Path:
     return db_path.with_suffix(".lock")
 
 
+def index_busy(db_path: Path) -> bool:
+    lock = lock_path(db_path)
+    return lock.exists() and time.time() - lock.stat().st_mtime < LOCK_MAX_AGE
+
+
 def acquire_lock(db_path: Path) -> Path:
     lock = lock_path(db_path)
-    if lock.exists() and time.time() - lock.stat().st_mtime < LOCK_MAX_AGE:
+    if index_busy(db_path):
         raise IndexBusy(f"another index run is in progress ({lock})")
     lock.write_text(str(os.getpid()))
     return lock
 
 
-def write_database(target: Path, root: Path, cover_cache: Path) -> int:
+def write_database(target: Path, root: Path, cover_cache: Path, exclude: tuple[Path, ...]) -> int:
     placeholders = ", ".join("?" for _ in COLUMNS)
     with sqlite3.connect(target) as conn:
         conn.executescript(SCHEMA)
         cursor = conn.executemany(
             f"INSERT INTO books ({', '.join(COLUMNS)}) VALUES ({placeholders})",
-            records(root, cover_cache),
+            records(root, cover_cache, exclude),
         )
         return cursor.rowcount
 
 
-def build_index(root: Path, db_path: Path, cover_cache: Path, thumbnails: bool = True) -> int:
+def build_index(root: Path, db_path: Path, cover_cache: Path, thumbnails: bool = True, exclude: tuple[Path, ...] = ()) -> int:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     lock = acquire_lock(db_path)
     temp = db_path.with_suffix(".tmp")
     try:
         temp.unlink(missing_ok=True)
-        count = write_database(temp, root, cover_cache)
+        count = write_database(temp, root, cover_cache, exclude)
         os.replace(temp, db_path)
         if thumbnails and count:
             fill_thumbnails(db_path, cover_cache)

@@ -142,3 +142,56 @@ def test_plan_text_prints_tsv(env, capsys):
     main(["plan", "--text"])
 
     assert capsys.readouterr().out.startswith("kind\tsrc\tdst\treason\n"), "text plan should be the TSV itself"
+
+
+def test_apply_runs_plan_and_reindexes(env, library, tmp_path, capsys):
+    main(["index"])
+    main(["plan"])
+    capsys.readouterr()
+
+    assert main(["apply"]) == 0, "apply should succeed"
+
+    out = capsys.readouterr().out
+    assert out.startswith("Applied 1"), "the misnamed epub should be moved"
+    assert (library / "02_NonFiction" / "Newport, Cal" / "Newport, Cal - Deep Work (Focus 02) (2016).epub").exists(), "the book should be renamed into its author folder"
+    assert (tmp_path / "alfred-data" / "journal.jsonl").exists(), "the move should be journaled"
+    main(["search", "deep"])
+    assert "Newport, Cal/" in output(capsys)["items"][0]["subtitle"], "the index should be rebuilt after applying"
+
+
+def test_apply_refuses_stale_plan(env, library, capsys):
+    main(["index"])
+    main(["plan"])
+    import time
+    time.sleep(0.02)
+    main(["index"])
+    capsys.readouterr()
+
+    assert main(["apply"]) == 1, "a plan older than the index must not be applied"
+    assert "stale" in capsys.readouterr().out, "the reason should be printed"
+
+
+def test_apply_only_one_path(env, library, capsys):
+    main(["index"])
+    capsys.readouterr()
+    book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+
+    assert main(["apply", "--only", str(book)]) == 0, "a single book can be applied without a plan file"
+    assert not book.exists(), "the book should have moved"
+
+
+def test_undo_restores_and_reindexes(env, library, capsys):
+    main(["index"])
+    main(["plan"])
+    main(["apply"])
+    capsys.readouterr()
+
+    assert main(["undo"]) == 0, "undo should succeed"
+    assert (library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub").exists(), "the original name should be back"
+    assert capsys.readouterr().out.startswith("Undid 1"), "undo should report what it reversed"
+
+
+def test_apply_without_plan_explains(env, capsys):
+    main(["index"])
+    capsys.readouterr()
+    assert main(["apply"]) == 1 and "kb:plan" in capsys.readouterr().out, "apply without a plan should point at kb:plan"

@@ -81,9 +81,9 @@ def test_rebuild_swaps_atomically_and_keeps_old_index_readable(index: Index, lib
     seen = []
     original = mod.records
 
-    def spying_records(root, cache):
+    def spying_records(root, cache, exclude):
         seen.append(index.count())
-        yield from original(root, cache)
+        yield from original(root, cache, exclude)
 
     mocker.patch("kobolib.index.records", side_effect=spying_records)
     build_index(library, index.db_path, cover_cache=library / "c")
