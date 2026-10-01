@@ -11,6 +11,8 @@ kb:index                     rebuild the index (reads epub/fb2 metadata, extract
 kb:dups                      same title in several files or formats
 kb:rnd fmt:epub              five random complete books, filters allowed
 kb:stats                     counts: books, incomplete downloads, duplicate titles
+kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
+kb:inbox                     books without a genre yet, oldest first
 ```
 
 Each result shows: title · authors · series #n · year · FORMAT size · path relative to the library root.
@@ -42,6 +44,30 @@ The index (`library.db`) and `covers/` live in Alfred's workflow data folder
 updates and cache clears. Override with the optional **Index folder** setting.
 
 From a terminal: `KOBO_ROOT=… KOBO_DATA=… uv run kobolib index|search|dups|random|stats`.
+
+## Organizing
+
+The folder tree is the on-device browser, so it should encode exactly one thing: genre → author → series.
+`kobolib` keeps a tag store (`tags.tsv` next to the index) keyed by a content fingerprint, so tags survive
+renames and moves. `kb:index` bootstraps a genre for every book from its first two folder levels
+(`01_Fiction/01_Sci-Fi_Fantasy/…` → `fiction/sci-fi_fantasy`); books under `00_Inbox` or `99_Archives`
+stay unclassified and show up in `kb:inbox`.
+
+`kb:lint` reports, never changes anything:
+
+| rule | what it catches |
+|---|---|
+| `junk` | `FSCK0000.*`, `.textClipping`, `.zip`, empty folders |
+| `partial` | `.part` downloads |
+| `double_extension` | `Book.fb2.mobi` |
+| `noisy_name` | leading spaces, `- libgen.li`, `-- Anna's Archive`, `&amp_`, `{Author}{id}` |
+| `opaque` | `7_815203.epub`, `smp…epub`, `annas-arch-…fb2`, single-word titles without an author |
+| `exact_duplicate` | identical files in several folders |
+| `title_duplicate` | same title in several formats or editions |
+| `misfiled_series` | a series book outside the folder that already holds its series |
+| `unclassified` | no genre |
+
+From a terminal: `kobolib lint --text` prints one finding per line (`rule<TAB>detail<TAB>paths`).
 
 ## Metadata sources
 

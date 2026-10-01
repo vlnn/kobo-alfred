@@ -36,6 +36,11 @@ def paths(findings: list[Finding]) -> list[list[str]]:
         ("9f8e7d6c5b4a3_zorya.fb2", "9f8e7d6c5b4a3_zorya", "", True),
         ("fb2048576u_misto_bez_sontsia.fb2", "fb2048576u_misto_bez_sontsia", "", True),
         ("vorlak.fb2", "vorlak", "", True),
+        ("ZYX.mobi", "ZYX", "", True),
+        ("quiet-lantern.epub", "quiet-lantern", "", True),
+        ("Learn_Ferrite_in_a_Month_of_Evenings.epub", "Learn_Ferrite_in_a_Month_of_Evenings", "", False),
+        ("pisnia-dlya-mandrivnyka.fb2", "pisnia-dlya-mandrivnyka", "", False),
+        ("Orbital Gardening.pdf", "Orbital Gardening", "", False),
         ("Learning Quill.pdf", "Learning Quill", "", False),
         ("1847 - Marta Velinska.epub", "1847", "Marta Velinska", False),
         ("Saltmarsh.epub", "Saltmarsh", "Ivor Penhale", False),
@@ -67,6 +72,9 @@ def test_double_extensions(name, double):
         ("Marlowe, Petra - Finish Everything (2014, Quill &amp_ Lantern).epub", True),
         ("Copper Hymn -- Teodor Vaskiv -- 9780000000001 -- 0123456789abcdef0123456789abcdef -- Anna’s Archive.epub", True),
         ("Ashfall{Rowan Teague}(Lantern){100000001} libgen.li.epub", True),
+        ("Learn_Ferrite_in_a_Month_of_Evenings.epub", True),
+        ("Varga_Dovhi-Nochi_2_Zlam.400123.epub", True),
+        ("pisnia-dlya-mandrivnyka.fb2", True),
         ("Teague Rowan - Ash and Ember (Book of the Grey Tide 01-02) - 2011.epub", False),
         ("01 Keel and Canvas - Morwenna O'Hare.epub", False),
     ],
@@ -122,6 +130,19 @@ def test_misfiled_series_points_at_existing_series_folder():
     assert found[0].detail.endswith(home), "detail should name the series folder"
 
 
+def test_misfiled_series_matches_short_folder_names():
+    home = "01_Fiction/01_Sci-Fi_Fantasy/Standalone/Rowan Teague/Kestrel"
+    rows = [
+        named("Blade of Kestrel (Kestrel 02).epub", folder=home, series="Kestrel"),
+        named("[Kestrel in the Rain №1] Тіґ, Ровен.fb2", folder="01_Fiction/02_Adventure_Historical", series="Kestrel in the Rain"),
+        named("Tom 1.epub", folder="01_Fiction/01_Sci-Fi_Fantasy/Standalone/Rowan Teague/Grey Tide/1 Book of the Grey Tide", series="1"),
+    ]
+
+    found = misfiled_series(rows)
+
+    assert paths(found) == [["01_Fiction/02_Adventure_Historical/[Kestrel in the Rain №1] Тіґ, Ровен.fb2"]], "a folder name contained in the series name should count; tiny keys should not"
+
+
 def test_unclassified_lists_books_without_genre(tmp_path: Path):
     store = TagStore(tmp_path / "t.tsv")
     store.set("known", Tag(genre="fiction/sci-fi"))
@@ -137,4 +158,4 @@ def test_lint_runs_all_rules_in_order(tmp_path: Path):
 
     rules = [f.rule for f in lint(rows, store, tmp_path)]
 
-    assert rules == ["junk", "partial", "opaque", "unclassified", "unclassified"], "findings should follow the rule order"
+    assert rules == ["junk", "partial", "noisy_name", "opaque", "unclassified", "unclassified"], "findings should follow the rule order"

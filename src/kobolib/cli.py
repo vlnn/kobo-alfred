@@ -9,8 +9,10 @@ from pathlib import Path
 
 from kobolib import alfred
 from kobolib.index import Index, IndexBusy, build_index, fill_thumbnails
+from kobolib.lint import lint
 from kobolib.query import parse_query
 from kobolib.scan import probe_root
+from kobolib.tags import TagStore
 
 
 def library_root() -> Path:
@@ -31,6 +33,21 @@ def covers_dir() -> Path:
     return data_dir() / "covers"
 
 
+def tag_store() -> TagStore:
+    return TagStore(data_dir() / "tags.tsv").load()
+
+
+def all_rows(index: Index) -> list:
+    return index.search(parse_query(""), limit=100_000)
+
+
+def bootstrap_tags() -> int:
+    store = tag_store()
+    added = store.bootstrap(all_rows(Index(db_path())))
+    store.save()
+    return added
+
+
 def notify(message: str) -> None:
     script = f'display notification "{message}" with title "Kobo Library"'
     subprocess.run(["osascript", "-e", script], capture_output=True, check=False)
@@ -46,6 +63,7 @@ def run_index() -> tuple[int, str]:
         return 1, "Indexing is already running"
     if count == 0:
         return 1, f"No books found: {probe_root(root) or f'no ebook files under {root}'}"
+    bootstrap_tags()
     return 0, f"Indexed {count} books from {root}"
 
 
@@ -76,8 +94,7 @@ def search_items(raw: str) -> list[dict]:
 def cmd_search(args) -> int:
     print(f"kobolib search query={args.query!r} db={db_path()} root={library_root()}", file=sys.stderr)
     if not db_path().exists():
-        print(alfred.render([alfred.message_item("No index yet", "Run kb:index to build it")]))
-        return 0
+        return without_index()
     print(alfred.render(search_items(args.query)))
     return 0
 
@@ -93,6 +110,37 @@ def cmd_random(args) -> int:
     rows = Index(db_path()).search(parse_query(args.query + " is:complete"), limit=5000)
     picks = random.sample(rows, min(5, len(rows)))
     print(alfred.render([alfred.book_item(r) for r in picks] or [alfred.empty_item(args.query)]))
+    return 0
+
+
+def without_index() -> int:
+    print(alfred.render([alfred.message_item("No index yet", "Run kb:index to build it")]))
+    return 0
+
+
+def cmd_inbox(args) -> int:
+    if not db_path().exists():
+        return without_index()
+    store = tag_store()
+    rows = sorted((r for r in all_rows(Index(db_path())) if not store.genre_of(r)), key=lambda r: r.mtime)
+    items = [alfred.inbox_item(r, "") for r in rows] or [alfred.message_item("Inbox is empty", "Every book has a genre")]
+    print(alfred.render(items))
+    return 0
+
+
+def text_report(findings) -> str:
+    return "\n".join(f"{f.rule}\t{f.detail}\t{' | '.join(f.rel_paths)}" for f in findings)
+
+
+def cmd_lint(args) -> int:
+    if not db_path().exists():
+        return without_index()
+    findings = lint(all_rows(Index(db_path())), tag_store(), library_root())
+    if args.text:
+        print(text_report(findings))
+        return 0
+    items = [alfred.finding_item(f, str(library_root())) for f in findings] or [alfred.message_item("Nothing to fix", "The library is clean")]
+    print(alfred.render(items))
     return 0
 
 
@@ -122,6 +170,10 @@ def build_parser() -> argparse.ArgumentParser:
     rnd.add_argument("query", nargs="?", default="")
     rnd.set_defaults(func=cmd_random)
     sub.add_parser("stats").set_defaults(func=cmd_stats)
+    sub.add_parser("inbox").set_defaults(func=cmd_inbox)
+    lint_cmd = sub.add_parser("lint")
+    lint_cmd.add_argument("--text", action="store_true")
+    lint_cmd.set_defaults(func=cmd_lint)
     return parser
 
 

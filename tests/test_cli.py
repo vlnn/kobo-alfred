@@ -84,3 +84,39 @@ def test_no_thumbnails_flag_skips_second_pass(env, capsys, mocker):
     fill = mocker.patch("kobolib.cli.fill_thumbnails")
     main(["index", "--no-thumbnails"])
     fill.assert_not_called()
+
+
+def test_index_bootstraps_tags_from_folders(env, tmp_path, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["inbox"])
+
+    titles = [i["title"] for i in output(capsys)["items"]]
+    assert "Deep Work" not in titles, "a book in a genre folder should be classified by index"
+    assert "Napkin" in titles, "an inbox book should wait for classification"
+
+
+def test_lint_emits_findings_as_items(env, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["lint"])
+
+    rules = {i["subtitle"].split(" · ")[0] for i in output(capsys)["items"]}
+    assert {"partial", "unclassified"} <= rules, "lint should report the partial download and unclassified inbox books"
+
+
+def test_lint_text_report_for_terminal(env, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["lint", "--text"])
+
+    out = capsys.readouterr().out
+    assert "partial\t" in out and "00_Inbox/Delany, Samuel R - Nova - 2014.epub.part" in out, "text report should list rule and path per line"
+
+
+def test_lint_without_index_explains(env, capsys):
+    main(["lint"])
+    assert output(capsys)["items"][0]["title"] == "No index yet", "lint without index should tell how to build it"

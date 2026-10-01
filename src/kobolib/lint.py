@@ -11,6 +11,9 @@ from kobolib.index import Row, normalize_title
 from kobolib.scan import BOOK_SUFFIXES, display_stem, iter_junk, relative_path
 from kobolib.tags import TagStore
 
+WORD_BREAK = re.compile(r"[\s_\-]+")
+JOINED_WORDS = re.compile(r"\w[_\-]\w")
+MIN_FOLDER_KEY = 4
 OPAQUE_STEMS = [
     re.compile(r"^\d+_\d+$"),
     re.compile(r"^smp\d+_[0-9a-f]+$", re.I),
@@ -47,7 +50,8 @@ def looks_opaque(row: Row) -> bool:
     stem = stem_of(row)
     if any(p.match(stem) for p in OPAQUE_STEMS):
         return True
-    return not row.authors and len(row.title.split()) == 1
+    title = row.title.strip()
+    return not row.authors and " " not in title and len(WORD_BREAK.split(title)) <= 2
 
 
 def has_double_extension(row: Row) -> bool:
@@ -56,7 +60,14 @@ def has_double_extension(row: Row) -> bool:
 
 def is_noisy(row: Row) -> bool:
     name, stem = filename_of(row), stem_of(row)
-    return name != name.strip() or strip_noise(stem) != stem or "&amp" in name or " -- " in stem or bool(BRACED_AUTHOR.search(stem))
+    return (
+        name != name.strip()
+        or strip_noise(stem) != stem
+        or "&amp" in name
+        or " -- " in stem
+        or bool(BRACED_AUTHOR.search(stem))
+        or (" " not in stem and bool(JOINED_WORDS.search(stem)))
+    )
 
 
 def partials(rows: list[Row]) -> list[Finding]:
@@ -116,9 +127,15 @@ def all_folders(rows: Iterable[Row]) -> set[str]:
     return {a for r in rows for a in ancestors(r.folder)}
 
 
+def names_overlap(series_key: str, folder_key: str) -> bool:
+    if not series_key or len(folder_key) < MIN_FOLDER_KEY:
+        return False
+    return series_key in folder_key or folder_key in series_key
+
+
 def series_folder(series: str, folders: set[str]) -> str:
     key = normalize_title(series)
-    matches = sorted(f for f in folders if key and key in normalize_title(Path(f).name))
+    matches = sorted(f for f in folders if names_overlap(key, normalize_title(Path(f).name)))
     return matches[0] if matches else ""
 
 

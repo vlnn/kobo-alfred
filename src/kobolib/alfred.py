@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from kobolib.index import DuplicateGroup, Row
+from kobolib.lint import Finding
 
 SEPARATOR = " · "
 
@@ -62,6 +63,31 @@ def book_item(row: Row) -> dict:
         "autocomplete": row.title,
         "text": {"copy": row.rel_path, "largetype": f"{row.title}\n{row.authors}\n{row.rel_path}"},
         "mods": modifiers(row),
+    }
+
+
+def inbox_subtitle(row: Row, genre: str) -> str:
+    parts = [row.authors or "author ?", series_label(row), genre or "genre ?", format_label(row), row.rel_path]
+    return SEPARATOR.join(p for p in parts if p)
+
+
+def inbox_item(row: Row, genre: str) -> dict:
+    return {**book_item(row), "subtitle": inbox_subtitle(row, genre)}
+
+
+def finding_item(finding: Finding, root: str) -> dict:
+    first = finding.rel_paths[0]
+    path = f"{root}/{first}"
+    count = f"{len(finding.rel_paths)} file" + ("s" if len(finding.rel_paths) > 1 else "")
+    return {
+        "uid": f"{finding.rule}:{first}",
+        "title": finding.detail,
+        "subtitle": SEPARATOR.join([finding.rule.replace("_", " "), count, first]),
+        "arg": path,
+        "icon": {"type": "fileicon", "path": path},
+        "quicklookurl": path,
+        "text": {"copy": "\n".join(finding.rel_paths), "largetype": "\n".join(finding.rel_paths)},
+        "mods": {"alt": {"arg": path, "subtitle": "Reveal in Finder"}},
     }
 
 
