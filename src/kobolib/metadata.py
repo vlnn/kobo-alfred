@@ -1,0 +1,167 @@
+from __future__ import annotations
+
+import base64
+import posixpath
+import re
+import zipfile
+from dataclasses import dataclass, field
+from pathlib import Path
+from xml.etree import ElementTree as ET
+
+from kobolib.filenames import guess_from_stem
+from kobolib.scan import book_format, display_stem, is_partial, relative_path
+
+Cover = tuple[str, bytes]
+
+NS = {
+    "opf": "http://www.idpf.org/2007/opf",
+    "dc": "http://purl.org/dc/elements/1.1/",
+    "oc": "urn:oasis:names:tc:opendocument:xmlns:container",
+    "fb": "http://www.gribuser.ru/xml/fictionbook/2.0",
+    "xl": "http://www.w3.org/1999/xlink",
+}
+
+
+@dataclass
+class Book:
+    path: str
+    rel_path: str
+    format: str
+    partial: bool
+    title: str = ""
+    authors: list[str] = field(default_factory=list)
+    series: str = ""
+    series_index: str = ""
+    language: str = ""
+    year: str = ""
+    publisher: str = ""
+    source: str = "filename"
+    cover: Cover | None = None
+    size: int = 0
+    mtime: float = 0.0
+
+
+def text_of(root: ET.Element, xpath: str) -> str:
+    node = root.find(xpath, NS)
+    return (node.text or "").strip() if node is not None else ""
+
+
+def texts_of(root: ET.Element, xpath: str) -> list[str]:
+    return [t for n in root.findall(xpath, NS) if (t := (n.text or "").strip())]
+
+
+def opf_path(zf: zipfile.ZipFile) -> str:
+    container = ET.fromstring(zf.read("META-INF/container.xml"))
+    return container.find("oc:rootfiles/oc:rootfile", NS).get("full-path")
+
+
+def opf_meta(package: ET.Element, name: str) -> str:
+    for meta in package.iter(f"{{{NS['opf']}}}meta"):
+        if meta.get("name") == name:
+            return meta.get("content", "")
+    return ""
+
+
+def cover_href(package: ET.Element) -> str:
+    items = package.findall("opf:manifest/opf:item", NS)
+    cover_id = opf_meta(package, "cover")
+    for item in items:
+        if "cover-image" in item.get("properties", "").split() or item.get("id") == cover_id:
+            return item.get("href", "")
+    for item in items:
+        if item.get("media-type", "").startswith("image/") and "cover" in item.get("id", "").lower():
+            return item.get("href", "")
+    return ""
+
+
+def epub_cover(zf: zipfile.ZipFile, opf: str, package: ET.Element) -> Cover | None:
+    href = cover_href(package)
+    if not href:
+        return None
+    full = posixpath.normpath(posixpath.join(posixpath.dirname(opf), href))
+    try:
+        return posixpath.basename(full), zf.read(full)
+    except KeyError:
+        return None
+
+
+def read_epub(path: Path, book: Book) -> Book:
+    with zipfile.ZipFile(path) as zf:
+        opf = opf_path(zf)
+        package = ET.fromstring(zf.read(opf))
+        book.title = text_of(package, "opf:metadata/dc:title")
+        book.authors = texts_of(package, "opf:metadata/dc:creator")
+        book.language = text_of(package, "opf:metadata/dc:language")
+        book.year = text_of(package, "opf:metadata/dc:date")[:4]
+        book.publisher = text_of(package, "opf:metadata/dc:publisher")
+        book.series = opf_meta(package, "calibre:series")
+        book.series_index = opf_meta(package, "calibre:series_index").removesuffix(".0")
+        book.cover = epub_cover(zf, opf, package)
+    book.source = "epub"
+    return book
+
+
+def fb2_author(node: ET.Element) -> str:
+    parts = (text_of(node, f"fb:{tag}") for tag in ("first-name", "middle-name", "last-name"))
+    return " ".join(p for p in parts if p) or text_of(node, "fb:nickname")
+
+
+def fb2_cover(root: ET.Element) -> Cover | None:
+    image = root.find("fb:description/fb:title-info/fb:coverpage/fb:image", NS)
+    if image is None:
+        return None
+    href = image.get(f"{{{NS['xl']}}}href", "").lstrip("#")
+    for binary in root.findall("fb:binary", NS):
+        if binary.get("id") == href:
+            return href, base64.b64decode(re.sub(r"\s", "", binary.text or ""))
+    return None
+
+
+def read_fb2(path: Path, book: Book) -> Book:
+    root = ET.parse(path).getroot()
+    info = root.find("fb:description/fb:title-info", NS)
+    book.title = text_of(info, "fb:book-title")
+    book.authors = [a for n in info.findall("fb:author", NS) if (a := fb2_author(n))]
+    book.language = text_of(info, "fb:lang")
+    sequence = info.find("fb:sequence", NS)
+    if sequence is not None:
+        book.series = sequence.get("name", "")
+        book.series_index = sequence.get("number", "")
+    book.year = text_of(root, "fb:description/fb:publish-info/fb:year")
+    book.publisher = text_of(root, "fb:description/fb:publish-info/fb:publisher")
+    book.cover = fb2_cover(root)
+    book.source = "fb2"
+    return book
+
+
+READERS = {"epub": read_epub, "fb2": read_fb2}
+
+
+def from_filename(path: Path, book: Book) -> Book:
+    guess = guess_from_stem(display_stem(path))
+    book.title = book.title or guess.title
+    book.authors = book.authors or guess.authors
+    book.series = book.series or guess.series
+    book.series_index = book.series_index or guess.series_index
+    book.year = book.year or guess.year
+    book.publisher = book.publisher or guess.publisher
+    return book
+
+
+def read_book(path: Path, root: Path) -> Book:
+    stat = path.stat()
+    book = Book(
+        path=str(path),
+        rel_path=relative_path(path, root),
+        format=book_format(path),
+        partial=is_partial(path),
+        size=stat.st_size,
+        mtime=stat.st_mtime,
+    )
+    reader = READERS.get(book.format)
+    if reader and not book.partial:
+        try:
+            book = reader(path, book)
+        except Exception:
+            book.source = "filename"
+    return from_filename(path, book)

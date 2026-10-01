@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bundleid</key>
+	<string>com.anokhin.kobolib</string>
+	<key>name</key>
+	<string>Kobo Library</string>
+	<key>description</key>
+	<string>Search the ebook library by metadata, with covers</string>
+	<key>createdby</key>
+	<string>Volodymyr Anokhin</string>
+	<key>category</key>
+	<string>Productivity</string>
+	<key>readme</key>
+	<string>Keywords: kb (search), kb:index (rebuild), kb:dups (duplicate titles), kb:rnd (random picks), kb:stats.
+Query filters: fmt:epub in:inbox author:x series:x lang:uk year:2016 is:partial
+Set the library root in the workflow configuration; the index lives in Alfred's workflow data folder unless overridden. Needs only macOS's /usr/bin/python3.</string>
+	<key>variables</key>
+	<dict>
+		<key>KOBO_ROOT</key>
+		<string>/Volumes/Transcend/kobo</string>
+		<key>KOBO_DATA</key>
+		<string></string>
+	</dict>
+	<key>userconfigurationconfig</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string>/Volumes/Transcend/kobo</string>
+				<key>placeholder</key>
+				<string>/Volumes/Transcend/kobo</string>
+				<key>required</key>
+				<true/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Root folder of the ebook library (paths are shown relative to it)</string>
+			<key>label</key>
+			<string>Library root</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_ROOT</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>leave empty for Alfred's workflow data folder</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Where library.db and covers/ are stored. Empty = ~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib</string>
+			<key>label</key>
+			<string>Index folder (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_DATA</string>
+		</dict>
+	</array>
+	<key>objects</key>
+	<array>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>SEARCH</string>
+			<key>version</key>
+			<integer>3</integer>
+			<key>config</key>
+			<dict>
+				<key>keyword</key>
+				<string>kb</string>
+				<key>title</key>
+				<string>Search library</string>
+				<key>subtext</key>
+				<string>title, author, series · fmt:epub in:inbox author:x series:x lang:uk is:partial</string>
+				<key>runningsubtext</key>
+				<string>Searching…</string>
+				<key>withspace</key>
+				<true/>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>queuedelaycustom</key>
+				<integer>1</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib search "$1"</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>DUPS</string>
+			<key>version</key>
+			<integer>3</integer>
+			<key>config</key>
+			<dict>
+				<key>keyword</key>
+				<string>kb:dups</string>
+				<key>title</key>
+				<string>Duplicate titles</string>
+				<key>subtext</key>
+				<string>Same title in several files or formats</string>
+				<key>withspace</key>
+				<false/>
+				<key>argumenttype</key>
+				<integer>2</integer>
+				<key>alfredfiltersresults</key>
+				<true/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib dups</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>RANDOM</string>
+			<key>version</key>
+			<integer>3</integer>
+			<key>config</key>
+			<dict>
+				<key>keyword</key>
+				<string>kb:rnd</string>
+				<key>title</key>
+				<string>Random picks</string>
+				<key>subtext</key>
+				<string>Five random books, optionally filtered: kb:rnd fmt:epub in:fiction</string>
+				<key>withspace</key>
+				<true/>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib random "$1"</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>STATS</string>
+			<key>version</key>
+			<integer>3</integer>
+			<key>config</key>
+			<dict>
+				<key>keyword</key>
+				<string>kb:stats</string>
+				<key>title</key>
+				<string>Library stats</string>
+				<key>withspace</key>
+				<false/>
+				<key>argumenttype</key>
+				<integer>2</integer>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib stats</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.keyword</string>
+			<key>uid</key>
+			<string>INDEX_KW</string>
+			<key>version</key>
+			<integer>1</integer>
+			<key>config</key>
+			<dict>
+				<key>keyword</key>
+				<string>kb:index</string>
+				<key>text</key>
+				<string>Rebuild library index</string>
+				<key>subtext</key>
+				<string>Scan the library, read metadata, extract covers</string>
+				<key>withspace</key>
+				<false/>
+				<key>argumenttype</key>
+				<integer>2</integer>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>INDEX_RUN</string>
+			<key>version</key>
+			<integer>2</integer>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<true/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>export PYTHONPATH="$PWD"
+nohup /usr/bin/python3 -m kobolib index --notify &gt;/dev/null 2&gt;&amp;1 &amp;
+echo "Indexing started… you will get a notification when it finishes"</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.output.notification</string>
+			<key>uid</key>
+			<string>INDEX_NOTIFY</string>
+			<key>version</key>
+			<integer>1</integer>
+			<key>config</key>
+			<dict>
+				<key>title</key>
+				<string>Kobo Library</string>
+				<key>text</key>
+				<string>{query}</string>
+				<key>lastpathcomponent</key>
+				<false/>
+				<key>onlyshowifquerypopulated</key>
+				<true/>
+				<key>removeextension</key>
+				<false/>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.action.openfile</string>
+			<key>uid</key>
+			<string>OPEN</string>
+			<key>version</key>
+			<integer>1</integer>
+			<key>config</key>
+			<dict>
+				<key>openwith</key>
+				<string></string>
+				<key>sourcefile</key>
+				<string>{query}</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.action.revealfile</string>
+			<key>uid</key>
+			<string>REVEAL</string>
+			<key>version</key>
+			<integer>1</integer>
+			<key>config</key>
+			<dict>
+				<key>path</key>
+				<string>{query}</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.output.clipboard</string>
+			<key>uid</key>
+			<string>COPY</string>
+			<key>version</key>
+			<integer>3</integer>
+			<key>config</key>
+			<dict>
+				<key>autopaste</key>
+				<false/>
+				<key>clipboardtext</key>
+				<string>{query}</string>
+				<key>ignoredynamicplaceholders</key>
+				<false/>
+				<key>transient</key>
+				<false/>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.action.browseinalfred</string>
+			<key>uid</key>
+			<string>BROWSE</string>
+			<key>version</key>
+			<integer>1</integer>
+			<key>config</key>
+			<dict>
+				<key>browse</key>
+				<string>{var:KOBO_ROOT}/{query}</string>
+			</dict>
+		</dict>
+	</array>
+	<key>connections</key>
+	<dict>
+		<key>SEARCH</key>
+		<array>
+			<dict><key>destinationuid</key><string>OPEN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+			<dict><key>destinationuid</key><string>REVEAL</string><key>modifiers</key><integer>524288</integer><key>modifiersubtext</key><string>Reveal in Finder</string><key>vitoclose</key><false/></dict>
+			<dict><key>destinationuid</key><string>COPY</string><key>modifiers</key><integer>1048576</integer><key>modifiersubtext</key><string>Copy relative path</string><key>vitoclose</key><false/></dict>
+			<dict><key>destinationuid</key><string>BROWSE</string><key>modifiers</key><integer>262144</integer><key>modifiersubtext</key><string>Browse folder in Alfred</string><key>vitoclose</key><false/></dict>
+		</array>
+		<key>DUPS</key>
+		<array>
+			<dict><key>destinationuid</key><string>OPEN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+			<dict><key>destinationuid</key><string>REVEAL</string><key>modifiers</key><integer>524288</integer><key>modifiersubtext</key><string>Reveal in Finder</string><key>vitoclose</key><false/></dict>
+		</array>
+		<key>RANDOM</key>
+		<array>
+			<dict><key>destinationuid</key><string>OPEN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+			<dict><key>destinationuid</key><string>REVEAL</string><key>modifiers</key><integer>524288</integer><key>modifiersubtext</key><string>Reveal in Finder</string><key>vitoclose</key><false/></dict>
+		</array>
+		<key>INDEX_KW</key>
+		<array>
+			<dict><key>destinationuid</key><string>INDEX_RUN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+		</array>
+		<key>INDEX_RUN</key>
+		<array>
+			<dict><key>destinationuid</key><string>INDEX_NOTIFY</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+		</array>
+	</dict>
+	<key>uidata</key>
+	<dict>
+		<key>SEARCH</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>60</real></dict>
+		<key>DUPS</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>200</real></dict>
+		<key>RANDOM</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>340</real></dict>
+		<key>STATS</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>480</real></dict>
+		<key>INDEX_KW</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>620</real></dict>
+		<key>INDEX_RUN</key><dict><key>xpos</key><real>320</real><key>ypos</key><real>620</real></dict>
+		<key>INDEX_NOTIFY</key><dict><key>xpos</key><real>580</real><key>ypos</key><real>620</real></dict>
+		<key>OPEN</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>60</real></dict>
+		<key>REVEAL</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>200</real></dict>
+		<key>COPY</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>340</real></dict>
+		<key>BROWSE</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>480</real></dict>
+	</dict>
+	<key>version</key>
+	<string>0.1.0</string>
+	<key>webaddress</key>
+	<string></string>
+</dict>
+</plist>

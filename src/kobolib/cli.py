@@ -1,0 +1,134 @@
+from __future__ import annotations
+
+import argparse
+import os
+import random
+import subprocess
+import sys
+from pathlib import Path
+
+from kobolib import alfred
+from kobolib.index import Index, IndexBusy, build_index, fill_thumbnails
+from kobolib.query import parse_query
+from kobolib.scan import probe_root
+
+
+def library_root() -> Path:
+    return Path(os.environ.get("KOBO_ROOT", "/Volumes/Transcend/kobo")).expanduser()
+
+
+def data_dir() -> Path:
+    default = Path.home() / "Library" / "Application Support" / "kobolib"
+    chosen = os.environ.get("KOBO_DATA") or os.environ.get("alfred_workflow_data") or str(default)
+    return Path(chosen).expanduser()
+
+
+def db_path() -> Path:
+    return data_dir() / "library.db"
+
+
+def covers_dir() -> Path:
+    return data_dir() / "covers"
+
+
+def notify(message: str) -> None:
+    script = f'display notification "{message}" with title "Kobo Library"'
+    subprocess.run(["osascript", "-e", script], capture_output=True, check=False)
+
+
+def run_index() -> tuple[int, str]:
+    root = library_root()
+    if not root.exists():
+        return 1, f"Library root not mounted: {root}"
+    try:
+        count = build_index(root, db_path(), covers_dir(), thumbnails=False)
+    except IndexBusy:
+        return 1, "Indexing is already running"
+    if count == 0:
+        return 1, f"No books found: {probe_root(root) or f'no ebook files under {root}'}"
+    return 0, f"Indexed {count} books from {root}"
+
+
+def report(message: str, should_notify: bool) -> None:
+    print(message, flush=True)
+    if should_notify:
+        notify(message)
+
+
+def cmd_index(args) -> int:
+    code, message = run_index()
+    report(message, args.notify)
+    if code != 0 or args.no_thumbnails:
+        return code
+    made = fill_thumbnails(db_path(), covers_dir())
+    report(f"Generated {made} PDF covers", args.notify)
+    return 0
+
+
+def search_items(raw: str) -> list[dict]:
+    index = Index(db_path())
+    rows = index.search(parse_query(raw))
+    if not rows and index.count() == 0:
+        return [alfred.message_item("Index is empty", "Run kb:index with the library mounted; check Alfred's Removable Volumes permission")]
+    return [alfred.book_item(r) for r in rows] or [alfred.empty_item(raw)]
+
+
+def cmd_search(args) -> int:
+    print(f"kobolib search query={args.query!r} db={db_path()} root={library_root()}", file=sys.stderr)
+    if not db_path().exists():
+        print(alfred.render([alfred.message_item("No index yet", "Run kb:index to build it")]))
+        return 0
+    print(alfred.render(search_items(args.query)))
+    return 0
+
+
+def cmd_dups(args) -> int:
+    groups = Index(db_path()).duplicates()
+    items = [alfred.duplicate_item(g) for g in groups] or [alfred.message_item("No duplicate titles")]
+    print(alfred.render(items))
+    return 0
+
+
+def cmd_random(args) -> int:
+    rows = Index(db_path()).search(parse_query(args.query + " is:complete"), limit=5000)
+    picks = random.sample(rows, min(5, len(rows)))
+    print(alfred.render([alfred.book_item(r) for r in picks] or [alfred.empty_item(args.query)]))
+    return 0
+
+
+def cmd_stats(args) -> int:
+    index = Index(db_path())
+    partial = len(index.search(parse_query("is:partial"), limit=5000))
+    print(alfred.render([
+        alfred.message_item(f"{index.count()} books indexed", str(library_root())),
+        alfred.message_item(f"{partial} incomplete downloads", "kb is:partial"),
+        alfred.message_item(f"{len(index.duplicates())} duplicate titles", "kb:dups"),
+    ]))
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="kobolib")
+    sub = parser.add_subparsers(dest="command", required=True)
+    index = sub.add_parser("index")
+    index.add_argument("--notify", action="store_true")
+    index.add_argument("--no-thumbnails", action="store_true")
+    index.set_defaults(func=cmd_index)
+    search = sub.add_parser("search")
+    search.add_argument("query", nargs="?", default="")
+    search.set_defaults(func=cmd_search)
+    sub.add_parser("dups").set_defaults(func=cmd_dups)
+    rnd = sub.add_parser("random")
+    rnd.add_argument("query", nargs="?", default="")
+    rnd.set_defaults(func=cmd_random)
+    sub.add_parser("stats").set_defaults(func=cmd_stats)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
