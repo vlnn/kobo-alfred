@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -77,13 +78,17 @@ def fingerprint(path: Path) -> str:
     return digest.hexdigest()
 
 
+def nfc(text: str) -> str:
+    return unicodedata.normalize("NFC", text)
+
+
 def relative_path(path: Path, root: Path) -> str:
-    return path.relative_to(root).as_posix()
+    return nfc(path.relative_to(root).as_posix())
 
 
 def display_stem(path: Path) -> str:
     name = path.name[: -len(PARTIAL_SUFFIX)] if is_partial(path) else path.name
-    return Path(name).stem.strip()
+    return nfc(Path(name).stem.strip())
 
 
 def probe_root(root: Path) -> str:

@@ -64,3 +64,17 @@ def test_corrupt_epub_falls_back_to_filename(tmp_path: Path):
 
     assert book.title == "Dead Lines", "corrupt epub should still be indexed from filename"
     assert book.source == "filename", "corrupt epub should be marked as filename-sourced"
+
+
+def test_filename_metadata_is_nfc_normalized(tmp_path):
+    import unicodedata
+    from kobolib.metadata import read_book
+
+    name = unicodedata.normalize("NFD", "Вайс Йосип - Пісня.fb2")
+    path = tmp_path / name
+    path.write_bytes(b"not xml")
+
+    book = read_book(path, tmp_path)
+
+    assert book.authors == ["Вайс Йосип"] and book.title == "Пісня", "decomposed macOS filenames should yield composed metadata"
+    assert unicodedata.is_normalized("NFC", book.rel_path), "rel_path should be composed too"
