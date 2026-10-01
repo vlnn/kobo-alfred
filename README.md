@@ -17,6 +17,8 @@ kb:plan                      proposed moves/renames/trash, written to plan.tsv �
 kb:apply                     apply plan.tsv, then rebuild the index
 kb:undo                      move the last batch back
 kb:classify                  pick an inbox book, then a genre; the inbox shrinks as you go
+kb:src cal newport           search the other sources (same filters) — ↩ copies the book into the library inbox
+kb:index-src                 rebuild the sources index
 ```
 
 Each result shows: title · authors · series #n · year · FORMAT size · path relative to the library root.
@@ -29,6 +31,7 @@ Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbn
 | ⌘↩           | copy library-relative path   |
 | ⌃↩           | browse the book's folder     |
 | ⇧ / ⌘Y       | Quick Look                   |
+| ⇧↩           | fix genre / tags             |
 | fn↩          | move to its genre home now   |
 | ⌘C           | copy relative path           |
 | ⌘L           | large type: title/author/path|
@@ -96,12 +99,30 @@ are left for you, and both are ignored by the scanner.
 unknown one is created), ↩. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy +now -bought`.
 Genres and tags are searchable (`kb genre:fiction tag:now`); `genre:` matches by prefix.
 
+Any book you have just found — in `kb`, `kb:inbox`, or after `kb term` — can be fixed in place with ⇧↩: the
+picker shows the current genre and tags, lists known genres (type to filter, an unknown one is created), and
+takes `+tag` / `-tag` to add or remove a tag. Current tags are listed for removal when the query is empty.
+
 Author folders are `Last, First`. A plain `First Last` name is inverted, except Cyrillic names, which are
 assumed `Фамилия Имя [Отчество]` as in libgen/flibusta filenames; an existing author folder (either form) wins
 over the guess, so `Teague Rowan` joins `Teague, Rowan/` if that folder exists.
 
 The genre folder is the existing one matching the genre; a series folder is only used when you own more than
 one book of the series. Partial downloads and unclassified books are never moved. Names are made exFAT-safe.
+
+## Other sources
+
+Set **Other sources** (`KOBO_SOURCES`, paths separated by `:`) to the folders of ebooks that are not the
+library yet — a Calibre library, a downloads folder, an old reader's card. `kb:index-src` indexes them into a
+separate `sources.db` (the library index is untouched); `kb:src` searches it with the same query syntax, and
+the source folder's name is part of the path, so `kb:src in:calibre` narrows by source. A book whose
+fingerprint is already in the library is shown as `✓ in library · <where>` and cannot be imported again.
+
+↩ copies the book into the library's inbox folder (the one whose name is `inbox` after the order prefix, or a
+new `_inbox/`) and adds it to the library index right away — no full reindex — so it shows up in `kb`,
+`kb:inbox` and `kb:classify` immediately. ⌥↩ moves instead of copying. Nothing is overwritten: an occupied
+destination refuses the import. From a terminal: `kobolib index-sources`, `kobolib sources "query"`,
+`kobolib import [--move] <path>`.
 
 ## Metadata sources
 

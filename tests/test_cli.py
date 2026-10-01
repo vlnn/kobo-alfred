@@ -235,9 +235,9 @@ def test_genres_lists_known_genres_filtered(env, library, capsys):
     main(["genres", "g"])
 
     items = output(capsys)["items"]
-    assert [i["arg"] for i in items] == ["games/go"], "genres should be filtered by the typed prefix"
+    assert [i["arg"] for i in items] == ["genre=games/go"], "genres should be filtered by the typed prefix and offered as edits"
     main(["genres", ""])
-    assert [i["arg"] for i in output(capsys)["items"]] == ["games/go", "nonfiction"], "all genres from tags and folders should be listed"
+    assert [i["arg"] for i in output(capsys)["items"]] == ["genre=games/go", "genre=nonfiction"], "all genres from tags and folders should be listed"
 
 
 def test_genres_offers_new_genre_from_query(env, library, capsys):
@@ -247,7 +247,7 @@ def test_genres_offers_new_genre_from_query(env, library, capsys):
     main(["genres", "fiction/mystery"])
 
     items = output(capsys)["items"]
-    assert items[-1]["arg"] == "fiction/mystery" and items[-1]["title"].startswith("New genre"), "an unknown genre can be created from the query"
+    assert items[-1]["arg"] == "genre=fiction/mystery" and items[-1]["title"].startswith("New genre"), "an unknown genre can be created from the query"
 
 
 def test_classify_lists_unclassified_with_book_variable(env, library, capsys):
@@ -280,3 +280,73 @@ def test_genres_without_book_explains(env, library, capsys, monkeypatch):
     main(["genres", ""])
 
     assert output(capsys)["items"][0]["valid"] is False, "without a selected book the picker must not be actionable"
+
+
+def test_search_items_offer_fix_on_shift(env, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["search", "deep"])
+
+    item = output(capsys)["items"][0]
+    assert item["mods"]["shift"]["arg"] == "", "shift+↩ should open the fix picker with an empty query"
+    assert "genre" in item["mods"]["shift"]["subtitle"].lower(), "the shift subtitle should say it fixes genre/tags"
+    assert item["variables"]["book"] == item["mods"]["shift"]["variables"]["book"], "the fingerprint must travel with the shift action"
+
+
+def test_fix_lists_genres_and_current_tags(env, library, capsys, monkeypatch):
+    main(["index"])
+    main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=games/go", "+now"])
+    capsys.readouterr()
+    main(["search", "napkin"])
+    monkeypatch.setenv("book", output(capsys)["items"][0]["variables"]["book"])
+
+    main(["fix", ""])
+
+    items = output(capsys)["items"]
+    assert items[0]["title"].startswith("Napkin") and items[0]["valid"] is False, "the first item should show the book being fixed"
+    assert "games/go" in items[0]["subtitle"] and "now" in items[0]["subtitle"], "the header should show the current genre and tags"
+    assert "-now" in [i.get("arg") for i in items], "each current tag should be removable"
+    assert "genre=nonfiction" in [i.get("arg") for i in items], "known genres should be offered"
+
+
+@pytest.mark.parametrize(
+    "query, arg, title_start",
+    [
+        ("+read", "+read", "Add tag"),
+        ("-old", "-old", "Remove tag"),
+        ("fiction/mystery", "genre=fiction/mystery", "New genre"),
+        ("non", "genre=nonfiction", "nonfiction"),
+    ],
+)
+def test_fix_turns_query_into_an_edit(env, library, capsys, monkeypatch, query, arg, title_start):
+    main(["index"])
+    capsys.readouterr()
+    main(["search", "napkin"])
+    monkeypatch.setenv("book", output(capsys)["items"][0]["variables"]["book"])
+
+    main(["fix", "--", query])
+
+    edits = [i for i in output(capsys)["items"] if i.get("valid", True)]
+    assert edits[0]["arg"] == arg, f"query {query!r} should offer the edit {arg!r}"
+    assert edits[0]["title"].startswith(title_start), f"the offered edit should be labelled {title_start!r}"
+
+
+def test_fix_without_book_explains(env, capsys, monkeypatch):
+    main(["index"])
+    capsys.readouterr()
+    monkeypatch.delenv("book", raising=False)
+
+    main(["fix", ""])
+
+    assert output(capsys)["items"][0]["valid"] is False, "without a selected book the fix picker must not be actionable"
+
+
+def test_tag_accepts_edit_from_fix_picker(env, library, capsys):
+    main(["index"])
+    capsys.readouterr()
+    main(["search", "napkin"])
+    fingerprint = output(capsys)["items"][0]["variables"]["book"]
+
+    assert main(["tag", fingerprint, "+now"]) == 0, "an edit arg from the fix picker should be applied"
+    assert capsys.readouterr().out.startswith("Napkin → no genre · now"), "the result should be reported"

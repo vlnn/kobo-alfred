@@ -3,23 +3,29 @@ from __future__ import annotations
 import argparse
 import os
 import random
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from kobolib import alfred
 from kobolib.apply import apply, undo
-from kobolib.index import Index, IndexBusy, build_index, fill_thumbnails, index_busy
+from kobolib.index import Index, IndexBusy, Row, add_book, build_index, build_sources_index, fill_thumbnails, index_busy
 from kobolib.lint import lint
 from kobolib.plan import plan, read_plan, write_plan
-from kobolib.scan import relative_path
+from kobolib.scan import fingerprint, relative_path
 from kobolib.query import parse_query
 from kobolib.scan import probe_root
-from kobolib.tags import Tag, TagStore, genre_from_folder
+from kobolib.tags import Tag, TagStore, folder_slug, genre_from_folder
 
 
 def library_root() -> Path:
     return Path(os.environ.get("KOBO_ROOT", "/Volumes/Transcend/kobo")).expanduser()
+
+
+def sources() -> list[Path]:
+    raw = os.environ.get("KOBO_SOURCES", "")
+    return [Path(p).expanduser() for p in raw.replace("\n", os.pathsep).split(os.pathsep) if p.strip()]
 
 
 def data_dir() -> Path:
@@ -30,6 +36,10 @@ def data_dir() -> Path:
 
 def db_path() -> Path:
     return data_dir() / "library.db"
+
+
+def sources_db_path() -> Path:
+    return data_dir() / "sources.db"
 
 
 def covers_dir() -> Path:
@@ -276,28 +286,153 @@ def cmd_tag(args) -> int:
     return 0
 
 
-def cmd_genres(args) -> int:
-    book = os.environ.get("book", "")
-    if not book:
-        print(alfred.render([alfred.message_item("No book selected", "Start from kb:classify")]))
-        return 0
-    query = args.query.strip().lower()
-    genres = [g for g in known_genres(all_rows(Index(db_path())), tag_store()) if g.startswith(query)]
-    items = [alfred.genre_item(g, book) for g in genres]
+def selected_book() -> str:
+    return os.environ.get("book", "")
+
+
+def genre_edits(query: str, rows: list, store: TagStore, book: str) -> list[dict]:
+    genres = [g for g in known_genres(rows, store) if g.startswith(query)]
+    items = [alfred.edit_item(f"genre={g}", g, book, uid=f"genre:{g}") for g in genres]
     if query and not genres:
-        items.append(alfred.genre_item(query, book, is_new=True))
+        items.append(alfred.edit_item(f"genre={query}", f"New genre: {query}", book))
+    return items
+
+
+def tag_edits(query: str, current: list[str], book: str) -> list[dict]:
+    if query.startswith("+") and len(query) > 1:
+        return [alfred.edit_item(query, f"Add tag: {query[1:]}", book)]
+    if query.startswith("-") and len(query) > 1:
+        return [alfred.edit_item(query, f"Remove tag: {query[1:]}", book)]
+    return [alfred.edit_item(f"-{t}", f"Remove tag: {t}", book) for t in current if not query]
+
+
+def cmd_fix(args) -> int:
+    book = selected_book()
+    index, store = Index(db_path()), tag_store()
+    row = index.by_fingerprint(book) if book else None
+    if row is None:
+        print(alfred.render([alfred.message_item("No book selected", "Start from kb and press ⇧↩ on a book")]))
+        return 0
+    tag = store.get(book) or Tag()
+    query = args.query.strip().lower()
+    items = [alfred.fix_header(row, tag.genre, tag.tags), *tag_edits(query, tag.tags, book)]
+    if not query.startswith(("+", "-")):
+        items += genre_edits(query, all_rows(index), store, book)
     print(alfred.render(items))
     return 0
 
 
-def cmd_stats(args) -> int:
+def cmd_genres(args) -> int:
+    book = selected_book()
+    if not book:
+        print(alfred.render([alfred.message_item("No book selected", "Start from kb:classify")]))
+        return 0
+    print(alfred.render(genre_edits(args.query.strip().lower(), all_rows(Index(db_path())), tag_store(), book)))
+    return 0
+
+
+def mounted_sources() -> tuple[list[Path], list[Path]]:
+    found, missing = [], []
+    for source in sources():
+        (found if source.is_dir() else missing).append(source)
+    return found, missing
+
+
+def run_index_sources() -> tuple[int, str]:
+    if not sources():
+        return 1, "No sources configured: set KOBO_SOURCES (paths separated by ':')"
+    found, missing = mounted_sources()
+    if not found:
+        return 1, f"No source is mounted: {', '.join(map(str, missing))}"
+    try:
+        count = build_sources_index(found, sources_db_path(), covers_dir(), thumbnails=False, exclude=(data_dir(),))
+    except IndexBusy:
+        return 1, "Indexing is already running"
+    skipped = f", skipped {len(missing)} unmounted" if missing else ""
+    return 0, f"Indexed {count} books from {len(found)} sources{skipped}"
+
+
+def cmd_index_sources(args) -> int:
+    code, message = run_index_sources()
+    report(message, args.notify)
+    return code
+
+
+def library_copies(index: Index, rows: list[Row]) -> dict[str, Row]:
+    wanted = {r.fingerprint for r in rows}
+    return {r.fingerprint: r for r in all_rows(index) if r.fingerprint in wanted}
+
+
+def source_items(raw: str) -> list[dict]:
+    rows = Index(sources_db_path()).search(parse_query(raw))
+    copies = library_copies(Index(db_path()), rows) if db_path().exists() else {}
+    return [alfred.source_item(r, copies.get(r.fingerprint)) for r in rows] or [alfred.empty_item(raw)]
+
+
+def cmd_sources(args) -> int:
+    if not sources_db_path().exists():
+        print(alfred.render([alfred.message_item("No sources index yet", "Set KOBO_SOURCES, then run kb:index-src")]))
+        return 0
+    print(alfred.render(source_items(args.query)))
+    return 0
+
+
+def inbox_folder() -> Path:
+    root = library_root()
+    existing = next((p for p in sorted(root.iterdir()) if p.is_dir() and folder_slug(p.name) == "inbox"), None)
+    return existing or root / "_inbox"
+
+
+def import_blocked(src: Path, dst: Path) -> str:
+    if not src.is_file():
+        return f"source missing: {src}"
+    if dst.exists():
+        return f"destination exists: {relative_path(dst, library_root())}"
+    if (copy := Index(db_path()).by_fingerprint(fingerprint(src))) is not None:
+        return f"already in library: {copy.rel_path}"
+    return ""
+
+
+def transfer(src: Path, dst: Path, move: bool) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if move:
+        shutil.move(src, dst)
+    else:
+        shutil.copy2(src, dst)
+
+
+def cmd_import(args) -> int:
+    if not db_path().exists():
+        return refuse("No index yet: run kb:index", args.notify)
+    if index_busy(db_path()):
+        return refuse("Indexing is running, try again later", args.notify)
+    src, dst = Path(args.book), inbox_folder() / Path(args.book).name
+    if reason := import_blocked(src, dst):
+        return refuse(f"Not imported: {reason}", args.notify)
+    transfer(src, dst, args.move)
+    book = add_book(db_path(), dst, library_root(), covers_dir())
+    report(f"Imported {book.title} → {Path(book.rel_path).parent}/", args.notify)
+    return 0
+
+
+def stats_items() -> list[dict]:
     index = Index(db_path())
     partial = len(index.search(parse_query("is:partial"), limit=5000))
-    print(alfred.render([
+    return [
         alfred.message_item(f"{index.count()} books indexed", str(library_root())),
         alfred.message_item(f"{partial} incomplete downloads", "kb is:partial"),
         alfred.message_item(f"{len(index.duplicates())} duplicate titles", "kb:dups"),
-    ]))
+    ]
+
+
+def sources_stats_items() -> list[dict]:
+    if not sources_db_path().exists():
+        return []
+    return [alfred.message_item(f"{Index(sources_db_path()).count()} books in {len(sources())} sources", "kb:src")]
+
+
+def cmd_stats(args) -> int:
+    print(alfred.render(stats_items() + sources_stats_items()))
     return 0
 
 
@@ -339,6 +474,20 @@ def build_parser() -> argparse.ArgumentParser:
     tag_cmd.add_argument("book")
     tag_cmd.add_argument("edits", nargs=argparse.REMAINDER)
     tag_cmd.set_defaults(func=cmd_tag)
+    fix_cmd = sub.add_parser("fix")
+    fix_cmd.add_argument("query", nargs="?", default="")
+    fix_cmd.set_defaults(func=cmd_fix)
+    index_sources = sub.add_parser("index-sources")
+    index_sources.add_argument("--notify", action="store_true")
+    index_sources.set_defaults(func=cmd_index_sources)
+    sources_cmd = sub.add_parser("sources")
+    sources_cmd.add_argument("query", nargs="?", default="")
+    sources_cmd.set_defaults(func=cmd_sources)
+    import_cmd = sub.add_parser("import")
+    import_cmd.add_argument("book")
+    import_cmd.add_argument("--move", action="store_true")
+    import_cmd.add_argument("--notify", action="store_true")
+    import_cmd.set_defaults(func=cmd_import)
     genres_cmd = sub.add_parser("genres")
     genres_cmd.add_argument("query", nargs="?", default="")
     genres_cmd.set_defaults(func=cmd_genres)

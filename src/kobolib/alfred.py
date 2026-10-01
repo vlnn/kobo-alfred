@@ -48,7 +48,7 @@ def modifiers(row: Row) -> dict:
         "alt": {"arg": row.path, "subtitle": "Reveal in Finder"},
         "cmd": {"arg": row.rel_path, "subtitle": f"Copy relative path: {row.rel_path}"},
         "ctrl": {"arg": row.folder, "subtitle": f"Browse folder: {row.folder}"},
-        "shift": {"arg": row.path, "subtitle": "Quick Look"},
+        "shift": {"arg": "", "subtitle": "Fix: set genre, add or remove tags", "variables": {"book": row.fingerprint}},
         "fn": {"arg": row.path, "subtitle": "Move to its genre home now"},
     }
 
@@ -74,13 +74,32 @@ def classify_item(row: Row, genre: str) -> dict:
     return {**inbox_item(row, genre), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row, genre) + " · ↩ pick a genre"}
 
 
-def genre_item(genre: str, book: str, is_new: bool = False) -> dict:
+def fix_header(row: Row, genre: str, tags: list[str]) -> dict:
+    state = SEPARATOR.join(p for p in (genre or "no genre", ", ".join(tags), row.rel_path) if p)
+    return {**message_item(row.title, state), "icon": icon(row)}
+
+
+def edit_item(edit: str, title: str, book: str, uid: str | None = None) -> dict:
+    return {"uid": uid or f"edit:{edit}", "title": title, "arg": edit, "autocomplete": edit, "variables": {"book": book}}
+
+
+def source_subtitle(row: Row, in_library: Row | None) -> str:
+    if in_library:
+        return SEPARATOR.join(["✓ in library", in_library.rel_path])
+    return subtitle(row)
+
+
+def source_item(row: Row, in_library: Row | None) -> dict:
     return {
-        "uid": f"genre:{genre}",
-        "title": f"New genre: {genre}" if is_new else genre,
-        "arg": genre,
-        "autocomplete": genre,
-        "variables": {"book": book},
+        **book_item(row),
+        "subtitle": source_subtitle(row, in_library),
+        "valid": not row.partial and in_library is None,
+        "variables": {},
+        "mods": {
+            "alt": {"arg": row.path, "subtitle": "Move into the library inbox instead of copying"},
+            "cmd": {"arg": row.path, "subtitle": "Reveal in Finder"},
+            "ctrl": {"arg": row.folder, "subtitle": f"Browse folder: {row.folder}"},
+        },
     }
 
 

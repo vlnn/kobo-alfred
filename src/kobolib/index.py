@@ -92,10 +92,15 @@ def to_record(book: Book, cover: Path | None) -> tuple:
     )
 
 
-def records(root: Path, cover_cache: Path, exclude: tuple[Path, ...]):
+def records(root: Path, cover_cache: Path, exclude: tuple[Path, ...], base: Path | None = None):
     for path in iter_books(root, exclude):
-        book = read_book(path, root)
+        book = read_book(path, base or root)
         yield to_record(book, ensure_cover(book, cover_cache, thumbnails=False))
+
+
+def source_records(roots: list[Path], cover_cache: Path, exclude: tuple[Path, ...]):
+    for root in roots:
+        yield from records(root, cover_cache, exclude, base=root.parent)
 
 
 def thumbnail_candidates(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
@@ -144,24 +149,22 @@ def acquire_lock(db_path: Path) -> Path:
     return lock
 
 
-def write_database(target: Path, root: Path, cover_cache: Path, exclude: tuple[Path, ...]) -> int:
-    placeholders = ", ".join("?" for _ in COLUMNS)
+INSERT_SQL = f"INSERT INTO books ({', '.join(COLUMNS)}) VALUES ({', '.join('?' for _ in COLUMNS)})"
+
+
+def write_database(target: Path, rows) -> int:
     with sqlite3.connect(target) as conn:
         conn.executescript(SCHEMA)
-        cursor = conn.executemany(
-            f"INSERT INTO books ({', '.join(COLUMNS)}) VALUES ({placeholders})",
-            records(root, cover_cache, exclude),
-        )
-        return cursor.rowcount
+        return conn.executemany(INSERT_SQL, rows).rowcount
 
 
-def build_index(root: Path, db_path: Path, cover_cache: Path, thumbnails: bool = True, exclude: tuple[Path, ...] = ()) -> int:
+def rebuild(db_path: Path, rows, cover_cache: Path, thumbnails: bool) -> int:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     lock = acquire_lock(db_path)
     temp = db_path.with_suffix(".tmp")
     try:
         temp.unlink(missing_ok=True)
-        count = write_database(temp, root, cover_cache, exclude)
+        count = write_database(temp, rows)
         os.replace(temp, db_path)
         if thumbnails and count:
             fill_thumbnails(db_path, cover_cache)
@@ -169,6 +172,22 @@ def build_index(root: Path, db_path: Path, cover_cache: Path, thumbnails: bool =
     finally:
         temp.unlink(missing_ok=True)
         lock.unlink(missing_ok=True)
+
+
+def build_index(root: Path, db_path: Path, cover_cache: Path, thumbnails: bool = True, exclude: tuple[Path, ...] = ()) -> int:
+    return rebuild(db_path, records(root, cover_cache, exclude), cover_cache, thumbnails)
+
+
+def build_sources_index(roots: list[Path], db_path: Path, cover_cache: Path, thumbnails: bool = True, exclude: tuple[Path, ...] = ()) -> int:
+    return rebuild(db_path, source_records(roots, cover_cache, exclude), cover_cache, thumbnails)
+
+
+def add_book(db_path: Path, path: Path, root: Path, cover_cache: Path) -> Book:
+    book = read_book(path, root)
+    record = to_record(book, ensure_cover(book, cover_cache))
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(INSERT_SQL, record)
+    return book
 
 
 def row_factory(cursor, values) -> Row:
@@ -199,6 +218,10 @@ class Index:
         sql += f" ORDER BY {order} LIMIT :limit"
         with self.connect() as conn:
             return conn.execute(sql, {**params, "limit": limit}).fetchall()
+
+    def by_fingerprint(self, fingerprint: str) -> Row | None:
+        with self.connect() as conn:
+            return conn.execute(f"SELECT {', '.join(COLUMNS)} FROM books WHERE fingerprint = ?", (fingerprint,)).fetchone()
 
     def write_tags(self, store: TagStore) -> None:
         with sqlite3.connect(self.db_path) as conn:
