@@ -370,3 +370,14 @@ def test_apply_with_empty_only_applies_the_whole_plan(env, capsys):
 
     assert main(["apply", "--only", ""]) == 0, "an empty --only (the plan list's head row) means the whole plan"
     assert capsys.readouterr().out.startswith("Applied 1"), "the plan should have been applied"
+
+
+def test_apply_summary_names_the_skip_reason(env, library, tmp_path, capsys):
+    main(["index"])
+    main(["plan"])
+    (library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub").unlink()
+    capsys.readouterr()
+
+    main(["apply"])
+
+    assert capsys.readouterr().out.startswith("Applied 0, skipped 1 (source missing)"), "the summary should say why operations were skipped"

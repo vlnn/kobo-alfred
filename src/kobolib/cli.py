@@ -265,8 +265,18 @@ def cmd_apply(args) -> int:
         return refuse("Plan is stale (index changed since): run kb:plan again", args.notify)
     result = apply(ops_for(args.only), library_root(), journal_path())
     plan_path().unlink(missing_ok=True)
-    summary = f"Applied {result.done}" + (f", skipped {len(result.skipped)}" if result.skipped else "")
-    return finish_with_reindex(summary, args.notify)
+    return finish_with_reindex(apply_summary(result), args.notify)
+
+
+def skip_reasons(skipped: list[str]) -> str:
+    reasons = sorted({s.rpartition(": ")[2] for s in skipped})
+    return ", ".join(reasons)
+
+
+def apply_summary(result) -> str:
+    if not result.skipped:
+        return f"Applied {result.done}"
+    return f"Applied {result.done}, skipped {len(result.skipped)} ({skip_reasons(result.skipped)})"
 
 
 def cmd_undo(args) -> int:

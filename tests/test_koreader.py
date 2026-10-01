@@ -1,3 +1,4 @@
+import unicodedata
 from pathlib import Path
 
 from kobolib.koreader import KOREADER_DIR, fix_paths, rewrite_lua, settings_files
@@ -52,3 +53,23 @@ def test_settings_files_lists_only_existing(tmp_path: Path):
     (tmp_path / KOREADER_DIR / "settings").mkdir(parents=True)
     (tmp_path / KOREADER_DIR / "settings" / "history.lua").write_text("")
     assert [p.name for p in settings_files(tmp_path)] == ["history.lua"], "only present settings files are returned"
+
+
+def test_rewrite_lua_matches_nfd_paths_in_koreader_files():
+    nfd = unicodedata.normalize("NFD", "00_Inbox/Čapek.epub")
+    text = f'["/mnt/sd/{nfd}"] = 1,'
+
+    out = rewrite_lua(text, {"00_Inbox/Čapek.epub": "01_Fiction/Čapek.epub"})
+
+    assert out == '["/mnt/sd/01_Fiction/Čapek.epub"] = 1,', "KOReader may store NFD paths; the NFC plan path should still match them"
+
+
+def test_fix_paths_moves_nfd_named_mirrored_sidecar(tmp_path: Path):
+    nfd = unicodedata.normalize("NFD", "Čapek.sdr")
+    mirrored = tmp_path / KOREADER_DIR / "docsettings" / "mnt" / "sd" / "00_Inbox" / nfd
+    mirrored.mkdir(parents=True)
+    (mirrored / "metadata.epub.lua").write_text("x")
+
+    fix_paths(tmp_path, {"00_Inbox/Čapek.epub": "01_Fiction/Čapek.epub"})
+
+    assert (tmp_path / KOREADER_DIR / "docsettings" / "mnt" / "sd" / "01_Fiction" / "Čapek.sdr" / "metadata.epub.lua").exists(), "an NFD-named mirrored sidecar should follow its book"

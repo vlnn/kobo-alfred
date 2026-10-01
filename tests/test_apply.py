@@ -1,4 +1,5 @@
 import json
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -110,3 +111,77 @@ def test_apply_fixes_koreader_collections(library: Path, tmp_path: Path):
     apply([Operation("move", "00_Inbox/a.epub", "01_Fiction/a.epub", "")], library, tmp_path / "j.jsonl")
 
     assert "/mnt/sd/01_Fiction/a.epub" in (settings / "collection.lua").read_text(), "collections should point at the new path"
+
+
+
+def test_apply_finds_sources_whose_names_are_not_nfc(tmp_path):
+    root = tmp_path / "lib"
+    nfd = unicodedata.normalize("NFD", "Čapek - Válka.epub")
+    (root / "inbox").mkdir(parents=True)
+    (root / "inbox" / nfd).write_bytes(b"book")
+    op = Operation("move", "inbox/Čapek - Válka.epub", "fiction/Čapek, Karel/Čapek - Válka.epub", "relocate")
+
+    result = apply([op], root, tmp_path / "journal.jsonl")
+
+    assert result.done == 1 and not result.skipped, "an NFD-named file must be found by its NFC plan path"
+    assert (root / "fiction" / "Čapek, Karel" / "Čapek - Válka.epub").exists(), "the book should have moved"
+
+
+def test_apply_sees_an_nfd_named_file_at_the_destination(tmp_path):
+    root = tmp_path / "lib"
+    nfd = unicodedata.normalize("NFD", "Čapek - Válka.epub")
+    (root / "inbox").mkdir(parents=True)
+    (root / "fiction").mkdir()
+    (root / "inbox" / "Čapek - Válka.epub").write_bytes(b"book")
+    (root / "fiction" / nfd).write_bytes(b"other")
+    op = Operation("move", "inbox/Čapek - Válka.epub", "fiction/Čapek - Válka.epub", "relocate")
+
+    result = apply([op], root, tmp_path / "journal.jsonl")
+
+    assert result.skipped == ["inbox/Čapek - Válka.epub: destination exists, different content"], "a differently normalized file at the destination still blocks the move"
+
+
+def test_identical_source_is_removed_when_destination_exists(library: Path, tmp_path: Path):
+    journal = tmp_path / "journal.jsonl"
+    (library / "kept.epub").write_bytes(b"a")
+
+    result = apply([Operation("move", "00_Inbox/a.epub", "kept.epub", "")], library, journal)
+
+    assert result == Applied(done=1, skipped=[]), "a byte-identical source is cleaned up, not skipped"
+    assert not (library / "00_Inbox" / "a.epub").exists(), "the redundant copy should be gone"
+    assert (library / "kept.epub").read_bytes() == b"a", "the kept file is untouched"
+    assert journal_lines(journal)[0]["kind"] == "delete", "the removal should be journaled as a delete"
+
+
+def test_empty_source_folder_is_removed_when_destination_exists(library: Path, tmp_path: Path):
+    (library / "00_Inbox" / "Empty").mkdir()
+    (library / "_trash" / "00_Inbox" / "Empty").mkdir(parents=True)
+
+    result = apply([Operation("trash", "00_Inbox/Empty", "_trash/00_Inbox/Empty", "junk")], library, tmp_path / "j.jsonl")
+
+    assert result.done == 1 and not (library / "00_Inbox" / "Empty").exists(), "an empty folder already trashed before is simply removed"
+
+
+def test_different_content_at_destination_still_skips(library: Path, tmp_path: Path):
+    (library / "taken.epub").write_bytes(b"different")
+
+    result = apply([Operation("move", "00_Inbox/a.epub", "taken.epub", "")], library, tmp_path / "j.jsonl")
+
+    assert result.skipped == ["00_Inbox/a.epub: destination exists, different content"], "a different file at the destination needs a human"
+    assert (library / "00_Inbox" / "a.epub").exists(), "the source is left alone"
+
+
+def test_undo_restores_deleted_copy_and_folder(library: Path, tmp_path: Path):
+    journal = tmp_path / "journal.jsonl"
+    (library / "kept.epub").write_bytes(b"a")
+    (library / "00_Inbox" / "Empty").mkdir()
+    (library / "_trash" / "00_Inbox" / "Empty").mkdir(parents=True)
+    apply([
+        Operation("move", "00_Inbox/a.epub", "kept.epub", ""),
+        Operation("trash", "00_Inbox/Empty", "_trash/00_Inbox/Empty", "junk"),
+    ], library, journal)
+
+    assert undo(library, journal) == 2, "both deletions should be undone"
+    assert (library / "00_Inbox" / "a.epub").read_bytes() == b"a", "the deleted copy comes back from the kept file"
+    assert (library / "00_Inbox" / "Empty").is_dir(), "the deleted folder is recreated"
+    assert undo(library, journal) == 2 and not (library / "00_Inbox" / "a.epub").exists(), "undoing the undo deletes again"
