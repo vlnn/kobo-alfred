@@ -468,6 +468,117 @@ echo "Indexing started… you will get a notification when it finishes"</string>
 				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib plan</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.keyword</string>
+			<key>uid</key>
+			<string>APPLY_KW</string>
+			<key>version</key>
+			<integer>1</integer>
+			<key>config</key>
+			<dict>
+				<key>keyword</key>
+				<string>kb:apply</string>
+				<key>text</key>
+				<string>Apply the plan</string>
+				<key>subtext</key>
+				<string>Move, rename and trash as listed in kb:plan; the index is rebuilt afterwards</string>
+				<key>withspace</key>
+				<false/>
+				<key>argumenttype</key>
+				<integer>2</integer>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>APPLY_RUN</string>
+			<key>version</key>
+			<integer>2</integer>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<true/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>export PYTHONPATH="$PWD"
+nohup /usr/bin/python3 -m kobolib apply --notify &gt;/dev/null 2&gt;&amp;1 &amp;
+echo "Applying the plan… you will get a notification when it finishes"</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.keyword</string>
+			<key>uid</key>
+			<string>UNDO_KW</string>
+			<key>version</key>
+			<integer>1</integer>
+			<key>config</key>
+			<dict>
+				<key>keyword</key>
+				<string>kb:undo</string>
+				<key>text</key>
+				<string>Undo the last apply</string>
+				<key>subtext</key>
+				<string>Move everything from the last batch back</string>
+				<key>withspace</key>
+				<false/>
+				<key>argumenttype</key>
+				<integer>2</integer>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>UNDO_RUN</string>
+			<key>version</key>
+			<integer>2</integer>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<true/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>export PYTHONPATH="$PWD"
+nohup /usr/bin/python3 -m kobolib undo --notify &gt;/dev/null 2&gt;&amp;1 &amp;
+echo "Undoing… you will get a notification when it finishes"</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>APPLY_ONE</string>
+			<key>version</key>
+			<integer>2</integer>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<true/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>export PYTHONPATH="$PWD"
+nohup /usr/bin/python3 -m kobolib apply --only "$1" --notify &gt;/dev/null 2&gt;&amp;1 &amp;
+echo "Moving one book… you will get a notification when it finishes"</string>
+			</dict>
+		</dict>
 	</array>
 	<key>connections</key>
 	<dict>
@@ -500,8 +611,28 @@ echo "Indexing started… you will get a notification when it finishes"</string>
 		</array>
 		<key>PLAN</key>
 		<array>
-			<dict><key>destinationuid</key><string>OPEN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+			<dict><key>destinationuid</key><string>APPLY_ONE</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><true/></dict>
 			<dict><key>destinationuid</key><string>REVEAL</string><key>modifiers</key><integer>524288</integer><key>modifiersubtext</key><string>Reveal in Finder</string><key>vitoclose</key><false/></dict>
+		</array>
+		<key>APPLY_KW</key>
+		<array>
+			<dict><key>destinationuid</key><string>APPLY_RUN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+		</array>
+		<key>APPLY_RUN</key>
+		<array>
+			<dict><key>destinationuid</key><string>INDEX_NOTIFY</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+		</array>
+		<key>UNDO_KW</key>
+		<array>
+			<dict><key>destinationuid</key><string>UNDO_RUN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+		</array>
+		<key>UNDO_RUN</key>
+		<array>
+			<dict><key>destinationuid</key><string>INDEX_NOTIFY</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+		</array>
+		<key>APPLY_ONE</key>
+		<array>
+			<dict><key>destinationuid</key><string>INDEX_NOTIFY</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
 		</array>
 		<key>INDEX_KW</key>
 		<array>
@@ -524,6 +655,11 @@ echo "Indexing started… you will get a notification when it finishes"</string>
 		<key>LINT</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>760</real></dict>
 		<key>INBOX</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>900</real></dict>
 		<key>PLAN</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>1040</real></dict>
+		<key>APPLY_KW</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>1180</real></dict>
+		<key>APPLY_RUN</key><dict><key>xpos</key><real>320</real><key>ypos</key><real>1180</real></dict>
+		<key>UNDO_KW</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>1320</real></dict>
+		<key>UNDO_RUN</key><dict><key>xpos</key><real>320</real><key>ypos</key><real>1320</real></dict>
+		<key>APPLY_ONE</key><dict><key>xpos</key><real>320</real><key>ypos</key><real>1040</real></dict>
 		<key>OPEN</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>60</real></dict>
 		<key>REVEAL</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>200</real></dict>
 		<key>COPY</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>340</real></dict>

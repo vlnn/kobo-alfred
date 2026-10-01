@@ -13,7 +13,9 @@ kb:rnd fmt:epub              five random complete books, filters allowed
 kb:stats                     counts: books, incomplete downloads, duplicate titles
 kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
 kb:inbox                     books without a genre yet, oldest first
-kb:plan                      proposed moves/renames/trash, written to plan.tsv — nothing is changed
+kb:plan                      proposed moves/renames/trash, written to plan.tsv — ↩ applies that one line
+kb:apply                     apply plan.tsv, then rebuild the index
+kb:undo                      move the last batch back
 ```
 
 Each result shows: title · authors · series #n · year · FORMAT size · path relative to the library root.
@@ -79,6 +81,13 @@ From a terminal: `kobolib lint --text` prints one finding per line (`rule<TAB>de
 | `trash` | junk or a byte-identical copy → `_trash/<original path>` |
 | `dups` | a less preferred edition of a title → `_dups/<original path>` (format order: epub, kepub, fb2, mobi, azw3, azw, pdf, djvu; then newer, then larger) |
 | `skip` | two books want the same destination; resolved by hand |
+
+`kb:apply` executes the plan with same-volume renames (`os.replace`), carries a KOReader `Book.sdr` sidecar
+along with its book, rewrites the moved paths in KOReader's `collection.lua` / `history.lua` (keeping `.bak`
+copies) and in path-mirrored `docsettings` sidecars, prunes folders left empty, journals every move to
+`journal.jsonl`, and rebuilds the index. A plan older than the index is refused. `kb:undo` reverses the last
+batch (an undo is itself a batch, so undoing twice re-applies). Nothing is ever deleted: `_trash/` and `_dups/`
+are left for you, and both are ignored by the scanner.
 
 The genre folder is the existing one matching the genre; a series folder is only used when you own more than
 one book of the series. Partial downloads and unclassified books are never moved. Names are made exFAT-safe.
