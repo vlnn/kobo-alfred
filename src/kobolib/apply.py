@@ -6,10 +6,10 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from kobolib.koreader import fix_paths, sidecar_of
 from kobolib.plan import Operation
 
 EXECUTABLE = {"move", "trash", "dups"}
-SIDECAR_SUFFIX = ".sdr"
 
 
 @dataclass
@@ -24,10 +24,6 @@ class Entry:
     kind: str
     src: str
     dst: str
-
-
-def sidecar_of(book: Path) -> Path:
-    return book.with_name(book.stem + SIDECAR_SUFFIX)
 
 
 def blocked(src: Path, dst: Path) -> str:
@@ -79,6 +75,7 @@ def run(kind: str, pairs: list[tuple[str, str]], root: Path, journal: Path) -> A
         entries.append(Entry(batch, kind, src, dst))
         result.done += 1
     append(journal, entries)
+    fix_paths(root, {e.src: e.dst for e in entries})
     return result
 
 

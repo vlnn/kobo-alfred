@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.apply import Applied, apply, prune_empty_dirs, sidecar_of, undo
+from kobolib.apply import Applied, apply, prune_empty_dirs, undo
+from kobolib.koreader import sidecar_of
 from kobolib.plan import Operation
 
 
@@ -99,3 +100,13 @@ def test_prune_empty_dirs_stops_at_root(tmp_path: Path):
 )
 def test_sidecar_of(book, sidecar):
     assert sidecar_of(Path(book)) == Path(sidecar), f"{book} sidecar should be {sidecar}"
+
+
+def test_apply_fixes_koreader_collections(library: Path, tmp_path: Path):
+    settings = library / ".adds/koreader/settings"
+    settings.mkdir(parents=True)
+    (settings / "collection.lua").write_text('return { ["/mnt/sd/00_Inbox/a.epub"] = 1 }')
+
+    apply([Operation("move", "00_Inbox/a.epub", "01_Fiction/a.epub", "")], library, tmp_path / "j.jsonl")
+
+    assert "/mnt/sd/01_Fiction/a.epub" in (settings / "collection.lua").read_text(), "collections should point at the new path"
