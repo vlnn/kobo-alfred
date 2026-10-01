@@ -65,7 +65,12 @@ def book_item(row: Row) -> dict:
         "autocomplete": row.title,
         "text": {"copy": row.rel_path, "largetype": f"{row.title}\n{row.authors}\n{row.rel_path}"},
         "mods": modifiers(row),
+        "variables": {"book": row.fingerprint},
     }
+
+
+def genre_item(genre: str, is_new: bool = False) -> dict:
+    return {"uid": f"genre:{genre}", "title": f"New genre: {genre}" if is_new else genre, "arg": genre, "autocomplete": genre}
 
 
 def inbox_subtitle(row: Row, genre: str) -> str:

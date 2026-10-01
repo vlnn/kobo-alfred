@@ -145,3 +145,18 @@ def test_fill_thumbnails_updates_pdf_rows(index: Index, library: Path, mocker):
 def test_fingerprint_stored_per_book(index: Index):
     (row,) = index.search(parse_query("deep"))
     assert len(row.fingerprint) == 40, "each indexed book should carry a fingerprint"
+
+
+def test_write_tags_updates_rows_and_search_filters(index: Index):
+    from kobolib.tags import Tag, TagStore
+    store = TagStore(index.db_path.parent / "tags.tsv")
+    (deep,) = index.search(parse_query("deep"))
+    store.set(deep.fingerprint, Tag(genre="nonfiction/focus", tags=["bought", "now"]))
+
+    index.write_tags(store)
+
+    assert titles(index.search(parse_query("genre:nonfiction"))) == ["Deep Work"], "genre: should match by prefix"
+    assert titles(index.search(parse_query("genre:nonfiction/focus"))) == ["Deep Work"], "genre: should match the full genre"
+    assert titles(index.search(parse_query("tag:now"))) == ["Deep Work"], "tag: should match one of the tags"
+    assert titles(index.search(parse_query("tag:no"))) == [], "tag: must not match a tag prefix"
+    assert index.search(parse_query("deep"))[0].tags == "bought,now", "tags should be stored on the row"

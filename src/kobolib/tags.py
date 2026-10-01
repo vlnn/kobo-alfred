@@ -5,7 +5,10 @@ import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from kobolib.index import Row
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from kobolib.index import Row
 
 GENRE_DEPTH = 2
 ORDER_PREFIX = re.compile(r"^\d+_")
@@ -33,7 +36,7 @@ def genre_from_folder(folder: str) -> str:
 
 
 def unique_sorted(tags: list[str]) -> list[str]:
-    return sorted({t.strip() for t in tags if t.strip()})
+    return sorted({t.strip().lower() for t in tags if t.strip()})
 
 
 def to_fields(fingerprint: str, tag: Tag) -> dict:

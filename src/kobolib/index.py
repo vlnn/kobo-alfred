@@ -12,6 +12,7 @@ from kobolib.covers import THUMBNAIL_FORMATS, ensure_cover
 from kobolib.metadata import Book, read_book
 from kobolib.query import Query
 from kobolib.scan import iter_books
+from kobolib.tags import TagStore
 
 SCHEMA = """
 CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
@@ -19,6 +20,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
     path UNINDEXED, format UNINDEXED, partial UNINDEXED, language UNINDEXED,
     year UNINDEXED, publisher UNINDEXED, source UNINDEXED, cover UNINDEXED,
     size UNINDEXED, mtime UNINDEXED, norm_title UNINDEXED, fingerprint UNINDEXED,
+    genre UNINDEXED, tags UNINDEXED,
     tokenize = 'unicode61 remove_diacritics 2'
 );
 """
@@ -26,7 +28,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 COLUMNS = (
     "title", "authors", "series", "series_index", "folder", "rel_path", "path", "format",
     "partial", "language", "year", "publisher", "source", "cover", "size", "mtime", "norm_title",
-    "fingerprint",
+    "fingerprint", "genre", "tags",
 )
 
 FILTER_SQL = {
@@ -34,6 +36,8 @@ FILTER_SQL = {
     "in": "lower(folder) LIKE '%' || :in || '%'",
     "lang": "lower(language) = :lang",
     "year": "year = :year",
+    "genre": "(genre = :genre OR genre LIKE :genre || '/%')",
+    "tag": "',' || tags || ',' LIKE '%,' || :tag || ',%'",
 }
 
 
@@ -57,6 +61,8 @@ class Row:
     mtime: float
     norm_title: str
     fingerprint: str
+    genre: str
+    tags: str
 
 
 @dataclass
@@ -75,7 +81,7 @@ def to_record(book: Book, cover: Path | None) -> tuple:
         str(Path(book.rel_path).parent), book.rel_path, book.path, book.format,
         int(book.partial), book.language, book.year, book.publisher, book.source,
         str(cover) if cover else "", book.size, book.mtime, normalize_title(book.title),
-        book.fingerprint,
+        book.fingerprint, "", "",
     )
 
 
@@ -186,6 +192,13 @@ class Index:
         sql += f" ORDER BY {order} LIMIT :limit"
         with self.connect() as conn:
             return conn.execute(sql, {**params, "limit": limit}).fetchall()
+
+    def write_tags(self, store: TagStore) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.executemany(
+                "UPDATE books SET genre = ?, tags = ? WHERE fingerprint = ?",
+                [(tag.genre, ",".join(tag.tags), fp) for fp, tag in store.entries.items()],
+            )
 
     def duplicates(self) -> list[DuplicateGroup]:
         with self.connect() as conn:

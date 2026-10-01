@@ -195,3 +195,55 @@ def test_apply_without_plan_explains(env, capsys):
     main(["index"])
     capsys.readouterr()
     assert main(["apply"]) == 1 and "kb:plan" in capsys.readouterr().out, "apply without a plan should point at kb:plan"
+
+
+def test_tag_command_sets_genre_and_tags_by_path(env, library, capsys):
+    main(["index"])
+    capsys.readouterr()
+    book = str(library / "00_Inbox" / "Napkin.pdf")
+
+    assert main(["tag", book, "genre=reference", "+bought", "+now"]) == 0, "tagging by path should succeed"
+    assert capsys.readouterr().out.startswith("Napkin → reference"), "the result should be reported"
+    main(["search", "genre:reference tag:bought"])
+    assert [i["title"] for i in output(capsys)["items"]] == ["Napkin"], "genre and tags should be searchable at once"
+    main(["inbox"])
+    assert "Napkin" not in [i["title"] for i in output(capsys)["items"]], "a classified book leaves the inbox"
+
+
+def test_tag_command_removes_tags_and_accepts_fingerprint(env, library, capsys):
+    main(["index"])
+    capsys.readouterr()
+    book = str(library / "00_Inbox" / "Napkin.pdf")
+    main(["tag", book, "+now"])
+    capsys.readouterr()
+    main(["search", "tag:now"])
+    fingerprint = output(capsys)["items"][0]["variables"]["book"]
+
+    main(["tag", fingerprint, "-now"])
+    capsys.readouterr()
+    main(["search", "tag:now"])
+
+    assert output(capsys)["items"][0]["title"] == "No books match “tag:now”", "a removed tag should not match"
+
+
+def test_genres_lists_known_genres_filtered(env, library, capsys):
+    main(["index"])
+    main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=games/go"])
+    capsys.readouterr()
+
+    main(["genres", "g"])
+
+    items = output(capsys)["items"]
+    assert [i["arg"] for i in items] == ["games/go"], "genres should be filtered by the typed prefix"
+    main(["genres", ""])
+    assert [i["arg"] for i in output(capsys)["items"]] == ["games/go", "nonfiction"], "all genres from tags and folders should be listed"
+
+
+def test_genres_offers_new_genre_from_query(env, library, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["genres", "fiction/mystery"])
+
+    items = output(capsys)["items"]
+    assert items[-1]["arg"] == "fiction/mystery" and items[-1]["title"].startswith("New genre"), "an unknown genre can be created from the query"

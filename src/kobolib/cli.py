@@ -15,7 +15,7 @@ from kobolib.plan import plan, read_plan, write_plan
 from kobolib.scan import relative_path
 from kobolib.query import parse_query
 from kobolib.scan import probe_root
-from kobolib.tags import TagStore
+from kobolib.tags import Tag, TagStore, genre_from_folder
 
 
 def library_root() -> Path:
@@ -53,10 +53,35 @@ def all_rows(index: Index) -> list:
 
 
 def bootstrap_tags() -> int:
-    store = tag_store()
-    added = store.bootstrap(all_rows(Index(db_path())))
+    store, index = tag_store(), Index(db_path())
+    added = store.bootstrap(all_rows(index))
     store.save()
+    index.write_tags(store)
     return added
+
+
+def row_by_reference(reference: str, rows: list):
+    if reference.startswith("/"):
+        rel = relative_path(Path(reference), library_root())
+        return next((r for r in rows if r.rel_path == rel), None)
+    return next((r for r in rows if r.fingerprint == reference), None)
+
+
+def apply_edits(tag: Tag, edits: list[str]) -> Tag:
+    for edit in edits:
+        if edit.startswith("genre="):
+            tag.genre = edit.removeprefix("genre=").strip().lower()
+        elif edit.startswith("+"):
+            tag.tags = [*tag.tags, edit[1:]]
+        elif edit.startswith("-"):
+            tag.tags = [t for t in tag.tags if t != edit[1:].lower()]
+    return tag
+
+
+def known_genres(rows: list, store: TagStore) -> list[str]:
+    from_tags = {t.genre for t in store.entries.values() if t.genre}
+    from_folders = {g for r in rows if (g := genre_from_folder(r.folder))}
+    return sorted(from_tags | from_folders)
 
 
 def notify(message: str) -> None:
@@ -221,6 +246,30 @@ def cmd_undo(args) -> int:
     return finish_with_reindex(f"Undid {undone}", args.notify)
 
 
+def cmd_tag(args) -> int:
+    index, store = Index(db_path()), tag_store()
+    row = row_by_reference(args.book, all_rows(index))
+    if row is None:
+        print(f"Not indexed: {args.book}")
+        return 1
+    tag = apply_edits(store.get(row.fingerprint) or Tag(rel_path=row.rel_path), args.edits)
+    store.set(row.fingerprint, tag)
+    store.save()
+    index.write_tags(store)
+    print(f"{row.title} → {tag.genre or 'no genre'}" + (f" · {', '.join(tag.tags)}" if tag.tags else ""))
+    return 0
+
+
+def cmd_genres(args) -> int:
+    query = args.query.strip().lower()
+    genres = [g for g in known_genres(all_rows(Index(db_path())), tag_store()) if g.startswith(query)]
+    items = [alfred.genre_item(g) for g in genres]
+    if query and not genres:
+        items.append(alfred.genre_item(query, is_new=True))
+    print(alfred.render(items))
+    return 0
+
+
 def cmd_stats(args) -> int:
     index = Index(db_path())
     partial = len(index.search(parse_query("is:partial"), limit=5000))
@@ -261,6 +310,13 @@ def build_parser() -> argparse.ArgumentParser:
     undo_cmd = sub.add_parser("undo")
     undo_cmd.add_argument("--notify", action="store_true")
     undo_cmd.set_defaults(func=cmd_undo)
+    tag_cmd = sub.add_parser("tag")
+    tag_cmd.add_argument("book")
+    tag_cmd.add_argument("edits", nargs=argparse.REMAINDER)
+    tag_cmd.set_defaults(func=cmd_tag)
+    genres_cmd = sub.add_parser("genres")
+    genres_cmd.add_argument("query", nargs="?", default="")
+    genres_cmd.set_defaults(func=cmd_genres)
     return parser
 
 

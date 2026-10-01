@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-FILTER_KEYS = {"fmt", "in", "author", "series", "lang", "is", "year"}
+FILTER_KEYS = {"fmt", "in", "author", "series", "lang", "is", "year", "genre", "tag"}
 FTS_COLUMN_FILTERS = {"author": "authors", "series": "series"}
 
 
