@@ -697,7 +697,7 @@ echo "Moving one book… you will get a notification when it finishes"</string>
 			<dict><key>destinationuid</key><string>REVEAL</string><key>modifiers</key><integer>524288</integer><key>modifiersubtext</key><string>Reveal in Finder</string><key>vitoclose</key><false/></dict>
 			<dict><key>destinationuid</key><string>COPY</string><key>modifiers</key><integer>1048576</integer><key>modifiersubtext</key><string>Copy relative path</string><key>vitoclose</key><false/></dict>
 			<dict><key>destinationuid</key><string>BROWSE</string><key>modifiers</key><integer>262144</integer><key>modifiersubtext</key><string>Browse folder in Alfred</string><key>vitoclose</key><false/></dict>
-			<dict><key>destinationuid</key><string>APPLY_ONE</string><key>modifiers</key><integer>8388608</integer><key>modifiersubtext</key><string>Move to its genre home now</string><key>vitoclose</key><true/></dict>
+			<dict><key>destinationuid</key><string>APPLY_ONE</string><key>modifiers</key><integer>8388608</integer><key>modifiersubtext</key><string>Move to its genre home now</string><key>vitoclose</key><false/></dict>
 		</array>
 		<key>DUPS</key>
 		<array>
@@ -721,7 +721,7 @@ echo "Moving one book… you will get a notification when it finishes"</string>
 		</array>
 		<key>PLAN</key>
 		<array>
-			<dict><key>destinationuid</key><string>APPLY_ONE</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><true/></dict>
+			<dict><key>destinationuid</key><string>APPLY_ONE</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
 			<dict><key>destinationuid</key><string>REVEAL</string><key>modifiers</key><integer>524288</integer><key>modifiersubtext</key><string>Reveal in Finder</string><key>vitoclose</key><false/></dict>
 		</array>
 		<key>APPLY_KW</key>
@@ -750,7 +750,7 @@ echo "Moving one book… you will get a notification when it finishes"</string>
 		</array>
 		<key>GENRES</key>
 		<array>
-			<dict><key>destinationuid</key><string>TAG_RUN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><true/></dict>
+			<dict><key>destinationuid</key><string>TAG_RUN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
 		</array>
 		<key>TAG_RUN</key>
 		<array>

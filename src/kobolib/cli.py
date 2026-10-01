@@ -277,11 +277,15 @@ def cmd_tag(args) -> int:
 
 
 def cmd_genres(args) -> int:
+    book = os.environ.get("book", "")
+    if not book:
+        print(alfred.render([alfred.message_item("No book selected", "Start from kb:classify")]))
+        return 0
     query = args.query.strip().lower()
     genres = [g for g in known_genres(all_rows(Index(db_path())), tag_store()) if g.startswith(query)]
-    items = [alfred.genre_item(g) for g in genres]
+    items = [alfred.genre_item(g, book) for g in genres]
     if query and not genres:
-        items.append(alfred.genre_item(query, is_new=True))
+        items.append(alfred.genre_item(query, book, is_new=True))
     print(alfred.render(items))
     return 0
 

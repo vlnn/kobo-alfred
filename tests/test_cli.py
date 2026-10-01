@@ -11,6 +11,7 @@ def env(library: Path, tmp_path: Path, monkeypatch):
     monkeypatch.setenv("KOBO_ROOT", str(library))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
     monkeypatch.delenv("KOBO_DATA", raising=False)
+    monkeypatch.setenv("book", "x")
 
 
 def output(capsys) -> dict:
@@ -258,3 +259,24 @@ def test_classify_lists_unclassified_with_book_variable(env, library, capsys):
     items = output(capsys)["items"]
     assert [i["title"] for i in items] == ["Napkin"], "classify should filter the inbox by the query"
     assert items[0]["arg"] == "" and len(items[0]["variables"]["book"]) == 40, "the book travels as a variable, the query starts empty"
+
+
+def test_genres_forwards_the_book_variable(env, library, capsys, monkeypatch):
+    main(["index"])
+    capsys.readouterr()
+    monkeypatch.setenv("book", "abc123")
+
+    main(["genres", "non"])
+
+    out = output(capsys)
+    assert out["items"][0]["variables"] == {"book": "abc123"}, "each genre item must carry the book on to the tag step"
+
+
+def test_genres_without_book_explains(env, library, capsys, monkeypatch):
+    main(["index"])
+    capsys.readouterr()
+    monkeypatch.delenv("book", raising=False)
+
+    main(["genres", ""])
+
+    assert output(capsys)["items"][0]["valid"] is False, "without a selected book the picker must not be actionable"

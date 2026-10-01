@@ -74,8 +74,14 @@ def classify_item(row: Row, genre: str) -> dict:
     return {**inbox_item(row, genre), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row, genre) + " · ↩ pick a genre"}
 
 
-def genre_item(genre: str, is_new: bool = False) -> dict:
-    return {"uid": f"genre:{genre}", "title": f"New genre: {genre}" if is_new else genre, "arg": genre, "autocomplete": genre}
+def genre_item(genre: str, book: str, is_new: bool = False) -> dict:
+    return {
+        "uid": f"genre:{genre}",
+        "title": f"New genre: {genre}" if is_new else genre,
+        "arg": genre,
+        "autocomplete": genre,
+        "variables": {"book": book},
+    }
 
 
 def inbox_subtitle(row: Row, genre: str) -> str:
