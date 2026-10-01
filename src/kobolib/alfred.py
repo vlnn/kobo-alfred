@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import PurePosixPath
 
 from kobolib.index import DuplicateGroup, Row
 from kobolib.lint import Finding
+from kobolib.plan import Operation
 
 SEPARATOR = " · "
 
@@ -88,6 +90,23 @@ def finding_item(finding: Finding, root: str) -> dict:
         "quicklookurl": path,
         "text": {"copy": "\n".join(finding.rel_paths), "largetype": "\n".join(finding.rel_paths)},
         "mods": {"alt": {"arg": path, "subtitle": "Reveal in Finder"}},
+    }
+
+
+def plan_item(op: Operation, root: str) -> dict:
+    src = f"{root}/{op.src}"
+    skipped = op.kind == "skip"
+    name = PurePosixPath(op.dst).name
+    return {
+        "uid": f"plan:{op.src}",
+        "title": f"⚠︎ {name}" if skipped else name,
+        "subtitle": SEPARATOR.join([op.kind, op.reason, f"{op.src} → {PurePosixPath(op.dst).parent}/"]),
+        "arg": src,
+        "valid": not skipped,
+        "icon": {"type": "fileicon", "path": src},
+        "quicklookurl": src,
+        "text": {"copy": f"{op.src}\t{op.dst}", "largetype": f"{op.src}\n→ {op.dst}"},
+        "mods": {"alt": {"arg": src, "subtitle": "Reveal in Finder"}},
     }
 
 

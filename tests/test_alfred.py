@@ -77,3 +77,26 @@ def test_inbox_item_shows_known_genre():
     item = inbox_item(row(), genre="fiction/sci-fi")
 
     assert item["subtitle"].startswith("Cal Newport · Focus #2 · fiction/sci-fi · "), "known author, series and genre should be shown"
+
+
+def test_plan_item_shows_source_and_destination():
+    from kobolib.alfred import plan_item
+    from kobolib.plan import Operation
+
+    op = Operation("move", "00_Inbox/a.epub", "01_Fiction/Teague, Rowan/Teague, Rowan - Ash (2011).epub", "relocate + rename")
+
+    item = plan_item(op, "/lib")
+
+    assert item["title"] == "Teague, Rowan - Ash (2011).epub", "title should be the destination file name"
+    assert item["subtitle"] == "move · relocate + rename · 00_Inbox/a.epub → 01_Fiction/Teague, Rowan/", "subtitle should show kind, reason, source and destination folder"
+    assert item["arg"] == "/lib/00_Inbox/a.epub", "arg should point at the current file"
+    assert item["text"]["copy"] == "00_Inbox/a.epub\t01_Fiction/Teague, Rowan/Teague, Rowan - Ash (2011).epub", "copy should give the plan line"
+
+
+def test_skip_item_is_not_actionable():
+    from kobolib.alfred import plan_item
+    from kobolib.plan import Operation
+
+    item = plan_item(Operation("skip", "a.epub", "b.epub", "destination taken by c.epub"), "/lib")
+
+    assert item["valid"] is False and item["title"].startswith("⚠︎ "), "skipped operations should be visible but not actionable"

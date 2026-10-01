@@ -13,6 +13,7 @@ kb:rnd fmt:epub              five random complete books, filters allowed
 kb:stats                     counts: books, incomplete downloads, duplicate titles
 kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
 kb:inbox                     books without a genre yet, oldest first
+kb:plan                      proposed moves/renames/trash, written to plan.tsv — nothing is changed
 ```
 
 Each result shows: title · authors · series #n · year · FORMAT size · path relative to the library root.
@@ -68,6 +69,19 @@ stay unclassified and show up in `kb:inbox`.
 | `unclassified` | no genre |
 
 From a terminal: `kobolib lint --text` prints one finding per line (`rule<TAB>detail<TAB>paths`).
+
+`kb:plan` turns findings and genres into operations and writes them to `plan.tsv` next to the index
+(`kobolib plan --text` prints it). Review it, delete lines you disagree with; nothing is applied yet.
+
+| kind | meaning |
+|---|---|
+| `move` | relocate and/or rename a classified book to `<genre folder>/<Last, First>/[<Series>/]<Last, First> - <Title> (<Series> NN) (<Year>).<ext>` |
+| `trash` | junk or a byte-identical copy → `_trash/<original path>` |
+| `dups` | a less preferred edition of a title → `_dups/<original path>` (format order: epub, kepub, fb2, mobi, azw3, azw, pdf, djvu; then newer, then larger) |
+| `skip` | two books want the same destination; resolved by hand |
+
+The genre folder is the existing one matching the genre; a series folder is only used when you own more than
+one book of the series. Partial downloads and unclassified books are never moved. Names are made exFAT-safe.
 
 ## Metadata sources
 

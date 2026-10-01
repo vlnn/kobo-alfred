@@ -113,6 +113,12 @@ def test_partials_and_duplicate_losers_are_not_relocated(tmp_path):
     assert not [o for o in result if o.src.endswith(".part")], "partial downloads are left alone"
 
 
+def test_books_without_author_stay_where_they_are(tmp_path):
+    rows = [named("Хроніки 2.fb2", folder="01_Fiction/01_Sci-Fi_Fantasy/Series/Amber", title="Хроніки 2", authors="", fingerprint="f")]
+
+    assert plan(rows, [], store_with(tmp_path, f="fiction/sci-fi_fantasy")) == [], "without an author there is no destination worth moving to"
+
+
 def test_destination_collisions_are_reported_not_planned(tmp_path):
     common = dict(folder="00_Inbox", title="Ash", authors="Rowan Teague", series="", year="2011")
     rows = [named("one.epub", fingerprint="a", **common), named("two.epub", fingerprint="b", **common)]

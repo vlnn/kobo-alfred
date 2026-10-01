@@ -81,7 +81,7 @@ def desired(rows: list[Row], store: TagStore) -> dict[str, str]:
     return {
         r.rel_path: destination(r, store.genre_of(r), folders, series_counts[r.series])
         for r in rows
-        if not r.partial and store.genre_of(r)
+        if not r.partial and r.authors and store.genre_of(r)
     }
 
 

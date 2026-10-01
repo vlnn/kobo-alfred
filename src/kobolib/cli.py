@@ -10,6 +10,7 @@ from pathlib import Path
 from kobolib import alfred
 from kobolib.index import Index, IndexBusy, build_index, fill_thumbnails
 from kobolib.lint import lint
+from kobolib.plan import plan, write_plan
 from kobolib.query import parse_query
 from kobolib.scan import probe_root
 from kobolib.tags import TagStore
@@ -31,6 +32,10 @@ def db_path() -> Path:
 
 def covers_dir() -> Path:
     return data_dir() / "covers"
+
+
+def plan_path() -> Path:
+    return data_dir() / "plan.tsv"
 
 
 def tag_store() -> TagStore:
@@ -144,6 +149,20 @@ def cmd_lint(args) -> int:
     return 0
 
 
+def cmd_plan(args) -> int:
+    if not db_path().exists():
+        return without_index()
+    rows, store = all_rows(Index(db_path())), tag_store()
+    ops = plan(rows, lint(rows, store, library_root()), store)
+    write_plan(ops, plan_path())
+    if args.text:
+        print(plan_path().read_text(encoding="utf-8"), end="")
+        return 0
+    items = [alfred.plan_item(o, str(library_root())) for o in ops] or [alfred.message_item("Nothing to do", "Every classified book is where it belongs")]
+    print(alfred.render(items))
+    return 0
+
+
 def cmd_stats(args) -> int:
     index = Index(db_path())
     partial = len(index.search(parse_query("is:partial"), limit=5000))
@@ -174,6 +193,9 @@ def build_parser() -> argparse.ArgumentParser:
     lint_cmd = sub.add_parser("lint")
     lint_cmd.add_argument("--text", action="store_true")
     lint_cmd.set_defaults(func=cmd_lint)
+    plan_cmd = sub.add_parser("plan")
+    plan_cmd.add_argument("--text", action="store_true")
+    plan_cmd.set_defaults(func=cmd_plan)
     return parser
 
 

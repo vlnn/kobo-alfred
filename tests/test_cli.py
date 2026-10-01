@@ -120,3 +120,25 @@ def test_lint_text_report_for_terminal(env, capsys):
 def test_lint_without_index_explains(env, capsys):
     main(["lint"])
     assert output(capsys)["items"][0]["title"] == "No index yet", "lint without index should tell how to build it"
+
+
+def test_plan_writes_file_and_emits_items(env, tmp_path, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["plan"])
+
+    items = output(capsys)["items"]
+    plan_file = tmp_path / "alfred-data" / "plan.tsv"
+    assert plan_file.exists(), "plan should be written next to the index"
+    assert any(i["subtitle"].startswith("move") for i in items), "the misnamed epub in a genre folder should be planned for renaming"
+    assert plan_file.read_text(encoding="utf-8").count("\n") == len(items) + 1, "every operation should be in the file"
+
+
+def test_plan_text_prints_tsv(env, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["plan", "--text"])
+
+    assert capsys.readouterr().out.startswith("kind\tsrc\tdst\treason\n"), "text plan should be the TSV itself"

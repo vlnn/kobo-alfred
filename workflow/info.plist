@@ -423,6 +423,51 @@ echo "Indexing started… you will get a notification when it finishes"</string>
 				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib inbox</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>PLAN</string>
+			<key>version</key>
+			<integer>3</integer>
+			<key>config</key>
+			<dict>
+				<key>keyword</key>
+				<string>kb:plan</string>
+				<key>title</key>
+				<string>Proposed moves and renames</string>
+				<key>subtext</key>
+				<string>nothing is changed yet · ⌘C copies the plan line · plan.tsv lives next to the index</string>
+				<key>runningsubtext</key>
+				<string>Planning…</string>
+				<key>withspace</key>
+				<false/>
+				<key>argumenttype</key>
+				<integer>2</integer>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>alfredfiltersresults</key>
+				<true/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>queuedelaycustom</key>
+				<integer>1</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib plan</string>
+			</dict>
+		</dict>
 	</array>
 	<key>connections</key>
 	<dict>
@@ -453,6 +498,11 @@ echo "Indexing started… you will get a notification when it finishes"</string>
 			<dict><key>destinationuid</key><string>OPEN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
 			<dict><key>destinationuid</key><string>REVEAL</string><key>modifiers</key><integer>524288</integer><key>modifiersubtext</key><string>Reveal in Finder</string><key>vitoclose</key><false/></dict>
 		</array>
+		<key>PLAN</key>
+		<array>
+			<dict><key>destinationuid</key><string>OPEN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
+			<dict><key>destinationuid</key><string>REVEAL</string><key>modifiers</key><integer>524288</integer><key>modifiersubtext</key><string>Reveal in Finder</string><key>vitoclose</key><false/></dict>
+		</array>
 		<key>INDEX_KW</key>
 		<array>
 			<dict><key>destinationuid</key><string>INDEX_RUN</string><key>modifiers</key><integer>0</integer><key>modifiersubtext</key><string></string><key>vitoclose</key><false/></dict>
@@ -473,6 +523,7 @@ echo "Indexing started… you will get a notification when it finishes"</string>
 		<key>INDEX_NOTIFY</key><dict><key>xpos</key><real>580</real><key>ypos</key><real>620</real></dict>
 		<key>LINT</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>760</real></dict>
 		<key>INBOX</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>900</real></dict>
+		<key>PLAN</key><dict><key>xpos</key><real>60</real><key>ypos</key><real>1040</real></dict>
 		<key>OPEN</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>60</real></dict>
 		<key>REVEAL</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>200</real></dict>
 		<key>COPY</key><dict><key>xpos</key><real>420</real><key>ypos</key><real>340</real></dict>
