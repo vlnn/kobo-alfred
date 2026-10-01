@@ -69,7 +69,8 @@ stay unclassified and show up in `kb:inbox`.
 | `opaque` | `7_815203.epub`, `smp…epub`, `annas-arch-…fb2`, single-word titles without an author |
 | `exact_duplicate` | identical files in several folders |
 | `title_duplicate` | same title in several formats or editions |
-| `misfiled_series` | a series book outside the folder that already holds its series |
+| `misfiled_series` | a series book outside the folder that already holds its series (articles ignored) |
+| `author_inversion` | an author folder that is the `First, Last` swap of a better-populated one |
 | `unclassified` | no genre |
 
 From a terminal: `kobolib lint --text` prints one finding per line (`rule<TAB>detail<TAB>paths`).

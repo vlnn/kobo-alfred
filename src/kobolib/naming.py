@@ -12,6 +12,7 @@ UNSAFE = re.compile(r'[:?*|"<>/\\]')
 SPACES = re.compile(r"\s+")
 INDEX_PART = re.compile(r"\d+")
 MAX_NAME_BYTES = 255
+LEADING_ARTICLE_TITLE = re.compile(r"^(?:The|A|An)\s+")
 
 
 def first_author(authors: str) -> str:
@@ -25,8 +26,15 @@ def surname_first(author: str) -> str:
     return f"{surname}, {' '.join(given)}"
 
 
-def author_folder(authors: str) -> str:
-    return surname_first(first_author(authors))
+def resolve_known(candidate: str, known: set[str]) -> str:
+    last, _, first = candidate.partition(", ")
+    twin = f"{first}, {last}"
+    return twin if twin in known and candidate not in known else candidate
+
+
+def author_folder(authors: str, known: set[str] = frozenset()) -> str:
+    candidate = surname_first(first_author(authors))
+    return resolve_known(candidate, known) if candidate else ""
 
 
 def pad_index(index: str) -> str:
@@ -47,8 +55,8 @@ def extension(row: Row) -> str:
     return f".{row.format}{PARTIAL_SUFFIX if row.partial else ''}"
 
 
-def stem_for(row: Row) -> str:
-    author = author_folder(row.authors)
+def stem_for(row: Row, known: set[str] = frozenset()) -> str:
+    author = author_folder(row.authors, known)
     head = f"{author} - {row.title}" if author else row.title
     return f"{head}{series_part(row)}{year_part(row)}"
 
@@ -69,8 +77,12 @@ def fat_safe(name: str) -> str:
     return truncate_bytes(stem, MAX_NAME_BYTES - len(suffix.encode())) + suffix
 
 
-def canonical_name(row: Row) -> str:
-    return fat_safe(stem_for(row) + extension(row))
+def canonical_name(row: Row, known: set[str] = frozenset()) -> str:
+    return fat_safe(stem_for(row, known) + extension(row))
+
+
+def known_authors(folders: set[str]) -> set[str]:
+    return {Path(f).name for f in folders if "," in Path(f).name}
 
 
 def depth(folder: str) -> int:
@@ -91,14 +103,18 @@ def genre_root(genre: str, folders: set[str]) -> str:
     return genre
 
 
+def series_folder_name(series: str) -> str:
+    return LEADING_ARTICLE_TITLE.sub("", series).strip()
+
+
 def destination_folder(row: Row, genre: str, folders: set[str], series_count: int) -> str:
     parts = [genre_root(genre, folders)]
-    if author := author_folder(row.authors):
+    if author := author_folder(row.authors, known_authors(folders)):
         parts.append(fat_safe(author))
     if row.series and series_count > 1:
-        parts.append(fat_safe(row.series))
+        parts.append(fat_safe(series_folder_name(row.series)))
     return "/".join(parts)
 
 
 def destination(row: Row, genre: str, folders: set[str], series_count: int) -> str:
-    return f"{destination_folder(row, genre, folders, series_count)}/{canonical_name(row)}"
+    return f"{destination_folder(row, genre, folders, series_count)}/{canonical_name(row, known_authors(folders))}"

@@ -5,7 +5,7 @@ from collections import Counter
 from dataclasses import astuple, dataclass
 from pathlib import Path
 
-from kobolib.index import Row
+from kobolib.index import Row, series_key
 from kobolib.lint import Finding, all_folders
 from kobolib.naming import destination
 from kobolib.tags import TagStore, genre_from_folder
@@ -77,9 +77,9 @@ def move_reason(src: str, dst: str) -> str:
 
 def desired(rows: list[Row], store: TagStore) -> dict[str, str]:
     folders = all_folders(rows)
-    series_counts = Counter(r.series for r in rows if r.series and not r.partial)
+    series_counts = Counter(series_key(r.series) for r in rows if r.series and not r.partial)
     return {
-        r.rel_path: destination(r, store.genre_of(r), folders, series_counts[r.series])
+        r.rel_path: destination(r, store.genre_of(r), folders, series_counts[series_key(r.series)])
         for r in rows
         if not r.partial and r.authors and store.genre_of(r)
     }

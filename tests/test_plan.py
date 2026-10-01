@@ -135,3 +135,15 @@ def test_plan_file_roundtrip(tmp_path):
     write_plan(original, tmp_path / "plan.tsv")
 
     assert read_plan(tmp_path / "plan.tsv") == original, "plan file should roundtrip, tabs in names included"
+
+
+def test_series_counted_across_article_variants(tmp_path):
+    common = dict(folder="00_Inbox", authors="Rowan Teague", year="")
+    rows = [
+        named("a.epub", title="Ash", series="Grey Tide", series_index="1", fingerprint="a", **common),
+        named("b.epub", title="Ember", series="The Grey Tide", series_index="2", fingerprint="b", **common),
+    ]
+
+    dsts = [o.dst for o in plan(rows, [], store_with(tmp_path, a="fiction", b="fiction"))]
+
+    assert all("/Grey Tide/" in d for d in dsts), "both books belong to one series folder named without the article"

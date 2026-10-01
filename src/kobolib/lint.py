@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 from kobolib.filenames import BRACED_AUTHOR, strip_noise
-from kobolib.index import Row, normalize_title
+from kobolib.index import Row, normalize_title, series_key
 from kobolib.scan import BOOK_SUFFIXES, display_stem, iter_junk, relative_path
 from kobolib.tags import TagStore
 
@@ -134,9 +134,32 @@ def names_overlap(series_key: str, folder_key: str) -> bool:
 
 
 def series_folder(series: str, folders: set[str]) -> str:
-    key = normalize_title(series)
-    matches = sorted(f for f in folders if names_overlap(key, normalize_title(Path(f).name)))
+    key = series_key(series)
+    matches = sorted(f for f in folders if names_overlap(key, series_key(Path(f).name)))
     return matches[0] if matches else ""
+
+
+def author_folders(rows: Iterable[Row]) -> Counter:
+    return Counter(r.folder for r in rows if "," in Path(r.folder).name)
+
+
+def swapped(name: str) -> str:
+    last, _, first = name.partition(", ")
+    return f"{first}, {last}"
+
+
+def inverted_folder(folder: str, counts: Counter) -> str:
+    twin = str(Path(folder).with_name(swapped(Path(folder).name)))
+    return twin if counts.get(twin, 0) > counts[folder] else ""
+
+
+def author_inversions(rows: list[Row]) -> list[Finding]:
+    counts = author_folders(rows)
+    return [
+        single("author_inversion", f"{Path(r.folder).name} looks inverted → {home}", r)
+        for r in rows
+        if r.folder in counts and (home := inverted_folder(r.folder, counts))
+    ]
 
 
 def is_under(folder: str, home: str) -> bool:
@@ -171,5 +194,6 @@ def lint(rows: list[Row], store: TagStore, root: Path, exclude: tuple[Path, ...]
         *exact_duplicates(rows),
         *title_duplicates(rows),
         *misfiled_series(rows),
+        *author_inversions(rows),
         *unclassified(rows, store),
     ]

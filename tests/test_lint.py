@@ -159,3 +159,29 @@ def test_lint_runs_all_rules_in_order(tmp_path: Path):
     rules = [f.rule for f in lint(rows, store, tmp_path)]
 
     assert rules == ["junk", "partial", "noisy_name", "opaque", "unclassified", "unclassified"], "findings should follow the rule order"
+
+
+def test_series_matching_ignores_leading_articles():
+    home = "01_Fiction/01_Sci-Fi_Fantasy/Teague, Rowan/Grey Tide"
+    rows = [
+        named("a.epub", folder=home, series="Grey Tide"),
+        named("b.epub", series="The Grey Tide"),
+    ]
+
+    assert paths(misfiled_series(rows)) == [["00_Inbox/b.epub"]], "'The Grey Tide' should match the 'Grey Tide' folder"
+
+
+def test_author_inversions_are_reported():
+    from kobolib.lint import author_inversions
+
+    rows = [
+        named("a.epub", folder="01_Fiction/Teague, Rowan"),
+        named("b.epub", folder="01_Fiction/Teague, Rowan"),
+        named("c.epub", folder="01_Fiction/Rowan, Teague"),
+        named("d.epub", folder="01_Fiction/Marlowe, Petra"),
+    ]
+
+    found = author_inversions(rows)
+
+    assert paths(found) == [["01_Fiction/Rowan, Teague/c.epub"]], "the folder with fewer books is the inverted one"
+    assert found[0].detail.endswith("Teague, Rowan"), "detail should name the folder to merge into"

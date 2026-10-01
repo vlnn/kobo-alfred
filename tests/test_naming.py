@@ -80,3 +80,16 @@ def test_destination(overrides, series_count, rel_path):
     folders = {"01_Fiction", "01_Fiction/01_Sci-Fi_Fantasy"}
     got = destination(row(**overrides), "fiction/sci-fi_fantasy", folders, series_count)
     assert got == rel_path, f"{overrides} with {series_count} in series should land at {rel_path!r}"
+
+
+def test_author_folder_prefers_existing_inverse_folder():
+    known = {"Teague, Rowan"}
+    assert author_folder("Rowan Teague", known) == "Teague, Rowan", "a normal name keeps its own folder"
+    assert author_folder("Teague Rowan", known) == "Teague, Rowan", "a surname-first name should join the existing folder instead of making 'Rowan, Teague'"
+    assert author_folder("Teague Rowan", set()) == "Rowan, Teague", "without a hint the last word is the surname"
+
+
+def test_destination_uses_known_author_folders():
+    folders = {"01_Fiction", "01_Fiction/Teague, Rowan"}
+    got = destination(row(authors="Teague Rowan", series="", year=""), "fiction", folders, 0)
+    assert got.startswith("01_Fiction/Teague, Rowan/Teague, Rowan - "), "destination and file name should both use the resolved author"
