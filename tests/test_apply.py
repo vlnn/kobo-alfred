@@ -185,3 +185,67 @@ def test_undo_restores_deleted_copy_and_folder(library: Path, tmp_path: Path):
     assert (library / "00_Inbox" / "a.epub").read_bytes() == b"a", "the deleted copy comes back from the kept file"
     assert (library / "00_Inbox" / "Empty").is_dir(), "the deleted folder is recreated"
     assert undo(library, journal) == 2 and not (library / "00_Inbox" / "a.epub").exists(), "undoing the undo deletes again"
+
+
+def test_case_only_folder_rename_renames_the_folder_in_place(tmp_path: Path):
+    root = tmp_path / "card"
+    old = root / "Wolfe, Gene" / "Book of The New Sun"
+    old.mkdir(parents=True)
+    (old / "Wolfe, Gene - Claw.fb2").write_bytes(b"claw")
+    (old / "Wolfe, Gene - Claw.sdr").mkdir()
+    op = Operation("move", "Wolfe, Gene/Book of The New Sun/Wolfe, Gene - Claw.fb2", "Wolfe, Gene/Book of the New Sun/Wolfe, Gene - Claw.fb2", "relocate")
+
+    result = apply([op], root, tmp_path / "j.jsonl")
+
+    assert result == Applied(done=1, skipped=[]), "a case-only folder rename is a real operation"
+    assert (root / "Wolfe, Gene" / "Book of the New Sun" / "Wolfe, Gene - Claw.fb2").read_bytes() == b"claw", "the book is under the respelled folder, intact"
+    assert (root / "Wolfe, Gene" / "Book of the New Sun" / "Wolfe, Gene - Claw.sdr").is_dir(), "the sidecar stays beside it"
+    assert not old.exists(), "the old spelling of the folder is gone"
+
+
+def test_case_only_file_rename_keeps_the_file(tmp_path: Path):
+    root = tmp_path / "card"
+    (root / "Chess").mkdir(parents=True)
+    (root / "Chess" / "БРИНИХ - Шахмати.fb2").write_bytes(b"chess")
+    op = Operation("move", "Chess/БРИНИХ - Шахмати.fb2", "Chess/Бриних - Шахмати.fb2", "rename")
+
+    result = apply([op], root, tmp_path / "j.jsonl")
+
+    assert result.done == 1, "a case-only file rename should be applied"
+    assert (root / "Chess" / "Бриних - Шахмати.fb2").read_bytes() == b"chess", "the file is renamed, not deleted"
+
+
+def test_the_same_file_is_never_treated_as_a_duplicate(tmp_path: Path, mocker):
+    root = tmp_path / "card"
+    (root / "a").mkdir(parents=True)
+    (root / "a" / "x.epub").write_bytes(b"x")
+    mocker.patch("kobolib.apply.child_named", side_effect=lambda folder, name: (folder / "x.epub") if name.lower() == "x.epub" and (folder / "x.epub").exists() else (folder / name if (folder / name).exists() else None))
+    op = Operation("move", "a/x.epub", "a/X.epub", "rename")
+
+    result = apply([op], root, tmp_path / "j.jsonl")
+
+    assert result.done == 1 and (root / "a" / "X.epub").read_bytes() == b"x", "a case-insensitive hit on the source itself is an in-place rename"
+    assert not any(l["kind"] == "delete" for l in journal_lines(tmp_path / "j.jsonl")), "nothing is deleted"
+
+
+def test_journal_is_written_step_by_step(library: Path, tmp_path: Path, mocker):
+    journal = tmp_path / "journal.jsonl"
+    real = __import__("kobolib.apply", fromlist=["relocate"]).relocate
+    calls = []
+
+    def flaky(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 2:
+            raise OSError("card yanked")
+        return real(*args, **kwargs)
+
+    mocker.patch("kobolib.apply.relocate", side_effect=flaky)
+    ops = [
+        Operation("move", "00_Inbox/a.epub", "01_Fiction/a.epub", ""),
+        Operation("trash", "00_Inbox/FSCK0000.000", "_trash/00_Inbox/FSCK0000.000", "junk"),
+    ]
+
+    with pytest.raises(OSError):
+        apply(ops, library, journal)
+
+    assert [l["src"] for l in journal_lines(journal)] == ["00_Inbox/a.epub"], "the step that succeeded before the crash must be journaled"

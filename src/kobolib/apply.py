@@ -37,12 +37,21 @@ class Step:
     dst: str
 
 
+def same_name(a: str, b: str) -> bool:
+    return nfc(a) == nfc(b)
+
+
+def similar_name(a: str, b: str) -> bool:
+    return nfc(a).casefold() == nfc(b).casefold()
+
+
 def child_named(folder: Path, name: str) -> Path | None:
     try:
         entries = os.listdir(folder)
     except OSError:
         return None
-    return next((folder / e for e in entries if nfc(e) == nfc(name)), None)
+    exact = next((folder / e for e in entries if same_name(e, name)), None)
+    return exact or next((folder / e for e in entries if similar_name(e, name)), None)
 
 
 def locate(root: Path, rel: str) -> Path | None:
@@ -56,6 +65,13 @@ def locate(root: Path, rel: str) -> Path | None:
 
 def on_disk(root: Path, rel: str) -> Path:
     return locate(root, rel) or root / rel
+
+
+def is_same_file(a: Path, b: Path) -> bool:
+    try:
+        return a == b or a.samefile(b)
+    except OSError:
+        return False
 
 
 def is_empty_dir(path: Path) -> bool:
@@ -88,11 +104,46 @@ def restore(src: Path, kept: Path) -> None:
     src.mkdir() if kept.is_dir() else shutil.copy2(kept, src)
 
 
+TEMP_SUFFIX = ".kobolib-renaming"
+
+
+def respell(path: Path, name: str) -> Path:
+    if path.name == name:
+        return path
+    temp = path.with_name(name + TEMP_SUFFIX)
+    os.replace(path, temp)
+    os.replace(temp, path.with_name(name))
+    return path.with_name(name)
+
+
+def settle_parents(root: Path, rel: str) -> Path:
+    current = root
+    for part in PurePosixPath(rel).parts[:-1]:
+        found = child_named(current, part)
+        current = respell(found, part) if found else current / part
+        current.mkdir(exist_ok=True)
+    return current
+
+
+def place(src: Path, dst: Path) -> None:
+    if src.parent == dst.parent:
+        respell(src, dst.name)
+    else:
+        os.replace(src, dst)
+
+
+def carry_sidecar(src: Path, dst: Path) -> None:
+    sidecar = sidecar_of(src)
+    if not sidecar.is_dir():
+        return
+    existing = child_named(dst.parent, sidecar_of(dst).name)
+    if existing is None or is_same_file(existing, sidecar):
+        place(sidecar, sidecar_of(dst))
+
+
 def relocate(src: Path, dst: Path, root: Path) -> None:
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    os.replace(src, dst)
-    if sidecar_of(src).is_dir() and not sidecar_of(dst).exists():
-        os.replace(sidecar_of(src), sidecar_of(dst))
+    place(src, dst)
+    carry_sidecar(src, dst)
     prune_empty_dirs(src.parent, root)
 
 
@@ -113,33 +164,54 @@ def new_batch() -> str:
     return str(time.time_ns())
 
 
-def execute(step: Step, kind: str, src: Path, dst: Path, root: Path) -> tuple[str, str]:
+def existing_destination(src: Path, parent: Path, name: str) -> Path | None:
+    found = child_named(parent, name)
+    return None if found is None or is_same_file(found, src) else found
+
+
+def move(step: Step, kind: str, root: Path) -> tuple[str, str]:
+    if locate(root, step.src) is None:
+        return "", "source missing"
+    parent = settle_parents(root, step.dst)
+    src = on_disk(root, step.src)
+    name = PurePosixPath(step.dst).name
+    if (taken := existing_destination(src, parent, name)) is not None:
+        if reason := redundant(src, taken):
+            return "", reason
+        remove(src, root)
+        return "delete", ""
+    relocate(src, parent / name, root)
+    return kind, ""
+
+
+def execute(step: Step, kind: str, root: Path) -> tuple[str, str]:
+    src, dst = on_disk(root, step.src), on_disk(root, step.dst)
     if step.action == "restore":
         if src.exists():
             return "", "already present"
         restore(src, dst)
         return "restore", ""
-    if not src.exists():
-        return "", "source missing"
-    if step.action == "delete" or dst.exists():
+    if step.action == "delete":
+        if not src.exists():
+            return "", "source missing"
         if reason := redundant(src, dst):
             return "", reason
         remove(src, root)
         return "delete", ""
-    relocate(src, dst, root)
-    return kind, ""
+    return move(step, kind, root)
 
 
 def run(kind: str, steps: list[Step], root: Path, journal: Path) -> Applied:
     result, entries, batch = Applied(), [], new_batch()
     for step in steps:
-        entry_kind, reason = execute(step, kind, on_disk(root, step.src), on_disk(root, step.dst), root)
+        entry_kind, reason = execute(step, kind, root)
         if reason:
             result.skipped.append(f"{step.src}: {reason}")
             continue
-        entries.append(Entry(batch, entry_kind, step.src, step.dst))
+        entry = Entry(batch, entry_kind, step.src, step.dst)
+        append(journal, [entry])
+        entries.append(entry)
         result.done += 1
-    append(journal, entries)
     fix_paths(root, {e.src: e.dst for e in entries if e.kind in MOVES})
     return result
 

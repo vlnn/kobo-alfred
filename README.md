@@ -91,7 +91,10 @@ From a terminal: `kobolib lint --text` prints one finding per line (`rule<TAB>de
 `kb:apply` executes the plan with same-volume renames (`os.replace`), carries a KOReader `Book.sdr` sidecar
 along with its book, rewrites the moved paths in KOReader's `collection.lua` / `history.lua` (keeping `.bak`
 copies) and in path-mirrored `docsettings` sidecars, prunes folders left empty, journals every move to
-`journal.jsonl`, and rebuilds the index. When the destination already exists and the source is redundant (an
+`journal.jsonl`, and rebuilds the index. The card is case-insensitive, so a
+destination that differs from the source only by letter case (or Unicode normalization) is the same file: such
+a move is done as an in-place rename, folder by folder, never treated as a duplicate. When the destination
+already exists as a different entry and the source is redundant (an
 empty folder, or a byte-identical copy of the file already there) the source is removed instead, journaled as
 a `delete`; a destination holding different content leaves the operation skipped, and the notification says so. A plan older than the index is refused. `kb:undo` reverses the last
 batch (an undo is itself a batch, so undoing twice re-applies); a deleted copy comes back from the kept file. Nothing is ever deleted: `_trash/` and `_dups/`
