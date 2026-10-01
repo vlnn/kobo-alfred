@@ -12,7 +12,7 @@ from tests.test_alfred import row
         ("Rowan Teague; Petra Marlowe", "Teague, Rowan"),
         ("Morwenna O'Hare", "O'Hare, Morwenna"),
         ("Harriet V. Okonkwo", "Okonkwo, Harriet V."),
-        ("Тіґ Ровен", "Ровен, Тіґ"),
+        ("Тіґ Ровен", "Тіґ, Ровен"),
         ("Plato", "Plato"),
         ("Petra Marlowe (ed)", "Marlowe, Petra"),
         ("Marlowe, Petra (eds.)", "Marlowe, Petra"),
@@ -93,3 +93,22 @@ def test_destination_uses_known_author_folders():
     folders = {"01_Fiction", "01_Fiction/Teague, Rowan"}
     got = destination(row(authors="Teague Rowan", series="", year=""), "fiction", folders, 0)
     assert got.startswith("01_Fiction/Teague, Rowan/Teague, Rowan - "), "destination and file name should both use the resolved author"
+
+
+@pytest.mark.parametrize(
+    "authors, folder",
+    [
+        ("Дольд-Михайлик Юрий Петрович", "Дольд-Михайлик, Юрий Петрович"),
+        ("Бердник Олесь Павлович", "Бердник, Олесь Павлович"),
+        ("Стросс Чарлз", "Стросс, Чарлз"),
+        ("Артур Конан Дойл", "Дойл, Артур Конан"),
+    ],
+)
+def test_cyrillic_names_follow_surname_first_convention(authors, folder):
+    assert author_folder(authors) == folder, f"{authors!r} should file under {folder!r}"
+
+
+def test_known_authors_includes_plain_folders():
+    from kobolib.naming import known_authors
+
+    assert known_authors({"01_Fiction/Rowan Teague", "01_Fiction/Marlowe, Petra", "01_Fiction/Standalone"}) == {"Teague, Rowan", "Marlowe, Petra"}, "a 'First Last' folder counts as that author's home"

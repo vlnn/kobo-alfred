@@ -96,6 +96,10 @@ are left for you, and both are ignored by the scanner.
 unknown one is created), ↩. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy +now -bought`.
 Genres and tags are searchable (`kb genre:fiction tag:now`); `genre:` matches by prefix.
 
+Author folders are `Last, First`. A plain `First Last` name is inverted, except Cyrillic names, which are
+assumed `Фамилия Имя [Отчество]` as in libgen/flibusta filenames; an existing author folder (either form) wins
+over the guess, so `Teague Rowan` joins `Teague, Rowan/` if that folder exists.
+
 The genre folder is the existing one matching the genre; a series folder is only used when you own more than
 one book of the series. Partial downloads and unclassified books are never moved. Names are made exFAT-safe.
 
