@@ -215,9 +215,14 @@ def cmd_plan(args) -> int:
     if args.text:
         print(plan_path().read_text(encoding="utf-8"), end="")
         return 0
-    items = [alfred.plan_item(o, str(library_root())) for o in ops] or [alfred.message_item("Nothing to do", "Every classified book is where it belongs")]
-    print(alfred.render(items))
+    print(alfred.render(plan_items(ops)))
     return 0
+
+
+def plan_items(ops) -> list[dict]:
+    if not ops:
+        return [alfred.message_item("Nothing to do", "Every classified book is where it belongs")]
+    return [alfred.apply_all_item(len(ops)), *(alfred.plan_item(o, str(library_root())) for o in ops)]
 
 
 def current_plan():

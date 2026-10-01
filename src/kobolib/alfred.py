@@ -128,6 +128,16 @@ def finding_item(finding: Finding, root: str) -> dict:
     }
 
 
+def apply_all_item(count: int) -> dict:
+    return {
+        "uid": "plan:apply-all",
+        "title": f"Apply all {count} operations",
+        "subtitle": "↩ runs the whole plan, then rebuilds the index · ↩ on a row below applies that row only",
+        "arg": "",
+        "icon": {"type": "fileicon", "path": "/System/Applications/Utilities/Terminal.app"},
+    }
+
+
 def plan_item(op: Operation, root: str) -> dict:
     src = f"{root}/{op.src}"
     skipped = op.kind == "skip"

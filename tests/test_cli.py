@@ -133,7 +133,7 @@ def test_plan_writes_file_and_emits_items(env, tmp_path, capsys):
     plan_file = tmp_path / "alfred-data" / "plan.tsv"
     assert plan_file.exists(), "plan should be written next to the index"
     assert any(i["subtitle"].startswith("move") for i in items), "the misnamed epub in a genre folder should be planned for renaming"
-    assert plan_file.read_text(encoding="utf-8").count("\n") == len(items) + 1, "every operation should be in the file"
+    assert plan_file.read_text(encoding="utf-8").count("\n") == len(items), "every operation should be in the file (header line stands in for the head row)"
 
 
 def test_plan_text_prints_tsv(env, capsys):
@@ -350,3 +350,23 @@ def test_tag_accepts_edit_from_fix_picker(env, library, capsys):
 
     assert main(["tag", fingerprint, "+now"]) == 0, "an edit arg from the fix picker should be applied"
     assert capsys.readouterr().out.startswith("Napkin → no genre · now"), "the result should be reported"
+
+
+def test_plan_list_starts_with_apply_all(env, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["plan"])
+
+    items = output(capsys)["items"]
+    assert items[0]["title"] == "Apply all 1 operations" and items[0]["arg"] == "", "↩ on the head row should apply the whole plan"
+    assert all(i["subtitle"].startswith(("move", "trash", "dups", "skip")) for i in items[1:]), "the operations follow the head row"
+
+
+def test_apply_with_empty_only_applies_the_whole_plan(env, capsys):
+    main(["index"])
+    main(["plan"])
+    capsys.readouterr()
+
+    assert main(["apply", "--only", ""]) == 0, "an empty --only (the plan list's head row) means the whole plan"
+    assert capsys.readouterr().out.startswith("Applied 1"), "the plan should have been applied"
