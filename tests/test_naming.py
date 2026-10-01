@@ -14,6 +14,8 @@ from tests.test_alfred import row
         ("Harriet V. Okonkwo", "Okonkwo, Harriet V."),
         ("Тіґ Ровен", "Ровен, Тіґ"),
         ("Plato", "Plato"),
+        ("Petra Marlowe (ed)", "Marlowe, Petra"),
+        ("Marlowe, Petra (eds.)", "Marlowe, Petra"),
         ("", ""),
     ],
 )

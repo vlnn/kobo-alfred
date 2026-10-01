@@ -10,6 +10,7 @@ PARTIAL_SUFFIX = ".part"
 JUNK_SUFFIXES = {".textclipping", ".txt", ".zip"}
 FINGERPRINT_BYTES = 64 * 1024
 SKIP_FOLDERS = {"_trash", "_dups"}
+SIDECAR_SUFFIX = ".sdr"
 
 
 def book_format(path: Path) -> str:
@@ -34,7 +35,7 @@ def is_book(path: Path) -> bool:
 
 def is_skipped(path: Path, root: Path, exclude: tuple[Path, ...]) -> bool:
     parts = path.relative_to(root).parts
-    return bool(SKIP_FOLDERS & set(parts)) or any(path == e or e in path.parents for e in exclude)
+    return bool(SKIP_FOLDERS & set(parts)) or in_sidecar(path, root) or any(path == e or e in path.parents for e in exclude)
 
 
 def iter_books(root: Path, exclude: tuple[Path, ...] = ()) -> Iterator[Path]:
@@ -49,13 +50,17 @@ def is_empty_dir(path: Path) -> bool:
     return path.is_dir() and not any(path.iterdir())
 
 
-def is_hidden(path: Path) -> bool:
-    return path.name.startswith(".")
+def is_hidden(path: Path, root: Path) -> bool:
+    return any(part.startswith(".") for part in path.relative_to(root).parts)
+
+
+def in_sidecar(path: Path, root: Path) -> bool:
+    return any(part.endswith(SIDECAR_SUFFIX) for part in path.relative_to(root).parts)
 
 
 def iter_junk(root: Path, exclude: tuple[Path, ...] = ()) -> Iterator[Path]:
     for path in sorted(root.rglob("*")):
-        if is_hidden(path) or is_skipped(path, root, exclude):
+        if is_hidden(path, root) or is_skipped(path, root, exclude):
             continue
         if is_empty_dir(path) or (path.is_file() and not is_book(path)):
             yield path

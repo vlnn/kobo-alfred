@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from kobolib.filenames import EDITOR
 from kobolib.index import Row
 from kobolib.scan import PARTIAL_SUFFIX
 from kobolib.tags import genre_from_folder
@@ -14,7 +15,7 @@ MAX_NAME_BYTES = 255
 
 
 def first_author(authors: str) -> str:
-    return authors.split(";")[0].strip()
+    return EDITOR.sub("", authors.split(";")[0]).strip()
 
 
 def surname_first(author: str) -> str:

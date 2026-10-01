@@ -113,3 +113,17 @@ def test_scanners_skip_trash_dups_and_excluded_dirs(tmp_path):
 
     assert books == ["ok/book.epub"], "books under _trash, _dups and the excluded dir should be ignored"
     assert junk == ["ok/junk.txt"], "junk under _trash, _dups and the excluded dir should be ignored"
+
+
+def test_junk_scan_ignores_hidden_trees_and_sidecars(tmp_path):
+    from kobolib.scan import iter_books, iter_junk
+
+    (tmp_path / ".adds" / "koreader" / "settings").mkdir(parents=True)
+    (tmp_path / ".adds" / "koreader" / "settings" / "collection.lua").write_text("return {}")
+    (tmp_path / "Book.sdr").mkdir()
+    (tmp_path / "Book.sdr" / "metadata.epub.lua").write_text("return {}")
+    (tmp_path / "Book.sdr" / "stray.epub").write_bytes(b"")
+    (tmp_path / "Book.epub").write_bytes(b"")
+
+    assert list(iter_junk(tmp_path)) == [], "KOReader's hidden tree and sidecar contents are not junk"
+    assert [p.name for p in iter_books(tmp_path)] == ["Book.epub"], "nothing inside a sidecar is a library book"
