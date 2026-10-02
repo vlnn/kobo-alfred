@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 FTS_COLUMNS = {"author": "authors", "series": "series"}
 SQL_CLAUSES = {
     "fmt": "format = :fmt",
-    "in": "lower(folder) LIKE '%' || :in || '%'",
-    "lang": "lower(language) = :lang",
+    "in": "fold(folder) LIKE '%' || :in || '%'",
+    "lang": "fold(language) = :lang",
     "year": "year = :year",
     "genre": "(genre = :genre OR genre LIKE :genre || '/%')",
     "tag": "',' || tags || ',' LIKE '%,' || :tag || ',%'",
@@ -36,7 +36,7 @@ def fts_token(term: str) -> str:
 def split_filter(word: str) -> tuple[str, str] | None:
     key, sep, value = word.partition(":")
     if sep and value and key.lower() in FILTER_KEYS:
-        return key.lower(), value.lower()
+        return key.lower(), value.casefold()
     return None
 
 

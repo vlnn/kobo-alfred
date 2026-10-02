@@ -211,7 +211,7 @@ def test_genres_lists_known_genres_filtered(indexed, library, capsys):
     capsys.readouterr()
 
     items = run(["genres", "g"], capsys)["items"]
-    assert [i["arg"] for i in items] == ["genre=games/go"], "genres should be filtered by the typed prefix and offered as edits"
+    assert [i["arg"] for i in items] == ["genre=games/go", "genre=g"], "matching genres are offered as edits, the fragment itself last"
     assert [i["arg"] for i in run(["genres", ""], capsys)["items"]] == ["genre=games/go", "genre=nonfiction"], (
         "all genres from tags and folders should be listed"
     )
@@ -282,6 +282,62 @@ def test_fix_turns_query_into_an_edit(indexed, library, capsys, monkeypatch, que
     edits = [i for i in run(["fix", "--", query], capsys)["items"] if i.get("valid", True)]
     assert edits[0]["arg"] == arg, f"query {query!r} should offer the edit {arg!r}"
     assert edits[0]["title"].startswith(title_start), f"the offered edit should be labelled {title_start!r}"
+
+
+@pytest.fixture
+def spy_book(indexed, library, capsys, monkeypatch):
+    main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=fiction/spy", "+now", "+bought"])
+    capsys.readouterr()
+    monkeypatch.setenv("book", run(["search", "napkin"], capsys)["items"][0]["variables"]["book"])
+
+
+def offered(items: list[dict], prefix: str) -> list[str]:
+    return [
+        i["arg"] for i in items if i.get("arg", "").startswith(prefix) and not i["title"].startswith(("New genre", "Add tag", "Remove tag"))
+    ]
+
+
+@pytest.mark.parametrize("query", ["spy", "SPY", "fiction/", "tion/sp"])
+def test_fix_matches_a_genre_anywhere_in_its_path(spy_book, capsys, query):
+    items = run(["fix", query], capsys)["items"]
+    assert offered(items, "genre=") == ["genre=fiction/spy"], f"{query!r} should match the genre anywhere in its path, case-insensitively"
+    assert items[1]["autocomplete"] == "fiction/spy", "⇥ on a genre row completes to the genre itself, not to the edit"
+
+
+def test_fix_offers_a_partial_match_as_a_new_genre_too(spy_book, capsys):
+    last = run(["fix", "spy"], capsys)["items"][-1]
+    assert last["arg"] == "genre=spy" and last["title"].startswith("New genre"), (
+        "a fragment that is not itself a genre can still become one"
+    )
+
+
+def test_fix_does_not_offer_an_existing_genre_as_new(spy_book, capsys):
+    titles = [i["title"] for i in run(["fix", "fiction/spy"], capsys)["items"]]
+    assert not any(t.startswith("New genre") for t in titles), "an exact existing genre is not offered again as new"
+
+
+@pytest.mark.parametrize("query, expected", [("-no", ["-now"]), ("-O", ["-bought", "-now"]), ("-zzz", ["-zzz"])])
+def test_fix_minus_narrows_the_book_s_own_tags(spy_book, capsys, query, expected):
+    args = [i["arg"] for i in run(["fix", "--", query], capsys)["items"] if i.get("arg", "").startswith("-")]
+    assert args == expected, f"{query!r} should offer the current tags containing the letters, or the literal when none does"
+
+
+def test_fix_plus_suggests_tags_already_used_elsewhere(spy_book, library, capsys):
+    main(["tag", str(library / "00_Inbox" / "Delany, Samuel R - Nova - 2014.epub.part"), "+reading", "+recent"])
+    capsys.readouterr()
+
+    args = [i["arg"] for i in run(["fix", "--", "+re"], capsys)["items"] if i.get("arg", "").startswith("+")]
+    assert args == ["+reading", "+recent", "+re"], "tags used on other books are offered first, the literal last"
+
+
+def test_fix_plus_does_not_suggest_a_tag_the_book_already_has(spy_book, capsys):
+    args = [i["arg"] for i in run(["fix", "--", "+now"], capsys)["items"] if i.get("arg", "").startswith("+")]
+    assert args == ["+now"], "an exact tag is offered once, and never as a suggestion when the book already carries it"
+
+
+def test_genres_picker_matches_like_fix(spy_book, capsys):
+    args = [i["arg"] for i in run(["genres", "SP"], capsys)["items"]]
+    assert args == ["genre=fiction/spy", "genre=sp"], "kb:classify's genre step uses the same matching as the fix picker"
 
 
 def test_fix_without_book_explains(indexed, capsys, monkeypatch):

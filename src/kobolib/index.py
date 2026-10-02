@@ -80,6 +80,7 @@ def source_records(roots: list[Path], cover_cache: Path, exclude: tuple[Path, ..
 @contextmanager
 def reading(db_path: Path) -> Iterator[sqlite3.Connection]:
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.create_function("fold", 1, str.casefold, deterministic=True)
     try:
         yield conn
     finally:
@@ -244,6 +245,9 @@ class Index:
 
     def folders(self) -> list[str]:
         return self.distinct("folder")
+
+    def tags(self) -> list[str]:
+        return self.distinct("tags")
 
     def distinct(self, column: str) -> list[str]:
         return self.values(f"SELECT DISTINCT {column} FROM books WHERE {column} != '' ORDER BY {column}")

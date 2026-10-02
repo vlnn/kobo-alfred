@@ -209,7 +209,7 @@ def cmd_fix(args) -> int:
         return 0
     tag = store.get(book) or Tag()
     query = args.query.strip().lower()
-    items = [alfred.fix_header(row, tag.genre, tag.tags), *tag_edits(query, tag.tags, book)]
+    items = [alfred.fix_header(row, tag.genre, tag.tags), *tag_edits(query, tag.tags, index, book)]
     if not query.startswith(("+", "-")):
         items += genre_edits(query, index, store, book)
     print(alfred.render(items))

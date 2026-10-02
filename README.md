@@ -120,8 +120,10 @@ unknown one is created), ↩. From a terminal: `kobolib tag <path|fingerprint> g
 Genres and tags are searchable (`kb genre:fiction tag:now`); `genre:` matches by prefix.
 
 Any book you have just found — in `kb`, `kb:inbox`, or after `kb term` — can be fixed in place with ⇧↩: the
-picker shows the current genre and tags, lists known genres (type to filter, an unknown one is created), and
-takes `+tag` / `-tag` to add or remove a tag. Current tags are listed for removal when the query is empty.
+picker shows the current genre and tags and lists known genres; typing any part of a genre's path filters them
+(`spy` finds `fiction/spy`, case does not matter), ⇥ completes the genre, and the typed text is offered as a new
+genre unless it already is one. `+tag` offers the tags used on other books, then the typed tag itself; `-tag`
+narrows the book's own tags. Current tags are listed for removal when the query is empty.
 
 Author folders are `Last, First`. A plain `First Last` name is inverted, except Cyrillic names, which are
 assumed `Фамилия Имя [Отчество]` as in libgen/flibusta filenames; an existing author folder (either form) wins

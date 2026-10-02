@@ -69,6 +69,10 @@ def known_genres(index: Index, store: TagStore) -> list[str]:
     return sorted(from_tags | from_folders | set(index.genres()))
 
 
+def known_tags(index: Index) -> list[str]:
+    return sorted({t for tags in index.tags() for t in tags.split(",") if t})
+
+
 def run_index() -> tuple[int, str]:
     root = library_root()
     if not root.exists():

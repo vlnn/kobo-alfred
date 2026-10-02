@@ -77,8 +77,12 @@ def fix_header(row: Row, genre: str, tags: list[str]) -> dict:
     return {**message_item(row.title, state), "icon": icon(row)}
 
 
-def edit_item(edit: str, title: str, book: str, uid: str | None = None) -> dict:
-    return {"uid": uid or f"edit:{edit}", "title": title, "arg": edit, "autocomplete": edit, "variables": {"book": book}}
+def edit_item(edit: str, title: str, book: str) -> dict:
+    return {"uid": f"edit:{edit}", "title": title, "arg": edit, "autocomplete": edit, "variables": {"book": book}}
+
+
+def genre_item(genre: str, book: str) -> dict:
+    return {**edit_item(f"genre={genre}", genre, book), "uid": f"genre:{genre}", "autocomplete": genre}
 
 
 def source_item(row: Row) -> dict:

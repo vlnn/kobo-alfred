@@ -253,3 +253,14 @@ def test_every_connection_is_closed_after_use(index: Index, mocker):
     for conn in opened:
         with pytest.raises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")
+
+
+@pytest.mark.parametrize("raw", ["in:пригоди", "in:Пригоди", "in:ПРИГОДИ", "lang:EN"])
+def test_filters_fold_case_beyond_ascii(index: Index, library: Path, raw):
+    import shutil
+
+    (library / "03_Пригоди").mkdir()
+    shutil.move(library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub", library / "03_Пригоди")
+    build_index(library, index.db_path, cover_cache=library / "c")
+
+    assert titles(index.search(parse_query(raw))) == ["Deep Work"], f"{raw!r} should match regardless of case, Cyrillic included"
