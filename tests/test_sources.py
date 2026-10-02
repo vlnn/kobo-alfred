@@ -176,7 +176,9 @@ def test_sources_items_carry_import_actions(env, capsys):
 
     item = output(capsys)["items"][0]
     assert item["valid"] is True and item["arg"].endswith("Slow Productivity - Cal Newport.epub"), "↩ passes the absolute path to import"
-    assert "move" in item["mods"]["alt"]["subtitle"].lower(), "⌥↩ moves instead of copying"
+    assert "reveal" in item["mods"]["alt"]["subtitle"].lower(), "⌥↩ reveals the source file, as in kb"
+    assert "copy" in item["mods"]["cmd"]["subtitle"].lower(), "⌘↩ copies the path, as in kb"
+    assert item["mods"]["alt"]["arg"] == item["mods"]["cmd"]["arg"] == item["arg"], "both modifiers act on the source file itself"
 
 
 def test_import_copies_into_inbox_and_indexes(env, library, calibre, capsys):
@@ -195,10 +197,11 @@ def test_import_copies_into_inbox_and_indexes(env, library, calibre, capsys):
     assert "A World Without Email" in titles(capsys), "an imported book waits in the inbox for classification"
 
 
-def test_import_move_removes_source(env, library, calibre, capsys):
+def test_import_only_copies(env, calibre):
     src = calibre / "Misc" / "A World Without Email.epub"
-    assert main(["import", "--move", str(src)]) == 0, "import --move should succeed"
-    assert not src.exists() and (library / "00_Inbox" / "A World Without Email.epub").exists(), "moving relocates the file"
+    with pytest.raises(SystemExit):
+        main(["import", "--move", str(src)])
+    assert src.exists(), "there is no way to move a source book into the library"
 
 
 def test_import_refuses_known_fingerprint(env, downloads, capsys):

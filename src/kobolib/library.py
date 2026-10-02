@@ -189,12 +189,9 @@ def import_blocked(src: Path, dst: Path) -> str:
     return ""
 
 
-def transfer(src: Path, dst: Path, move: bool) -> None:
+def transfer(src: Path, dst: Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
-    if move:
-        shutil.move(src, dst)
-    else:
-        shutil.copy2(src, dst)
+    shutil.copy2(src, dst)
 
 
 def not_in_library(rows: list[Row]) -> list[Row]:

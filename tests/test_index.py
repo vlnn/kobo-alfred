@@ -281,3 +281,58 @@ def test_relocate_carries_the_cover_to_the_new_key(index: Index, library: Path):
     )
     assert not old_cover.exists(), "no orphan is left under the old key"
     assert index.by_rel_path(dst).cover == str(new_cover), "the row points at the renamed cover"
+
+
+@pytest.fixture
+def indexed(library: Path, tmp_path: Path, monkeypatch) -> Path:
+    from kobolib.cli import main
+
+    monkeypatch.setenv("KOBO_ROOT", str(library))
+    monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
+    monkeypatch.delenv("KOBO_DATA", raising=False)
+    main(["index"])
+    return tmp_path / "alfred-data" / "library.db"
+
+
+def age(db: Path) -> None:
+    import sqlite3
+
+    with sqlite3.connect(db) as conn:
+        conn.execute("PRAGMA user_version = 0")
+
+
+def first_title(capsys) -> str:
+    import json
+
+    return json.loads(capsys.readouterr().out)["items"][0]["title"]
+
+
+@pytest.mark.parametrize("command", [["search", "deep"], ["inbox"], ["dups"], ["stats"], ["random", ""], ["lint"], ["plan"]])
+def test_index_from_an_older_version_asks_for_a_rebuild(indexed: Path, capsys, command):
+    from kobolib.cli import main
+
+    age(indexed)
+    main(command)
+
+    assert first_title(capsys) == "Index is from an older version", f"{command[0]} should not read an index whose fingerprints are stale"
+
+
+def test_old_index_refuses_writes(indexed: Path, library: Path, capsys):
+    from kobolib.cli import main
+
+    age(indexed)
+
+    assert main(["import", str(library / "00_Inbox" / "Napkin.pdf")]) == 1, "an old index cannot tell what the library already holds"
+    assert main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=reference"]) == 1, "tagging would key on a stale fingerprint"
+    assert "older version" in capsys.readouterr().out, "the reason should name the rebuild"
+
+
+def test_reindex_brings_an_old_index_up_to_date(indexed: Path, capsys):
+    from kobolib.cli import main
+
+    age(indexed)
+    main(["index"])
+    capsys.readouterr()
+    main(["search", "deep"])
+
+    assert first_title(capsys) == "Deep Work", "kb:index should rewrite the index at the current version"

@@ -3,22 +3,36 @@ from __future__ import annotations
 import random
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from kobolib import alfred
 from kobolib.config import db_path, library_root, plan_path, sources, sources_db_path
-from kobolib.index import Index
+from kobolib.index import Index, is_current
 from kobolib.library import current_plan, findings, known_genres, known_tags, not_in_library, unclassified_rows
 from kobolib.plan import write_plan
 from kobolib.query import parse_query
 from kobolib.tags import TagStore
 
 
+def index_problem(path: Path | None = None, what: str = "Index") -> str:
+    path = path or db_path()
+    if not path.exists():
+        return f"No {what.lower()} yet"
+    if not is_current(path):
+        return f"{what} is from an older version"
+    return ""
+
+
+def stale_index() -> bool:
+    return db_path().exists() and not is_current(db_path())
+
+
 def without_index_items() -> list[dict]:
-    return [alfred.message_item("No index yet", "Run kb:index to build it")]
+    return [alfred.message_item(index_problem(), "Run kb:index to build it")]
 
 
 def book_items(raw: str) -> list[dict]:
-    if not db_path().exists():
+    if index_problem():
         return without_index_items()
     index = Index(db_path())
     rows = index.search(parse_query(raw))
@@ -46,7 +60,7 @@ def with_action(item: dict, action: str) -> dict:
 
 def command_items(command: str, rest: str) -> list[dict]:
     chosen = COMMANDS[command]
-    if chosen.needs_index and not db_path().exists():
+    if chosen.needs_index and index_problem():
         return without_index_items()
     return [with_action(i, chosen.action) for i in chosen.items(rest)]
 
@@ -145,8 +159,10 @@ def source_items(raw: str) -> list[dict]:
 
 
 def sources_items(query: str) -> list[dict]:
-    if not sources_db_path().exists():
-        return [alfred.message_item("No sources index yet", "Set KOBO_SOURCES, then run kb:index")]
+    if stale_index():
+        return without_index_items()
+    if problem := index_problem(sources_db_path(), "Sources index"):
+        return [alfred.message_item(problem, "Set KOBO_SOURCES, then run kb:index")]
     return source_items(query)
 
 
@@ -161,7 +177,7 @@ def stats_items() -> list[dict]:
 
 
 def sources_stats_items() -> list[dict]:
-    if not sources_db_path().exists():
+    if index_problem(sources_db_path()):
         return []
     return [alfred.message_item(f"{Index(sources_db_path()).count()} books in {len(sources())} sources", "kb:src")]
 

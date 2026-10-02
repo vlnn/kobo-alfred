@@ -92,6 +92,23 @@ def test_dispatcher_else_opens_the_book(workflow):
     )
 
 
+def test_sources_cannot_move_books(workflow):
+    assert not any(o["uid"] == "IMPORT_MOVE_RUN" for o in workflow["objects"]), "import copies; there is no move action to reach"
+    assert not any("import --move" in o["config"].get("script", "") for o in workflow["objects"]), "no script should move a source book"
+
+
+def test_workflow_metadata_is_release_ready(workflow):
+    import re
+
+    pyproject = (PLIST.parent.parent / "pyproject.toml").read_text()
+    assert workflow["version"] == re.search(r'^version = "(.+)"', pyproject, re.M).group(1), (
+        "Alfred shows the plist version; it should match the package"
+    )
+    assert workflow["webaddress"].startswith("https://github.com/"), "the About panel should link to the repository"
+    for keyword in ("kb:classify", "kb:lint", "kb:plan", "kb:src", "kb word"):
+        assert keyword in workflow["readme"], f"the install readme should mention {keyword}"
+
+
 def test_index_src_keyword_is_gone(workflow):
     assert not any(o["config"].get("keyword") == "kb:index-src" for o in workflow["objects"]), "kb:index now covers the sources too"
 
@@ -146,4 +163,53 @@ def test_keyword_entry_points_and_kb_words_share_their_targets(workflow):
             target = workflow["connections"][uid][0]["destinationuid"]
             assert target == ROUTES[keyword.removeprefix("kb:")], (
                 f"{keyword} and kb {keyword.removeprefix('kb:')} should run the same script"
+            )
+
+
+MODIFIER_BITS = {"shift": 131072, "ctrl": 262144, "alt": 524288, "cmd": 1048576, "fn": 8388608}
+MEANING = {"REVEAL": "reveal", "COPY": "copy", "BROWSE": "browse", "FIX": "fix", "APPLY_ONE": "genre home"}
+
+
+def modifier_targets(workflow: dict, uid: str) -> dict:
+    return {c["modifiers"]: c["destinationuid"] for c in workflow["connections"][uid] if c["modifiers"]}
+
+
+@pytest.fixture
+def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkeypatch):
+    from kobolib.cli import main
+    from tests.test_sources import write_epub
+
+    elsewhere = tmp_path_factory.mktemp("elsewhere")
+    write_epub(elsewhere / "Slow Productivity.epub", "Slow Productivity")
+    monkeypatch.setenv("KOBO_ROOT", str(library))
+    monkeypatch.setenv("KOBO_SOURCES", str(elsewhere))
+    monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
+    monkeypatch.delenv("KOBO_DATA", raising=False)
+    main(["index"])
+
+
+@pytest.mark.parametrize(
+    "filter_uid, items",
+    [
+        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("")),
+        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("src slow")),
+        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("lint")),
+        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("plan")),
+        ("SOURCES", lambda: __import__("kobolib.commands", fromlist=["sources_items"]).sources_items("slow")),
+        ("INBOX", lambda: __import__("kobolib.commands", fromlist=["inbox_items"]).inbox_items("")),
+        ("LINT", lambda: __import__("kobolib.commands", fromlist=["lint_items"]).lint_items()),
+        ("RANDOM", lambda: __import__("kobolib.commands", fromlist=["random_items"]).random_items("")),
+        ("PLAN", lambda: __import__("kobolib.commands", fromlist=["written_plan_items"]).written_plan_items()),
+    ],
+)
+def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_sources, filter_uid, items):
+    targets = modifier_targets(workflow, filter_uid)
+    rows = [i for i in items() if i.get("mods")]
+    assert rows, f"{filter_uid} should produce rows with modifiers for this check to mean anything"
+    for item in rows:
+        for mod, spec in item["mods"].items():
+            target = targets.get(MODIFIER_BITS[mod])
+            assert target, f"{filter_uid}: {item['title']!r} declares {mod} but the filter has no {mod} connection"
+            assert MEANING[target].lower() in spec["subtitle"].lower(), (
+                f"{filter_uid}: {mod} on {item['title']!r} says {spec['subtitle']!r} but is wired to {target}"
             )

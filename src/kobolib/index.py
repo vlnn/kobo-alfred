@@ -26,6 +26,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 );
 """
 
+SCHEMA_VERSION = 2
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
 
@@ -155,8 +156,13 @@ INSERT_SQL = f"INSERT INTO books ({', '.join(COLUMNS)}) VALUES ({', '.join('?' f
 
 def write_database(target: Path, rows: Iterator[tuple]) -> int:
     with writing(target) as conn:
-        conn.executescript(SCHEMA)
+        conn.executescript(f"{SCHEMA}\nPRAGMA user_version = {SCHEMA_VERSION};")
         return conn.executemany(INSERT_SQL, rows).rowcount
+
+
+def is_current(db_path: Path) -> bool:
+    with reading(db_path) as conn:
+        return conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 
 
 def rebuild(db_path: Path, rows: Iterator[tuple]) -> int:

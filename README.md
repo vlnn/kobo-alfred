@@ -24,9 +24,9 @@ kb:src cal newport           search the other sources (same filters) — ↩ cop
 Inside plain `kb`, a first word that names a command (`stats`, `dups`, `rnd`, `lint`, `inbox`, `classify`, `plan`,
 `src`, `index`/`update`, `apply`, `undo`) runs it: `kb plan` lists the plan and ↩ on a row applies that row;
 `kb src delany` searches the sources and ↩ imports; `kb index` shows one row that rebuilds the index on ↩. Books whose
-title, author or path contain the word are listed after. Only ↩ is rerouted: ⌥↩ / ⌘↩ keep their `kb` meaning
-(reveal / copy path), so "move into the inbox" stays a `kb:src` feature. Typing the start of a command (`kb ind`,
-`kb cl`) shows `kb index`, `kb classify`… rows above the books; ↩ or ⇥ completes the word.
+title, author or path contain the word are listed after. Only ↩ changes meaning per row; ⌥↩ (reveal), ⌘↩ (copy
+path) and ⌃↩ (browse folder) do the same thing in every list. Typing the start of a command (`kb ind`, `kb cl`)
+shows `kb index`, `kb classify`… rows above the books; ↩ or ⇥ completes the word.
 
 Each result shows: title · authors · series #n · year · FORMAT size · path relative to the library root.
 Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbnail via `qlmanage`).
@@ -53,7 +53,9 @@ version the Command Line Tools ship), no dependencies, no virtualenv. The code s
 `pyproject.toml` pins `requires-python = ">=3.9"` and CI runs the tests and ruff (target `py39`) on 3.9 and 3.13.
 
 In the workflow's configuration set **Library root** (`/Volumes/Transcend/kobo`). Run `kb:index` once;
-rerun after adding books.
+rerun after adding books, and after updating the workflow when it says "Index is from an older version" —
+every command refuses to read or write an index built by an earlier version, so a rebuild is the only
+upgrade step.
 
 The index (`library.db`) and `covers/` live in Alfred's workflow data folder
 (`~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib`), which survives workflow
@@ -156,9 +158,10 @@ also indexes them into a separate `sources.db`; an unmounted source is skipped a
 
 ↩ copies the book into the library's inbox folder (the one whose name is `inbox` after the order prefix, or a
 new `_inbox/`) and adds it to the library index right away — no full reindex — so it shows up in `kb`,
-`kb:inbox` and `kb:classify` immediately. ⌥↩ moves instead of copying. Nothing is overwritten: an occupied
-destination refuses the import, and so does an unreadable or unfinished file. From a terminal: `kobolib index`
-(both), `kobolib index-sources` (sources only), `kobolib sources "query"`, `kobolib import [--move] <path>`.
+`kb:inbox` and `kb:classify` immediately. The source is never touched: import only copies, and once a book is in
+the library its source copy is simply no longer offered. Nothing is overwritten: an occupied destination refuses
+the import, and so does an unreadable or unfinished file. From a terminal: `kobolib index` (both),
+`kobolib index-sources` (sources only), `kobolib sources "query"`, `kobolib import <path>`.
 
 ## Metadata sources
 

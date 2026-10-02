@@ -90,8 +90,8 @@ def source_item(row: Row) -> dict:
         **book_item(row),
         "variables": {},
         "mods": {
-            "alt": {"arg": row.path, "subtitle": "Move into the library inbox instead of copying"},
-            "cmd": {"arg": row.path, "subtitle": "Reveal in Finder"},
+            "alt": {"arg": row.path, "subtitle": "Reveal in Finder"},
+            "cmd": {"arg": row.path, "subtitle": f"Copy path: {row.path}"},
             "ctrl": {"arg": row.folder, "subtitle": f"Browse folder: {row.folder}"},
         },
     }

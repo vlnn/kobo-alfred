@@ -15,6 +15,7 @@ from kobolib.commands import (
     dups_items,
     genre_edits,
     inbox_items,
+    index_problem,
     lint_items,
     plan_items,
     random_items,
@@ -78,16 +79,6 @@ def cmd_search(args) -> int:
     return 0
 
 
-def cmd_dups(args) -> int:
-    print(alfred.render(dups_items()))
-    return 0
-
-
-def cmd_random(args) -> int:
-    print(alfred.render(random_items(args.query)))
-    return 0
-
-
 def without_index() -> int:
     print(alfred.render(without_index_items()))
     return 0
@@ -96,9 +87,21 @@ def without_index() -> int:
 def requires_index(command: Callable[[Namespace], int]) -> Callable[[Namespace], int]:
     @wraps(command)
     def guarded(args: Namespace) -> int:
-        return command(args) if db_path().exists() else without_index()
+        return without_index() if index_problem() else command(args)
 
     return guarded
+
+
+@requires_index
+def cmd_dups(args) -> int:
+    print(alfred.render(dups_items()))
+    return 0
+
+
+@requires_index
+def cmd_random(args) -> int:
+    print(alfred.render(random_items(args.query)))
+    return 0
 
 
 @requires_index
@@ -139,8 +142,8 @@ def refuse(message: str, should_notify: bool) -> int:
 
 
 def not_writable() -> str:
-    if not db_path().exists():
-        return "No index yet: run kb:index"
+    if problem := index_problem():
+        return f"{problem}: run kb:index"
     if index_busy(db_path()):
         return "Indexing is running, try again later"
     return ""
@@ -183,6 +186,8 @@ def cmd_undo(args) -> int:
 
 
 def cmd_tag(args) -> int:
+    if reason := not_writable():
+        return refuse(reason, args.notify)
     index, store = Index(db_path()), tag_store()
     row = row_by_reference(args.book, index)
     if row is None:
@@ -200,6 +205,7 @@ def cmd_tag(args) -> int:
     return 0
 
 
+@requires_index
 def cmd_fix(args) -> int:
     book = selected_book()
     index, store = Index(db_path()), tag_store()
@@ -216,6 +222,7 @@ def cmd_fix(args) -> int:
     return 0
 
 
+@requires_index
 def cmd_genres(args) -> int:
     book = selected_book()
     if not book:
@@ -242,12 +249,13 @@ def cmd_import(args) -> int:
     src, dst = Path(args.book), inbox_folder() / Path(args.book).name
     if reason := import_blocked(src, dst):
         return refuse(f"Not imported: {reason}", args.notify)
-    transfer(src, dst, args.move)
+    transfer(src, dst)
     book = add_book(db_path(), dst, library_root(), covers_dir())
     report(f"Imported {book.title} → {Path(book.rel_path).parent}/", args.notify)
     return 0
 
 
+@requires_index
 def cmd_stats(args) -> int:
     print(alfred.render(all_stats_items()))
     return 0
@@ -290,7 +298,7 @@ def build_parser() -> argparse.ArgumentParser:
     tag_cmd.add_argument("book")
     tag_cmd.add_argument("edits", nargs=argparse.REMAINDER)
     tag_cmd.set_defaults(func=cmd_tag)
-    import_cmd = sub.add_parser("import", parents=[notify, flag("--move")])
+    import_cmd = sub.add_parser("import", parents=[notify])
     import_cmd.add_argument("book")
     import_cmd.set_defaults(func=cmd_import)
     return parser
