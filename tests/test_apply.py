@@ -292,3 +292,28 @@ def test_apply_reports_what_moved_and_what_was_removed(library: Path, tmp_path: 
 
     assert result.moved == {"00_Inbox/FSCK0000.000": "_trash/00_Inbox/FSCK0000.000"}, "every executed move is reported src → dst"
     assert result.removed == ["00_Inbox/a.epub"], "a redundant source that was deleted instead is reported too"
+
+
+def test_journal_kinds_are_plain_strings_on_disk(library: Path, tmp_path: Path):
+    journal = tmp_path / "journal.jsonl"
+    apply([Operation("trash", "00_Inbox/FSCK0000.000", "_trash/00_Inbox/FSCK0000.000", "")], library, journal)
+    undo(library, journal)
+
+    kinds = [line["kind"] for line in journal_lines(journal)]
+    assert kinds == ["apply", "undo"], "the journal format is persisted data: the kind values must stay the bare words"
+    assert '"kind": "apply"' in journal.read_text() and "Recorded" not in journal.read_text(), "no enum repr leaks into the file"
+
+
+@pytest.mark.parametrize(
+    "journaled, action, src, dst",
+    [
+        ("apply", "move", "b", "a"),
+        ("undo", "move", "b", "a"),
+        ("delete", "restore", "a", "b"),
+        ("restore", "delete", "a", "b"),
+    ],
+)
+def test_reverse_pairs_each_journal_kind_with_its_undo_step(journaled, action, src, dst):
+    from kobolib.apply import Action, Entry, Step, reverse
+
+    assert reverse(Entry("1", journaled, "a", "b")) == Step(Action(action), src, dst), f"undoing a {journaled!r} entry is a {action!r} step"

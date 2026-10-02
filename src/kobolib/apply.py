@@ -6,6 +6,7 @@ import os
 import shutil
 import time
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path, PurePosixPath
 
 from kobolib.koreader import fix_paths
@@ -13,7 +14,55 @@ from kobolib.model import Operation
 from kobolib.paths import is_empty_dir, nfc, sidecar_of
 
 EXECUTABLE = {"move", "trash", "dups"}
-MOVES = {"apply", "undo"}
+
+
+class Action(str, Enum):
+    MOVE = "move"
+    DELETE = "delete"
+    RESTORE = "restore"
+
+
+class Recorded(str, Enum):
+    APPLY = "apply"
+    UNDO = "undo"
+    DELETE = "delete"
+    RESTORE = "restore"
+
+
+MOVES = {Recorded.APPLY, Recorded.UNDO}
+
+
+@dataclass
+class Entry:
+    batch: str
+    kind: str
+    src: str
+    dst: str
+
+
+@dataclass
+class Step:
+    action: Action
+    src: str
+    dst: str
+
+
+@dataclass(frozen=True)
+class Outcome:
+    recorded: str = ""
+    reason: str = ""
+
+    @property
+    def skipped(self) -> bool:
+        return bool(self.reason)
+
+
+def done(recorded: Recorded) -> Outcome:
+    return Outcome(recorded=recorded.value)
+
+
+def skip(reason: str) -> Outcome:
+    return Outcome(reason=reason)
 
 
 @dataclass
@@ -27,23 +76,8 @@ class Applied:
         self.done += 1
         if entry.kind in MOVES:
             self.moved[entry.src] = entry.dst
-        if entry.kind == "delete":
+        if entry.kind == Recorded.DELETE:
             self.removed.append(entry.src)
-
-
-@dataclass
-class Entry:
-    batch: str
-    kind: str
-    src: str
-    dst: str
-
-
-@dataclass
-class Step:
-    action: str
-    src: str
-    dst: str
 
 
 def same_name(a: str, b: str) -> bool:
@@ -174,46 +208,55 @@ def existing_destination(src: Path, parent: Path, name: str) -> Path | None:
     return None if found is None or is_same_file(found, src) else found
 
 
-def move(step: Step, kind: str, root: Path) -> tuple[str, str]:
+def move(step: Step, label: Recorded, root: Path) -> Outcome:
     if locate(root, step.src) is None:
-        return "", "source missing"
+        return skip("source missing")
     parent = settle_parents(root, step.dst)
     src = on_disk(root, step.src)
     name = PurePosixPath(step.dst).name
     if (taken := existing_destination(src, parent, name)) is not None:
         if reason := redundant(src, taken):
-            return "", reason
+            return skip(reason)
         remove(src, root)
-        return "delete", ""
+        return done(Recorded.DELETE)
     relocate(src, parent / name, root)
-    return kind, ""
+    return done(label)
 
 
-def execute(step: Step, kind: str, root: Path) -> tuple[str, str]:
-    src, dst = on_disk(root, step.src), on_disk(root, step.dst)
-    if step.action == "restore":
-        if src.exists():
-            return "", "already present"
-        restore(src, dst)
-        return "restore", ""
-    if step.action == "delete":
-        if not src.exists():
-            return "", "source missing"
-        if reason := redundant(src, dst):
-            return "", reason
-        remove(src, root)
-        return "delete", ""
-    return move(step, kind, root)
+def put_back(step: Step, root: Path) -> Outcome:
+    src, kept = on_disk(root, step.src), on_disk(root, step.dst)
+    if src.exists():
+        return skip("already present")
+    restore(src, kept)
+    return done(Recorded.RESTORE)
 
 
-def run(kind: str, steps: list[Step], root: Path, journal: Path) -> Applied:
+def delete(step: Step, root: Path) -> Outcome:
+    src, kept = on_disk(root, step.src), on_disk(root, step.dst)
+    if not src.exists():
+        return skip("source missing")
+    if reason := redundant(src, kept):
+        return skip(reason)
+    remove(src, root)
+    return done(Recorded.DELETE)
+
+
+def execute(step: Step, label: Recorded, root: Path) -> Outcome:
+    if step.action is Action.RESTORE:
+        return put_back(step, root)
+    if step.action is Action.DELETE:
+        return delete(step, root)
+    return move(step, label, root)
+
+
+def run(label: Recorded, steps: list[Step], root: Path, journal: Path) -> Applied:
     result, batch = Applied(), new_batch()
     for step in steps:
-        entry_kind, reason = execute(step, kind, root)
-        if reason:
-            result.skipped.append(f"{step.src}: {reason}")
+        outcome = execute(step, label, root)
+        if outcome.skipped:
+            result.skipped.append(f"{step.src}: {outcome.reason}")
             continue
-        entry = Entry(batch, entry_kind, step.src, step.dst)
+        entry = Entry(batch, outcome.recorded, step.src, step.dst)
         append(journal, [entry])
         result.record(entry)
     fix_paths(root, result.moved)
@@ -221,8 +264,8 @@ def run(kind: str, steps: list[Step], root: Path, journal: Path) -> Applied:
 
 
 def apply(ops: list[Operation], root: Path, journal: Path) -> Applied:
-    steps = [Step("move", o.src, o.dst) for o in ops if o.kind in EXECUTABLE]
-    return run("apply", steps, root, journal)
+    steps = [Step(Action.MOVE, o.src, o.dst) for o in ops if o.kind in EXECUTABLE]
+    return run(Recorded.APPLY, steps, root, journal)
 
 
 def last_batch(entries: list[Entry]) -> list[Entry]:
@@ -232,13 +275,13 @@ def last_batch(entries: list[Entry]) -> list[Entry]:
 
 
 def reverse(entry: Entry) -> Step:
-    if entry.kind == "delete":
-        return Step("restore", entry.src, entry.dst)
-    if entry.kind == "restore":
-        return Step("delete", entry.src, entry.dst)
-    return Step("move", entry.dst, entry.src)
+    if entry.kind == Recorded.DELETE:
+        return Step(Action.RESTORE, entry.src, entry.dst)
+    if entry.kind == Recorded.RESTORE:
+        return Step(Action.DELETE, entry.src, entry.dst)
+    return Step(Action.MOVE, entry.dst, entry.src)
 
 
 def undo(root: Path, journal: Path) -> int:
     steps = [reverse(e) for e in reversed(last_batch(read_journal(journal)))]
-    return run("undo", steps, root, journal).done
+    return run(Recorded.UNDO, steps, root, journal).done
