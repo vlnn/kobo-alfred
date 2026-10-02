@@ -16,7 +16,7 @@
 	<string>kb &lt;query&gt; searches the library: full text over title, authors, series, folder and filename, with filters fmt:epub in:inbox author:x series:x lang:uk year:2016 genre:fiction tag:now is:partial is:complete.
 Every command works as a kb word too: kb stats, kb dups, kb rnd, kb lint, kb inbox, kb classify, kb plan, kb src, kb index, kb apply, kb undo (the kb:x keywords are the same commands).
 kb:classify picks an inbox book, then a genre, and moves the book to its genre home at once; ⇧↩ on any book fixes its genre and tags the same way. kb:lint reports problems, kb:plan proposes bulk moves, renames and trash — ↩ on a row applies that row, ↩ on the head row applies all; kb:undo moves the last batch back.
-⌥⇧↩ on any row does what ↩ does to every row shown: kb:src epub imports them all, kb:classify newport picks one genre for all, kb:plan applies the whole plan.
+A list with several books starts with an "Import all" / "Classify all" / "Apply all" row; ↩ there (or ⌥⇧↩ on any row) does it for every row shown.
 kb:src searches other sources (a Calibre library, a downloads folder) and ↩ copies the book into the library inbox; books already in the library, unfinished downloads and unreadable files are not offered.
 Set the library root (and optionally other sources and the index folder) in the workflow configuration, then run kb:index once; rerun after adding books. The index lives in Alfred's workflow data folder. Needs only macOS's /usr/bin/python3.</string>
 	<key>variables</key>

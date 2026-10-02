@@ -134,6 +134,29 @@ def finding_item(finding: Finding, root: str) -> dict:
     }
 
 
+def batch_item(uid: str, title: str, subtitle: str, arg: str = "", variables: dict | None = None) -> dict:
+    return {
+        "uid": uid,
+        "title": title,
+        "subtitle": subtitle,
+        "arg": arg,
+        "icon": {"type": "fileicon", "path": "/System/Applications/Utilities/Terminal.app"},
+        **({"variables": variables} if variables else {}),
+    }
+
+
+def import_all_item(rows: list[Row]) -> dict:
+    paths = LINE.join(r.path for r in rows)
+    return batch_item("src:import-all", f"Import all {len(rows)} books", "↩ copies every book listed below into the library inbox", paths)
+
+
+def classify_all_item(rows: list[Row]) -> dict:
+    books = LINE.join(r.fingerprint for r in rows)
+    return batch_item(
+        "classify:all", f"Classify all {len(rows)} books", "↩ picks one genre for every book listed below", variables={"book": books}
+    )
+
+
 def apply_all_item(count: int) -> dict:
     return {
         "uid": "plan:apply-all",

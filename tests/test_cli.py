@@ -595,14 +595,14 @@ def test_notify_passes_the_message_as_an_argument(mocker):
 
 
 def fingerprints_of(items: list[dict]) -> list[str]:
-    return [i["variables"]["book"] for i in items if i.get("valid", True)]
+    return [i["variables"]["book"] for i in items if "mods" in i and i.get("valid", True)]
 
 
 def test_classify_rows_offer_the_whole_list_on_alt_shift(indexed, capsys):
     items = run(["classify", ""], capsys)["items"]
     everyone = "\n".join(fingerprints_of(items))
 
-    for item in (i for i in items if i.get("valid", True)):
+    for item in (i for i in items if "mods" in i and i.get("valid", True)):
         batch = item["mods"]["alt+shift"]
         assert batch["arg"] == "" and batch["variables"]["book"] == everyone, "⌥⇧↩ opens the genre picker for every listed book"
         assert batch["subtitle"] == f"Classify all {len(fingerprints_of(items))} shown", "the subtitle should count the books"
@@ -652,3 +652,12 @@ def test_plan_rows_offer_apply_all_on_alt_shift(indexed, capsys):
         assert row["mods"]["alt+shift"]["arg"] == "" and row["mods"]["alt+shift"]["subtitle"].startswith("Apply all"), (
             "⌥⇧↩ on a plan row applies the whole plan, like the head row"
         )
+
+
+def test_classify_list_starts_with_classify_all(indexed, capsys):
+    items = run(["classify", ""], capsys)["items"]
+
+    head = items[0]
+    assert head["title"] == "Classify all 2 books" and head["arg"] == "", "the first row opens the genre picker for every complete book"
+    assert head["variables"]["book"] == "\n".join(fingerprints_of(items[1:])), "the batch is the listed complete books"
+    assert run(["classify", "napkin"], capsys)["items"][0]["title"] == "Napkin", "one book needs no 'classify all' row"

@@ -196,6 +196,7 @@ def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkey
 
     elsewhere = tmp_path_factory.mktemp("elsewhere")
     write_epub(elsewhere / "Slow Productivity.epub", "Slow Productivity")
+    write_epub(elsewhere / "A World Without Email.epub", "A World Without Email")
     monkeypatch.setenv("KOBO_ROOT", str(library))
     monkeypatch.setenv("KOBO_SOURCES", str(elsewhere))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
@@ -232,3 +233,12 @@ def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_s
             assert any(word in spec["subtitle"].lower() for word in MEANING[target]), (
                 f"{filter_uid}: {mod} on {item['title']!r} says {spec['subtitle']!r} but is wired to {target}"
             )
+
+
+def test_import_all_head_row_reaches_the_import_script_from_kb(workflow, indexed_with_sources):
+    from kobolib.commands import search_items
+
+    head = next(i for i in search_items("src ") if i.get("valid", True))
+
+    assert head["uid"] == "src:import-all", "kb src should start with the import-all row"
+    assert route(workflow, head) == "IMPORT_RUN", "↩ on it must run the import script"

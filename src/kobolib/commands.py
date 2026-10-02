@@ -109,10 +109,16 @@ def inbox_items(query: str) -> list[dict]:
     return items or [alfred.message_item("Inbox is empty", "Every book has a genre")]
 
 
+def headed(head: dict, items: list[dict], batch_size: int) -> list[dict]:
+    return [head, *items] if batch_size > 1 else items
+
+
 def classify_items(query: str) -> list[dict]:
     rows = unclassified_rows(query)
     items = alfred.with_batch([alfred.classify_item(r) for r in rows], classify_batch(rows))
-    return items or [alfred.message_item("Nothing to classify", "Every book has a genre")]
+    return headed(alfred.classify_all_item(complete(rows)), items, len(complete(rows))) or [
+        alfred.message_item("Nothing to classify", "Every book has a genre")
+    ]
 
 
 def lint_items(query: str = "") -> list[dict]:
@@ -170,7 +176,8 @@ def tag_edits(query: str, current: list[str], index: Index, book: str) -> list[d
 def source_items(raw: str) -> list[dict]:
     rows = not_in_library(Index(sources_db_path()).search(parse_query(raw)))
     batch = alfred.batch_mod(f"Import all {len(rows)} shown", alfred.LINE.join(r.path for r in rows))
-    return alfred.with_batch([alfred.source_item(r) for r in rows], batch) or [alfred.empty_item(raw)]
+    items = alfred.with_batch([alfred.source_item(r) for r in rows], batch)
+    return headed(alfred.import_all_item(rows), items, len(rows)) or [alfred.empty_item(raw)]
 
 
 def sources_items(query: str) -> list[dict]:

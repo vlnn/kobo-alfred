@@ -57,7 +57,7 @@ def output(capsys) -> dict:
 
 
 def titles(capsys) -> list[str]:
-    return [i["title"] for i in output(capsys)["items"]]
+    return [i["title"] for i in output(capsys)["items"] if i.get("uid") != "src:import-all"]
 
 
 def test_index_sources_builds_a_separate_index(env, tmp_path, capsys):
@@ -185,12 +185,33 @@ def test_sources_rows_offer_importing_the_whole_list(env, capsys):
     main(["index-sources"])
     capsys.readouterr()
 
-    items = run_items(["sources", ""], capsys)
+    items = [i for i in run_items(["sources", ""], capsys) if "mods" in i]
 
     everyone = "\n".join(i["arg"] for i in items)
     for item in items:
         assert item["mods"]["alt+shift"]["arg"] == everyone, "⌥⇧↩ imports every listed book"
         assert item["mods"]["alt+shift"]["subtitle"] == f"Import all {len(items)} shown", "the subtitle should count the books"
+
+
+def test_sources_list_starts_with_import_all(env, capsys):
+    main(["index-sources"])
+    capsys.readouterr()
+
+    items = run_items(["sources", ""], capsys)
+
+    head, *books = items
+    assert head["title"] == f"Import all {len(books)} books" and head.get("valid", True), "the first row imports every book listed"
+    assert head["arg"] == "\n".join(b["arg"] for b in books), "its argument is the listed paths, one per line"
+    assert head["uid"] == "src:import-all", "a stable uid keeps the head row on top"
+
+
+def test_single_source_result_has_no_head_row(env, capsys):
+    main(["index-sources"])
+    capsys.readouterr()
+
+    items = run_items(["sources", "slow"], capsys)
+
+    assert [i["title"] for i in items] == ["Slow Productivity"], "one book needs no 'import all' row"
 
 
 def run_items(argv: list[str], capsys) -> list[dict]:
