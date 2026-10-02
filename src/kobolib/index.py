@@ -11,8 +11,8 @@ from pathlib import Path
 from kobolib.covers import THUMBNAIL_FORMATS, ensure_cover
 from kobolib.metadata import Book, read_book
 from kobolib.query import Query
-from kobolib.scan import iter_books
-from kobolib.tags import TagStore
+from kobolib.scan import SKIP_FOLDERS, iter_books
+from kobolib.tags import Tag, TagStore
 
 SCHEMA = """
 CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
@@ -222,6 +222,13 @@ def add_book(db_path: Path, path: Path, root: Path, cover_cache: Path) -> Book:
     return book
 
 
+TAG_SQL = "UPDATE books SET genre = ?, tags = ? WHERE fingerprint = ?"
+
+
+def tag_values(fingerprint: str, tag: Tag) -> tuple[str, str, str]:
+    return tag.genre, ",".join(tag.tags), fingerprint
+
+
 def row_factory(cursor, values) -> Row:
     data = dict(zip([c[0] for c in cursor.description], values))
     data["partial"] = bool(data["partial"])
@@ -252,15 +259,61 @@ class Index:
             return conn.execute(sql, {**params, "limit": limit}).fetchall()
 
     def by_fingerprint(self, fingerprint: str) -> Row | None:
+        return self.one("fingerprint = ?", fingerprint)
+
+    def by_rel_path(self, rel_path: str) -> Row | None:
+        return self.one("rel_path = ?", rel_path)
+
+    def one(self, condition: str, value: str) -> Row | None:
         with self.connect() as conn:
-            return conn.execute(f"SELECT {', '.join(COLUMNS)} FROM books WHERE fingerprint = ?", (fingerprint,)).fetchone()
+            return conn.execute(f"SELECT {', '.join(COLUMNS)} FROM books WHERE {condition}", (value,)).fetchone()
+
+    def unclassified(self, query: str = "") -> list[Row]:
+        with self.connect() as conn:
+            rows = conn.execute(f"SELECT {', '.join(COLUMNS)} FROM books WHERE genre = '' ORDER BY mtime").fetchall()
+        return [r for r in rows if matches(r, query)]
+
+    def genres(self) -> list[str]:
+        return self.distinct("genre")
+
+    def folders(self) -> list[str]:
+        return self.distinct("folder")
+
+    def distinct(self, column: str) -> list[str]:
+        with sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True) as conn:
+            return [v for (v,) in conn.execute(f"SELECT DISTINCT {column} FROM books WHERE {column} != '' ORDER BY {column}")]
+
+    def fingerprints_among(self, fingerprints: list[str]) -> set[str]:
+        if not fingerprints:
+            return set()
+        marks = ", ".join("?" for _ in fingerprints)
+        with sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True) as conn:
+            return {fp for (fp,) in conn.execute(f"SELECT fingerprint FROM books WHERE fingerprint IN ({marks})", fingerprints)}
+
+    def write_genres(self, genres: dict[str, str]) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.executemany("UPDATE books SET genre = ? WHERE fingerprint = ?", [(g, fp) for fp, g in genres.items()])
 
     def write_tags(self, store: TagStore) -> None:
         with sqlite3.connect(self.db_path) as conn:
-            conn.executemany(
-                "UPDATE books SET genre = ?, tags = ? WHERE fingerprint = ?",
-                [(tag.genre, ",".join(tag.tags), fp) for fp, tag in store.entries.items()],
+            conn.executemany(TAG_SQL, [tag_values(fp, tag) for fp, tag in store.entries.items()])
+
+    def write_tag(self, fingerprint: str, tag: Tag) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(TAG_SQL, tag_values(fingerprint, tag))
+
+    def relocate(self, src: str, dst: str, root: Path) -> None:
+        if set_aside(dst):
+            return self.remove(src)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE books SET rel_path = ?, path = ?, folder = ? WHERE rel_path = ?",
+                (dst, str(root / dst), str(Path(dst).parent), src),
             )
+
+    def remove(self, rel_path: str) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM books WHERE rel_path = ?", (rel_path,))
 
     def duplicates(self) -> list[DuplicateGroup]:
         with self.connect() as conn:
@@ -269,6 +322,14 @@ class Index:
         for row in rows:
             groups[row.norm_title].append(row)
         return [DuplicateGroup(books[0].title, books) for books in groups.values() if len(books) > 1]
+
+
+def set_aside(rel_path: str) -> bool:
+    return bool(SKIP_FOLDERS & set(Path(rel_path).parts))
+
+
+def matches(row: Row, query: str) -> bool:
+    return query.lower() in f"{row.title} {row.authors} {row.rel_path}".lower()
 
 
 def where_clauses(query: Query) -> tuple[list[str], dict]:

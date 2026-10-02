@@ -1,6 +1,6 @@
 import pytest
 
-from kobolib.naming import author_folder, canonical_name, destination, fat_safe, genre_root
+from kobolib.naming import author_folder, canonical_name, destination, fat_safe, genre_root, shelves
 from tests.test_alfred import row
 
 
@@ -62,11 +62,12 @@ def test_fat_safe_truncates_on_utf8_bytes_not_chars():
 
 def test_genre_root_prefers_existing_folder():
     folders = {"01_Fiction", "01_Fiction/01_Sci-Fi_Fantasy", "01_Fiction/01_Sci-Fi_Fantasy/Series", "02_NonFiction"}
-    assert genre_root("fiction/sci-fi_fantasy", folders) == "01_Fiction/01_Sci-Fi_Fantasy", (
+    layout = shelves(folders)
+    assert genre_root("fiction/sci-fi_fantasy", layout) == "01_Fiction/01_Sci-Fi_Fantasy", (
         "an existing folder for the genre should be reused"
     )
-    assert genre_root("fiction/mystery", folders) == "01_Fiction/mystery", "a new genre nests under the existing parent"
-    assert genre_root("games/go", folders) == "games/go", "an unknown genre becomes its own path"
+    assert genre_root("fiction/mystery", layout) == "01_Fiction/mystery", "a new genre nests under the existing parent"
+    assert genre_root("games/go", layout) == "games/go", "an unknown genre becomes its own path"
 
 
 @pytest.mark.parametrize(
@@ -80,7 +81,7 @@ def test_genre_root_prefers_existing_folder():
 )
 def test_destination(overrides, series_count, rel_path):
     folders = {"01_Fiction", "01_Fiction/01_Sci-Fi_Fantasy"}
-    got = destination(row(**overrides), "fiction/sci-fi_fantasy", folders, series_count)
+    got = destination(row(**overrides), "fiction/sci-fi_fantasy", shelves(folders), series_count)
     assert got == rel_path, f"{overrides} with {series_count} in series should land at {rel_path!r}"
 
 
@@ -95,7 +96,7 @@ def test_author_folder_prefers_existing_inverse_folder():
 
 def test_destination_uses_known_author_folders():
     folders = {"01_Fiction", "01_Fiction/Teague, Rowan"}
-    got = destination(row(authors="Teague Rowan", series="", year=""), "fiction", folders, 0)
+    got = destination(row(authors="Teague Rowan", series="", year=""), "fiction", shelves(folders), 0)
     assert got.startswith("01_Fiction/Teague, Rowan/Teague, Rowan - "), "destination and file name should both use the resolved author"
 
 
@@ -119,3 +120,11 @@ def test_known_authors_includes_plain_folders():
         "Teague, Rowan",
         "Marlowe, Petra",
     }, "a 'First Last' folder counts as that author's home"
+
+
+def test_shelves_prefers_the_shallowest_genre_folder_deterministically():
+    layout = shelves(
+        {"01_Fiction/01_Sci-Fi_Fantasy/Deep", "01_Fiction/01_Sci-Fi_Fantasy", "01_Fiction/01_Sci-Fi_Fantasy/Alt", "01_Fiction"}
+    )
+    assert genre_root("fiction/sci-fi_fantasy", layout) == "01_Fiction/01_Sci-Fi_Fantasy", "the shallowest folder of the genre is its home"
+    assert genre_root("fiction", layout) == "01_Fiction", "a top-level genre maps to its top-level folder"

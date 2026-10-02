@@ -335,6 +335,41 @@ def test_tag_with_genre_moves_the_book_to_its_genre_home(indexed, library, capsy
     assert run(["search", "deep"], capsys)["items"][0]["subtitle"].count("productivity") >= 1, "the index should already know the new path"
 
 
+def test_single_book_moves_update_the_index_in_place(indexed, library, capsys, mocker):
+    rebuild = mocker.patch("kobolib.cli.build_index")
+    book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+
+    main(["tag", str(book), "genre=productivity"])
+    capsys.readouterr()
+
+    rebuild.assert_not_called()
+    items = run(["search", "deep"], capsys)["items"]
+    assert items[0]["subtitle"].endswith("productivity/Newport, Cal/Newport, Cal - Deep Work (Focus 02) (2016).epub"), (
+        "one moved book should not re-read every other book; the row itself is relocated"
+    )
+    assert "No books match" in run(["search", "in:nonfiction"], capsys)["items"][0]["title"], "the old path should be gone from the index"
+
+
+def test_apply_only_moves_one_book_without_a_full_rebuild(indexed, library, capsys, mocker):
+    rebuild = mocker.patch("kobolib.cli.build_index")
+    book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+
+    assert main(["apply", "--only", str(book)]) == 0, "a single book can be moved home without a plan file"
+    capsys.readouterr()
+
+    rebuild.assert_not_called()
+    assert run(["search", "deep"], capsys)["items"][0]["subtitle"].count("Newport, Cal/") == 1, "the index should know the new path"
+
+
+def test_apply_only_follows_a_fresh_plan_row(indexed, library, capsys):
+    (library / "00_Inbox" / "FSCK0000.000").write_bytes(b"")
+    main(["plan"])
+    capsys.readouterr()
+
+    assert main(["apply", "--only", str(library / "00_Inbox" / "FSCK0000.000")]) == 0, "↩ on a plan row applies that row"
+    assert (library / "_trash" / "00_Inbox" / "FSCK0000.000").exists(), "the trash row from the plan is what runs, not a genre move"
+
+
 def test_tag_without_genre_edit_leaves_the_file_alone(indexed, library, capsys):
     book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
 

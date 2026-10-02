@@ -11,10 +11,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kobolib import alfred
-from kobolib.apply import apply, undo
+from kobolib.apply import Applied, apply, undo
 from kobolib.index import Index, IndexBusy, Row, add_book, build_index, build_sources_index, fill_thumbnails, index_busy
 from kobolib.lint import lint
-from kobolib.plan import plan, read_plan, write_plan
+from kobolib.plan import Operation, plan, read_plan, relocation, write_plan
 from kobolib.query import parse_query
 from kobolib.scan import fingerprint, probe_root, relative_path
 from kobolib.tags import Tag, TagStore, folder_slug, genre_from_folder
@@ -71,11 +71,10 @@ def bootstrap_tags() -> int:
     return added
 
 
-def row_by_reference(reference: str, rows: list):
+def row_by_reference(reference: str, index: Index) -> Row | None:
     if reference.startswith("/"):
-        rel = relative_path(Path(reference), library_root())
-        return next((r for r in rows if r.rel_path == rel), None)
-    return next((r for r in rows if r.fingerprint == reference), None)
+        return index.by_rel_path(relative_path(Path(reference), library_root()))
+    return index.by_fingerprint(reference)
 
 
 def apply_edits(tag: Tag, edits: list[str]) -> Tag:
@@ -89,10 +88,10 @@ def apply_edits(tag: Tag, edits: list[str]) -> Tag:
     return tag
 
 
-def known_genres(rows: list, store: TagStore) -> list[str]:
+def known_genres(index: Index, store: TagStore) -> list[str]:
     from_tags = {t.genre for t in store.entries.values() if t.genre}
-    from_folders = {g for r in rows if (g := genre_from_folder(r.folder))}
-    return sorted(from_tags | from_folders)
+    from_folders = {g for f in index.folders() if (g := genre_from_folder(f))}
+    return sorted(from_tags | from_folders | set(index.genres()))
 
 
 NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobo Library"', "end run")
@@ -220,14 +219,8 @@ def without_index() -> int:
     return 0
 
 
-def matches(row, query: str) -> bool:
-    return query in f"{row.title} {row.authors} {row.rel_path}".lower()
-
-
-def unclassified_rows(query: str = "") -> list:
-    store = tag_store()
-    rows = (r for r in all_rows(Index(db_path())) if not store.genre_of(r) and matches(r, query.lower()))
-    return sorted(rows, key=lambda r: r.mtime)
+def unclassified_rows(query: str = "") -> list[Row]:
+    return Index(db_path()).unclassified(query)
 
 
 def inbox_items(query: str) -> list[dict]:
@@ -311,13 +304,20 @@ def plan_is_stale() -> bool:
     return plan_path().stat().st_mtime < db_path().stat().st_mtime
 
 
-def ops_for(only: str | None):
-    if only:
-        rel = relative_path(Path(only), library_root())
-        return [o for o in current_plan() if o.src == rel]
-    if not plan_path().exists():
-        return None
-    return None if plan_is_stale() else read_plan(plan_path())
+def fresh_plan() -> list[Operation]:
+    if not plan_path().exists() or plan_is_stale():
+        return []
+    return read_plan(plan_path())
+
+
+def ops_for_one(path: str) -> list[Operation]:
+    rel = relative_path(Path(path), library_root())
+    if planned := [o for o in fresh_plan() if o.src == rel]:
+        return planned
+    index = Index(db_path())
+    row = index.by_rel_path(rel)
+    op = relocation(row, all_rows(index), tag_store()) if row else None
+    return [op] if op else []
 
 
 def refuse(message: str, should_notify: bool) -> int:
@@ -331,6 +331,14 @@ def finish_with_reindex(message: str, should_notify: bool) -> int:
     return code
 
 
+def refresh_index(result: Applied) -> None:
+    index = Index(db_path())
+    for src, dst in result.moved.items():
+        index.relocate(src, dst, library_root())
+    for src in result.removed:
+        index.remove(src)
+
+
 def cmd_apply(args) -> int:
     if not db_path().exists():
         return refuse("No index yet: run kb:index", args.notify)
@@ -340,9 +348,19 @@ def cmd_apply(args) -> int:
         return refuse("No plan: run kb:plan first", args.notify)
     if not args.only and plan_is_stale():
         return refuse("Plan is stale (index changed since): run kb:plan again", args.notify)
-    result = apply(ops_for(args.only), library_root(), journal_path())
+    if args.only:
+        return apply_one(args.only, args.notify)
+    result = apply(read_plan(plan_path()), library_root(), journal_path())
     plan_path().unlink(missing_ok=True)
     return finish_with_reindex(apply_summary(result), args.notify)
+
+
+def apply_one(path: str, should_notify: bool) -> int:
+    result = apply(ops_for_one(path), library_root(), journal_path())
+    plan_path().unlink(missing_ok=True)
+    refresh_index(result)
+    report(apply_summary(result), should_notify)
+    return 0
 
 
 def skip_reasons(skipped: list[str]) -> str:
@@ -366,19 +384,20 @@ def cmd_undo(args) -> int:
 
 def cmd_tag(args) -> int:
     index, store = Index(db_path()), tag_store()
-    row = row_by_reference(args.book, all_rows(index))
+    row = row_by_reference(args.book, index)
     if row is None:
         print(f"Not indexed: {args.book}")
         return 1
     tag = apply_edits(store.get(row.fingerprint) or Tag(rel_path=row.rel_path), args.edits)
     store.set(row.fingerprint, tag)
     store.save()
-    index.write_tags(store)
+    index.write_tag(row.fingerprint, store.get(row.fingerprint))
     summary = tag_summary(row.title, tag)
     if not sets_genre(args.edits):
         print(summary)
         return 0
-    return finish_with_reindex(f"{summary} · {rehome(row.rel_path)}", args.notify)
+    report(f"{summary} · {rehome(row, index, store)}", args.notify)
+    return 0
 
 
 def sets_genre(edits: list[str]) -> bool:
@@ -389,22 +408,24 @@ def tag_summary(title: str, tag: Tag) -> str:
     return f"{title} → {tag.genre or 'no genre'}" + (f" · {', '.join(tag.tags)}" if tag.tags else "")
 
 
-def rehome(rel_path: str) -> str:
-    ops = [o for o in current_plan() if o.src == rel_path and o.kind == "move"]
-    if not ops:
+def rehome(row: Row, index: Index, store: TagStore) -> str:
+    op = relocation(row, all_rows(index), store)
+    if op is None or op.kind != "move":
         return "stays put (no author or already home)"
-    result = apply(ops, library_root(), journal_path())
+    result = apply([op], library_root(), journal_path())
+    plan_path().unlink(missing_ok=True)
+    refresh_index(result)
     if result.skipped:
         return f"not moved: {skip_reasons(result.skipped)}"
-    return f"moved → {Path(ops[0].dst).parent}/"
+    return f"moved → {Path(op.dst).parent}/"
 
 
 def selected_book() -> str:
     return os.environ.get("book", "")
 
 
-def genre_edits(query: str, rows: list, store: TagStore, book: str) -> list[dict]:
-    genres = [g for g in known_genres(rows, store) if g.startswith(query)]
+def genre_edits(query: str, index: Index, store: TagStore, book: str) -> list[dict]:
+    genres = [g for g in known_genres(index, store) if g.startswith(query)]
     items = [alfred.edit_item(f"genre={g}", g, book, uid=f"genre:{g}") for g in genres]
     if query and not genres:
         items.append(alfred.edit_item(f"genre={query}", f"New genre: {query}", book))
@@ -430,7 +451,7 @@ def cmd_fix(args) -> int:
     query = args.query.strip().lower()
     items = [alfred.fix_header(row, tag.genre, tag.tags), *tag_edits(query, tag.tags, book)]
     if not query.startswith(("+", "-")):
-        items += genre_edits(query, all_rows(index), store, book)
+        items += genre_edits(query, index, store, book)
     print(alfred.render(items))
     return 0
 
@@ -440,7 +461,7 @@ def cmd_genres(args) -> int:
     if not book:
         print(alfred.render([alfred.message_item("No book selected", "Start from kb:classify")]))
         return 0
-    print(alfred.render(genre_edits(args.query.strip().lower(), all_rows(Index(db_path())), tag_store(), book)))
+    print(alfred.render(genre_edits(args.query.strip().lower(), Index(db_path()), tag_store(), book)))
     return 0
 
 
@@ -471,13 +492,8 @@ def cmd_index_sources(args) -> int:
     return code
 
 
-def library_copies(index: Index, rows: list[Row]) -> dict[str, Row]:
-    wanted = {r.fingerprint for r in rows}
-    return {r.fingerprint: r for r in all_rows(index) if r.fingerprint in wanted}
-
-
 def not_in_library(rows: list[Row]) -> list[Row]:
-    copies = library_copies(Index(db_path()), rows) if db_path().exists() else {}
+    copies = Index(db_path()).fingerprints_among([r.fingerprint for r in rows]) if db_path().exists() else set()
     return [r for r in rows if r.fingerprint not in copies]
 
 

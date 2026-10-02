@@ -164,3 +164,68 @@ def test_write_tags_updates_rows_and_search_filters(index: Index):
     assert titles(index.search(parse_query("tag:now"))) == ["Deep Work"], "tag: should match one of the tags"
     assert titles(index.search(parse_query("tag:no"))) == [], "tag: must not match a tag prefix"
     assert index.search(parse_query("deep"))[0].tags == "bought,now", "tags should be stored on the row"
+
+
+def test_relocate_moves_a_row_to_its_new_path(index: Index, library: Path):
+    src = "02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+    dst = "02_NonFiction/Newport, Cal/Newport, Cal - Deep Work (2016).epub"
+
+    index.relocate(src, dst, library)
+
+    row = index.by_rel_path(dst)
+    assert row is not None and row.folder == "02_NonFiction/Newport, Cal", "the moved row should carry its new path and folder"
+    assert row.path == str(library / dst), "the absolute path should follow the move"
+    assert index.by_rel_path(src) is None, "the old path should be gone"
+    assert titles(index.search(parse_query("in:newport"))) == ["Deep Work"], "the new folder should be searchable at once"
+
+
+@pytest.mark.parametrize("aside", ["_trash", "_dups"])
+def test_relocate_into_a_set_aside_folder_drops_the_row(index: Index, library: Path, aside):
+    src = "00_Inbox/Napkin.pdf"
+
+    index.relocate(src, f"{aside}/{src}", library)
+
+    assert index.by_rel_path(src) is None and index.count() == 3, f"a book moved to {aside} leaves the index like the scanner would skip it"
+
+
+def test_remove_drops_a_row(index: Index):
+    index.remove("00_Inbox/Napkin.pdf")
+    assert index.count() == 3 and index.by_rel_path("00_Inbox/Napkin.pdf") is None, "a removed path should leave the index"
+
+
+def test_unclassified_lists_books_without_genre_oldest_first(index: Index, library: Path):
+    import os
+
+    os.utime(library / "00_Inbox" / "Napkin.pdf", (1, 1))
+    build_index(library, index.db_path, cover_cache=library / "c")
+    classified = index.by_rel_path("02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub")
+    with_genre = index.by_fingerprint(classified.fingerprint)
+    index.write_genres({with_genre.fingerprint: "nonfiction"})
+
+    listed = titles(index.unclassified())
+    assert listed[0] == "Napkin" and set(listed) == {"Napkin", "Оперантное поведение", "Nova"}, "books with no genre, oldest first"
+    assert titles(index.unclassified("napk")) == ["Napkin"], "the query narrows by title, author or path, case-insensitively"
+
+
+def test_genres_and_folders_are_distinct_columns(index: Index):
+    index.write_genres({index.by_rel_path("00_Inbox/Napkin.pdf").fingerprint: "games/go"})
+
+    assert index.genres() == ["games/go"], "only genres that are set should be listed"
+    assert index.folders() == ["00_Inbox", "02_NonFiction"], "every folder that holds a book, once"
+
+
+def test_fingerprints_among_returns_only_the_known_ones(index: Index):
+    known = index.by_rel_path("00_Inbox/Napkin.pdf").fingerprint
+    assert index.fingerprints_among([known, "nope"]) == {known}, "only fingerprints that are in the index come back"
+    assert index.fingerprints_among([]) == set(), "nothing asked, nothing found"
+
+
+def test_write_tag_touches_only_one_book(index: Index):
+    from kobolib.tags import Tag
+
+    napkin = index.by_rel_path("00_Inbox/Napkin.pdf")
+    index.write_tag(napkin.fingerprint, Tag(genre="games/go", tags=["now", "bought"]))
+
+    tagged = index.by_fingerprint(napkin.fingerprint)
+    assert (tagged.genre, tagged.tags) == ("games/go", "now,bought"), "the one book carries its genre and tags"
+    assert index.genres() == ["games/go"], "no other book gained a genre"

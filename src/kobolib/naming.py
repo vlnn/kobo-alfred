@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 
 from kobolib.filenames import EDITOR, STOPWORDS
@@ -40,13 +42,13 @@ def surname_first(author: str) -> str:
     return f"{surname}, {' '.join(given)}"
 
 
-def resolve_known(candidate: str, known: set[str]) -> str:
+def resolve_known(candidate: str, known: frozenset[str]) -> str:
     last, _, first = candidate.partition(", ")
     twin = f"{first}, {last}"
     return twin if twin in known and candidate not in known else candidate
 
 
-def author_folder(authors: str, known: set[str] = frozenset()) -> str:
+def author_folder(authors: str, known: frozenset[str] = frozenset()) -> str:
     candidate = surname_first(first_author(authors))
     return resolve_known(candidate, known) if candidate else ""
 
@@ -69,7 +71,7 @@ def extension(row: Row) -> str:
     return f".{row.format}{PARTIAL_SUFFIX if row.partial else ''}"
 
 
-def stem_for(row: Row, known: set[str] = frozenset()) -> str:
+def stem_for(row: Row, known: frozenset[str] = frozenset()) -> str:
     author = author_folder(row.authors, known)
     head = f"{author} - {row.title}" if author else row.title
     return f"{head}{series_part(row)}{year_part(row)}"
@@ -91,7 +93,7 @@ def fat_safe(name: str) -> str:
     return truncate_bytes(stem, MAX_NAME_BYTES - len(suffix.encode())) + suffix
 
 
-def canonical_name(row: Row, known: set[str] = frozenset()) -> str:
+def canonical_name(row: Row, known: frozenset[str] = frozenset()) -> str:
     return fat_safe(stem_for(row, known) + extension(row))
 
 
@@ -109,16 +111,29 @@ def depth(folder: str) -> int:
     return len(Path(folder).parts)
 
 
-def folder_for_genre(genre: str, folders: set[str]) -> str:
-    matches = sorted((f for f in folders if genre_from_folder(f) == genre), key=depth)
-    return matches[0] if matches else ""
+@dataclass(frozen=True)
+class Shelves:
+    authors: frozenset[str]
+    genre_homes: dict[str, str]
 
 
-def genre_root(genre: str, folders: set[str]) -> str:
-    if found := folder_for_genre(genre, folders):
+def genre_homes(folders: set[str]) -> dict[str, str]:
+    homes = defaultdict(list)
+    for folder in folders:
+        if genre := genre_from_folder(folder):
+            homes[genre].append(folder)
+    return {genre: min(candidates, key=lambda f: (depth(f), f)) for genre, candidates in homes.items()}
+
+
+def shelves(folders: set[str]) -> Shelves:
+    return Shelves(frozenset(known_authors(folders)), genre_homes(folders))
+
+
+def genre_root(genre: str, layout: Shelves) -> str:
+    if found := layout.genre_homes.get(genre):
         return found
     parent, _, leaf = genre.rpartition("/")
-    if parent and (found := folder_for_genre(parent, folders)):
+    if parent and (found := layout.genre_homes.get(parent)):
         return f"{found}/{leaf}"
     return genre
 
@@ -127,14 +142,14 @@ def series_folder_name(series: str) -> str:
     return LEADING_ARTICLE_TITLE.sub("", series).strip()
 
 
-def destination_folder(row: Row, genre: str, folders: set[str], series_count: int) -> str:
-    parts = [genre_root(genre, folders)]
-    if author := author_folder(row.authors, known_authors(folders)):
+def destination_folder(row: Row, genre: str, layout: Shelves, series_count: int) -> str:
+    parts = [genre_root(genre, layout)]
+    if author := author_folder(row.authors, layout.authors):
         parts.append(fat_safe(author))
     if row.series and series_count > 1:
         parts.append(fat_safe(series_folder_name(row.series)))
     return "/".join(parts)
 
 
-def destination(row: Row, genre: str, folders: set[str], series_count: int) -> str:
-    return f"{destination_folder(row, genre, folders, series_count)}/{canonical_name(row, known_authors(folders))}"
+def destination(row: Row, genre: str, layout: Shelves, series_count: int) -> str:
+    return f"{destination_folder(row, genre, layout, series_count)}/{canonical_name(row, layout.authors)}"

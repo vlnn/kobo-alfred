@@ -20,6 +20,15 @@ MOVES = {"apply", "undo"}
 class Applied:
     done: int = 0
     skipped: list[str] = field(default_factory=list)
+    moved: dict[str, str] = field(default_factory=dict)
+    removed: list[str] = field(default_factory=list)
+
+    def record(self, entry: Entry) -> None:
+        self.done += 1
+        if entry.kind in MOVES:
+            self.moved[entry.src] = entry.dst
+        if entry.kind == "delete":
+            self.removed.append(entry.src)
 
 
 @dataclass
@@ -202,7 +211,7 @@ def execute(step: Step, kind: str, root: Path) -> tuple[str, str]:
 
 
 def run(kind: str, steps: list[Step], root: Path, journal: Path) -> Applied:
-    result, entries, batch = Applied(), [], new_batch()
+    result, batch = Applied(), new_batch()
     for step in steps:
         entry_kind, reason = execute(step, kind, root)
         if reason:
@@ -210,9 +219,8 @@ def run(kind: str, steps: list[Step], root: Path, journal: Path) -> Applied:
             continue
         entry = Entry(batch, entry_kind, step.src, step.dst)
         append(journal, [entry])
-        entries.append(entry)
-        result.done += 1
-    fix_paths(root, {e.src: e.dst for e in entries if e.kind in MOVES})
+        result.record(entry)
+    fix_paths(root, result.moved)
     return result
 
 

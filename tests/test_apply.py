@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.apply import Applied, apply, prune_empty_dirs, undo
+from kobolib.apply import apply, prune_empty_dirs, undo
 from kobolib.koreader import sidecar_of
 from kobolib.plan import Operation
 
@@ -33,7 +33,7 @@ def test_apply_moves_files_with_sidecar_and_journals(library: Path, tmp_path: Pa
 
     result = apply(ops, library, journal)
 
-    assert result == Applied(done=2, skipped=[]), "both operations should run"
+    assert (result.done, result.skipped) == (2, []), "both operations should run"
     assert (library / "01_Fiction/Teague, Rowan/Teague, Rowan - Ash.epub").read_bytes() == b"a", "the book should be at its destination"
     assert (library / "01_Fiction/Teague, Rowan/Teague, Rowan - Ash.sdr/metadata.epub.lua").exists(), (
         "the KOReader sidecar should travel with the book"
@@ -154,7 +154,7 @@ def test_identical_source_is_removed_when_destination_exists(library: Path, tmp_
 
     result = apply([Operation("move", "00_Inbox/a.epub", "kept.epub", "")], library, journal)
 
-    assert result == Applied(done=1, skipped=[]), "a byte-identical source is cleaned up, not skipped"
+    assert (result.done, result.skipped) == (1, []), "a byte-identical source is cleaned up, not skipped"
     assert not (library / "00_Inbox" / "a.epub").exists(), "the redundant copy should be gone"
     assert (library / "kept.epub").read_bytes() == b"a", "the kept file is untouched"
     assert journal_lines(journal)[0]["kind"] == "delete", "the removal should be journaled as a delete"
@@ -213,7 +213,7 @@ def test_case_only_folder_rename_renames_the_folder_in_place(tmp_path: Path):
 
     result = apply([op], root, tmp_path / "j.jsonl")
 
-    assert result == Applied(done=1, skipped=[]), "a case-only folder rename is a real operation"
+    assert (result.done, result.skipped) == (1, []), "a case-only folder rename is a real operation"
     assert (root / "Wolfe, Gene" / "Book of the New Sun" / "Wolfe, Gene - Claw.fb2").read_bytes() == b"claw", (
         "the book is under the respelled folder, intact"
     )
@@ -278,3 +278,17 @@ def test_journal_is_written_step_by_step(library: Path, tmp_path: Path, mocker):
     assert [line["src"] for line in journal_lines(journal)] == ["00_Inbox/a.epub"], (
         "the step that succeeded before the crash must be journaled"
     )
+
+
+def test_apply_reports_what_moved_and_what_was_removed(library: Path, tmp_path: Path):
+    (library / "01_Fiction/Teague, Rowan").mkdir(parents=True)
+    (library / "01_Fiction/Teague, Rowan/Teague, Rowan - Ash.epub").write_bytes(b"a")
+    ops = [
+        Operation("move", "00_Inbox/a.epub", "01_Fiction/Teague, Rowan/Teague, Rowan - Ash.epub", ""),
+        Operation("trash", "00_Inbox/FSCK0000.000", "_trash/00_Inbox/FSCK0000.000", ""),
+    ]
+
+    result = apply(ops, library, tmp_path / "journal.jsonl")
+
+    assert result.moved == {"00_Inbox/FSCK0000.000": "_trash/00_Inbox/FSCK0000.000"}, "every executed move is reported src → dst"
+    assert result.removed == ["00_Inbox/a.epub"], "a redundant source that was deleted instead is reported too"

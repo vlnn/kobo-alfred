@@ -135,10 +135,13 @@ def names_overlap(series_key: str, folder_key: str) -> bool:
     return series_key in folder_key or folder_key in series_key
 
 
-def series_folder(series: str, folders: set[str]) -> str:
+def folder_keys(folders: set[str]) -> dict[str, str]:
+    return {f: series_key(Path(f).name) for f in sorted(folders)}
+
+
+def series_folder(series: str, keys: dict[str, str]) -> str:
     key = series_key(series)
-    matches = sorted(f for f in folders if names_overlap(key, series_key(Path(f).name)))
-    return matches[0] if matches else ""
+    return next((f for f, folder_key in keys.items() if names_overlap(key, folder_key)), "")
 
 
 def author_folders(rows: Iterable[Row]) -> Counter:
@@ -169,10 +172,10 @@ def is_under(folder: str, home: str) -> bool:
 
 
 def misfiled_series(rows: list[Row]) -> list[Finding]:
-    folders = all_folders(rows)
+    keys = folder_keys(all_folders(rows))
     findings = []
     for row in rows:
-        home = series_folder(row.series, folders) if row.series else ""
+        home = series_folder(row.series, keys) if row.series else ""
         if home and not is_under(row.folder, home):
             findings.append(single("misfiled_series", f"{row.title} → {home}", row))
     return findings

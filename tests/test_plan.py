@@ -173,3 +173,40 @@ def test_series_counted_across_article_variants(tmp_path):
     dsts = [o.dst for o in plan(rows, [], store_with(tmp_path, a="fiction", b="fiction"))]
 
     assert all("/Grey Tide/" in d for d in dsts), "both books belong to one series folder named without the article"
+
+
+def test_relocation_for_one_book_matches_the_plan(tmp_path):
+    from kobolib.plan import relocation
+
+    rows = [
+        named("Deep Work.epub", title="Deep Work", authors="Cal Newport", series="", year="", fingerprint="a"),
+        named("Other.epub", folder="01_Fiction", title="Other", authors="Someone", series="", year="", fingerprint="b"),
+    ]
+    store = store_with(tmp_path, a="fiction", b="fiction")
+
+    assert relocation(rows[0], rows, store) == plan(rows, [], store)[0], "a single book's move should be what the plan would do"
+    assert relocation(rows[1], rows, store) == Operation(
+        "move", "01_Fiction/Other.epub", "01_Fiction/Someone/Someone - Other.epub", "relocate + rename"
+    ), "the move should be computed against the whole library's folders"
+
+
+def test_relocation_reports_a_taken_destination(tmp_path):
+    from kobolib.plan import relocation
+
+    rows = [
+        named("Dup.epub", title="Dup", authors="Someone", series="", year="", fingerprint="a"),
+        named("Someone - Dup.epub", folder="01_Fiction/Someone", title="Dup", authors="Someone", series="", year="", fingerprint="b"),
+    ]
+    store = store_with(tmp_path, a="fiction", b="fiction")
+
+    assert relocation(rows[0], rows, store).kind == "skip", "a destination held by another book is a skip, not a move"
+    assert relocation(rows[1], rows, store) is None, "a book already at its destination needs nothing"
+
+
+def test_relocation_is_none_for_books_that_stay(tmp_path):
+    from kobolib.plan import relocation
+
+    rows = [named("x.epub", title="x", authors="", fingerprint="a"), named("y.epub.part", partial=True, authors="A B", fingerprint="b")]
+    store = store_with(tmp_path, a="fiction", b="fiction")
+
+    assert [relocation(r, rows, store) for r in rows] == [None, None], "no author or a partial download never moves"

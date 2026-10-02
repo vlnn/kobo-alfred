@@ -7,7 +7,7 @@ from pathlib import Path
 
 from kobolib.index import Row, series_key
 from kobolib.lint import Finding, all_folders
-from kobolib.naming import destination
+from kobolib.naming import Shelves, destination, shelves
 from kobolib.tags import TagStore, genre_from_folder
 
 FORMAT_RANK = ("epub", "kepub", "fb2", "mobi", "azw3", "azw", "pdf", "djvu")
@@ -75,14 +75,39 @@ def move_reason(src: str, dst: str) -> str:
     return "rename" if same_folder else "relocate" if same_name else "relocate + rename"
 
 
+@dataclass(frozen=True)
+class Shape:
+    layout: Shelves
+    series_counts: Counter
+
+
+def shape_of(rows: list[Row]) -> Shape:
+    counts = Counter(series_key(r.series) for r in rows if r.series and not r.partial)
+    return Shape(shelves(all_folders(rows)), counts)
+
+
+def wants_home(row: Row, store: TagStore) -> bool:
+    return not row.partial and bool(row.authors) and bool(store.genre_of(row))
+
+
+def home_of(row: Row, store: TagStore, shape: Shape) -> str:
+    return destination(row, store.genre_of(row), shape.layout, shape.series_counts[series_key(row.series)])
+
+
 def desired(rows: list[Row], store: TagStore) -> dict[str, str]:
-    folders = all_folders(rows)
-    series_counts = Counter(series_key(r.series) for r in rows if r.series and not r.partial)
-    return {
-        r.rel_path: destination(r, store.genre_of(r), folders, series_counts[series_key(r.series)])
-        for r in rows
-        if not r.partial and r.authors and store.genre_of(r)
-    }
+    shape = shape_of(rows)
+    return {r.rel_path: home_of(r, store, shape) for r in rows if wants_home(r, store)}
+
+
+def relocation(row: Row, rows: list[Row], store: TagStore) -> Operation | None:
+    if not wants_home(row, store):
+        return None
+    dst = home_of(row, store, shape_of(rows))
+    if dst == row.rel_path:
+        return None
+    if any(r.rel_path == dst for r in rows):
+        return Operation("skip", row.rel_path, dst, f"destination taken by {dst}")
+    return Operation("move", row.rel_path, dst, move_reason(row.rel_path, dst))
 
 
 def relocations(rows: list[Row], store: TagStore, settled: set[str]) -> list[Operation]:
