@@ -7,7 +7,7 @@ kb deep work                 full-text over title / authors / series / folder / 
 kb author:delany fmt:epub    filters: fmt: in: author: series: lang: year: genre: tag: is:partial is:complete
 kb in:inbox                  folder match is substring, case-insensitive
 kb                           empty query → most recently added books
-kb:index                     rebuild the index (reads epub/fb2 metadata, extracts covers)
+kb:index                     rebuild the library index and, if sources are configured, the sources index (also `kb update`)
 kb:dups                      same title in several files or formats
 kb:rnd fmt:epub              five random complete books, filters allowed
 kb:stats                     counts: books, incomplete downloads, duplicate titles
@@ -19,11 +19,10 @@ kb:apply                     apply plan.tsv, then rebuild the index
 kb:undo                      move the last batch back
 kb:classify                  pick an inbox book, then a genre; the inbox shrinks as you go
 kb:src cal newport           search the other sources (same filters) — ↩ copies the book into the library inbox
-kb:index-src                 rebuild the sources index
 ```
 
 Inside plain `kb`, a first word that names a command (`stats`, `dups`, `rnd`, `lint`, `inbox`, `classify`, `plan`,
-`src`, `index`, `apply`, `undo`, `index-src`) runs it: `kb plan` lists the plan and ↩ on a row applies that row;
+`src`, `index`/`update`, `apply`, `undo`) runs it: `kb plan` lists the plan and ↩ on a row applies that row;
 `kb src delany` searches the sources and ↩ imports; `kb index` shows one row that rebuilds the index on ↩. Books whose
 title, author or path contain the word are listed after. Only ↩ is rerouted: ⌥↩ / ⌘↩ keep their `kb` meaning
 (reveal / copy path), so "move into the inbox" stays a `kb:src` feature.
@@ -131,15 +130,15 @@ one book of the series. Partial downloads and unclassified books are never moved
 ## Other sources
 
 Set **Other sources** (`KOBO_SOURCES`, paths separated by `:`) to the folders of ebooks that are not the
-library yet — a Calibre library, a downloads folder, an old reader's card. `kb:index-src` indexes them into a
-separate `sources.db` (the library index is untouched); `kb:src` searches it with the same query syntax, and
-the source folder's name is part of the path, so `kb:src in:calibre` narrows by source. A book whose
-fingerprint is already in the library is shown as `✓ in library · <where>` and cannot be imported again.
+library yet — a Calibre library, a downloads folder, an old reader's card. `kb:index` (or `kb update`) then also indexes them into a
+separate `sources.db`; an unmounted source is skipped and mentioned, never an error. `kb:src` searches it with the same query syntax, and
+the source folder's name is part of the path, so `kb:src in:calibre` narrows by source. Books whose
+fingerprint is already in the library are not listed — `kb:src` only ever shows what you could still import.
 
 ↩ copies the book into the library's inbox folder (the one whose name is `inbox` after the order prefix, or a
 new `_inbox/`) and adds it to the library index right away — no full reindex — so it shows up in `kb`,
 `kb:inbox` and `kb:classify` immediately. ⌥↩ moves instead of copying. Nothing is overwritten: an occupied
-destination refuses the import. From a terminal: `kobolib index-sources`, `kobolib sources "query"`,
+destination refuses the import. From a terminal: `kobolib index` (both), `kobolib index-sources` (sources only), `kobolib sources "query"`,
 `kobolib import [--move] <path>`.
 
 ## Metadata sources

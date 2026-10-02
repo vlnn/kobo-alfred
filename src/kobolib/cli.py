@@ -122,10 +122,12 @@ def report(message: str, should_notify: bool) -> None:
 def cmd_index(args) -> int:
     code, message = run_index()
     report(message, args.notify)
-    if code != 0 or args.no_thumbnails:
+    if code != 0:
         return code
-    made = fill_thumbnails(db_path(), covers_dir())
-    report(f"Generated {made} PDF covers", args.notify)
+    if sources():
+        report(run_index_sources()[1], args.notify)
+    if not args.no_thumbnails:
+        report(f"Generated {fill_thumbnails(db_path(), covers_dir())} PDF covers", args.notify)
     return 0
 
 
@@ -449,15 +451,19 @@ def library_copies(index: Index, rows: list[Row]) -> dict[str, Row]:
     return {r.fingerprint: r for r in all_rows(index) if r.fingerprint in wanted}
 
 
-def source_items(raw: str) -> list[dict]:
-    rows = Index(sources_db_path()).search(parse_query(raw))
+def not_in_library(rows: list[Row]) -> list[Row]:
     copies = library_copies(Index(db_path()), rows) if db_path().exists() else {}
-    return [alfred.source_item(r, copies.get(r.fingerprint)) for r in rows] or [alfred.empty_item(raw)]
+    return [r for r in rows if r.fingerprint not in copies]
+
+
+def source_items(raw: str) -> list[dict]:
+    rows = not_in_library(Index(sources_db_path()).search(parse_query(raw)))
+    return [alfred.source_item(r, None) for r in rows] or [alfred.empty_item(raw)]
 
 
 def sources_items(query: str) -> list[dict]:
     if not sources_db_path().exists():
-        return [alfred.message_item("No sources index yet", "Set KOBO_SOURCES, then run kb:index-src")]
+        return [alfred.message_item("No sources index yet", "Set KOBO_SOURCES, then run kb:index")]
     return source_items(query)
 
 
@@ -540,10 +546,10 @@ COMMANDS = {
     "plan": (written_plan_items, "apply-one"),
     "src": (sources_items, "import"),
     "sources": (sources_items, "import"),
-    "index": (lambda q: [action_item("Rebuild the index", "Reads every book, extracts covers · same as kb:index")], "index"),
+    "index": (lambda q: [action_item("Rebuild the index", "Library and sources: reads every book, extracts covers · same as kb:index")], "index"),
+    "update": (lambda q: [action_item("Rebuild the index", "Library and sources: reads every book, extracts covers · same as kb:index")], "index"),
     "apply": (lambda q: [action_item("Apply the plan", "Runs what kb:plan showed, then rebuilds the index · same as kb:apply")], "apply"),
     "undo": (lambda q: [action_item("Undo the last apply", "Reverses the last batch of moves · same as kb:undo")], "undo"),
-    "index-src": (lambda q: [action_item("Index the sources", "Rebuilds the sources index · same as kb:index-src")], "index-src"),
 }
 
 

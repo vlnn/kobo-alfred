@@ -80,9 +80,9 @@ def test_index_sources_skips_unmounted_source(env, tmp_path, capsys, monkeypatch
 @pytest.mark.parametrize(
     "query, expected",
     [
-        ("in:downloads", ["Deep Work"]),
+        ("in:downloads", ["No books match “in:downloads”"]),
         ("in:calibre slow", ["Slow Productivity"]),
-        ("fmt:epub newport", ["A World Without Email", "Deep Work", "Slow Productivity"]),
+        ("fmt:epub newport", ["A World Without Email", "Slow Productivity"]),
     ],
 )
 def test_sources_search_uses_query_syntax(env, capsys, query, expected):
@@ -91,24 +91,61 @@ def test_sources_search_uses_query_syntax(env, capsys, query, expected):
 
     main(["sources", query])
 
-    assert sorted(titles(capsys)) == expected, "the source folder name is part of the path, so in: narrows by source"
+    assert sorted(titles(capsys)) == expected, "in: narrows by source folder; books the library already holds are hidden"
 
 
-def test_sources_search_before_index_explains(env, capsys):
+def test_sources_search_before_index_explains(env, capsys, tmp_path):
+    (tmp_path / "alfred-data" / "sources.db").unlink()
     main(["sources", "slow"])
     assert output(capsys)["items"][0]["title"] == "No sources index yet", "searching sources without an index should tell how to build it"
 
 
-def test_sources_marks_books_already_in_library(env, capsys):
+def test_sources_hides_books_already_in_library(env, capsys):
     main(["index-sources"])
     capsys.readouterr()
 
     main(["sources", "deep"])
 
     item = output(capsys)["items"][0]
-    assert item["valid"] is False, "a book already in the library cannot be imported again"
-    assert item["subtitle"].startswith("✓ in library"), "the subtitle should say the book is already there"
-    assert "02_NonFiction/" in item["subtitle"], "and where it is"
+    assert item["title"].startswith("No books match"), "a book already in the library is not offered again"
+
+
+def test_sources_empty_query_hides_library_copies_too(env, capsys):
+    main(["index-sources"])
+    capsys.readouterr()
+
+    main(["sources", ""])
+
+    assert "Deep Work" not in titles(capsys), "the newest-first listing should skip what the library already holds"
+
+
+def test_index_also_rebuilds_the_sources_index(env, tmp_path, capsys):
+    (tmp_path / "alfred-data" / "sources.db").unlink(missing_ok=True)
+    capsys.readouterr()
+
+    assert main(["index"]) == 0, "index should succeed"
+
+    out = capsys.readouterr().out
+    assert "Indexed 4 books from" in out and "Indexed 3 books from 2 sources" in out, "one command reports both indexes"
+    assert (tmp_path / "alfred-data" / "sources.db").exists(), "the sources index should be rebuilt alongside the library"
+
+
+def test_index_without_sources_stays_quiet_about_them(env, capsys, monkeypatch):
+    monkeypatch.setenv("KOBO_SOURCES", "")
+    capsys.readouterr()
+
+    assert main(["index"]) == 0, "no sources is not an error for index"
+
+    assert "from 2 sources" not in capsys.readouterr().out and "No sources" not in capsys.readouterr().out, "nothing to say about sources when none are configured"
+
+
+def test_index_reports_unmounted_sources_without_failing(env, capsys, monkeypatch, tmp_path, calibre):
+    monkeypatch.setenv("KOBO_SOURCES", f"{calibre}:{tmp_path / 'absent'}")
+    capsys.readouterr()
+
+    assert main(["index"]) == 0, "an unmounted source should not fail the library index"
+
+    assert "skipped 1 unmounted" in capsys.readouterr().out, "the unmounted source should be mentioned"
 
 
 def test_sources_items_carry_import_actions(env, capsys):

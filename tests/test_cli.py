@@ -440,9 +440,9 @@ def test_tag_with_genre_accepts_notify_like_the_other_movers(env, library, mocke
         ("classify", "", "classify"),
         ("lint", "", "open"),
         ("index", "Rebuild the index", "index"),
+        ("update", "Rebuild the index", "index"),
         ("apply", "Apply the plan", "apply"),
         ("undo", "Undo the last apply", "undo"),
-        ("index-src", "Index the sources", "index-src"),
         ("src", "No sources index yet", "import"),
     ],
 )

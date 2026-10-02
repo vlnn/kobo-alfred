@@ -41,7 +41,7 @@ def test_every_object_is_placed_on_the_canvas(workflow):
     assert not missing, f"objects without canvas position would be invisible: {missing}"
 
 
-@pytest.mark.parametrize("keyword", ["kb", "kb:src", "kb:index-src", "kb:classify"])
+@pytest.mark.parametrize("keyword", ["kb", "kb:src", "kb:index", "kb:classify"])
 def test_keywords_are_wired(workflow, keyword):
     assert any(o["config"].get("keyword") == keyword for o in workflow["objects"]), f"{keyword} should be a workflow entry point"
 
@@ -55,7 +55,6 @@ ROUTES = {
     "index": "INDEX_RUN",
     "apply": "APPLY_RUN",
     "undo": "UNDO_RUN",
-    "index-src": "INDEX_SRC_RUN",
     "apply-one": "APPLY_ONE",
     "classify": "GENRES",
     "import": "IMPORT_RUN",
@@ -85,3 +84,7 @@ def test_dispatcher_routes_each_command_action(workflow, action, destination):
 def test_dispatcher_else_opens_the_book(workflow):
     _, conns = dispatch(workflow)
     assert [c["destinationuid"] for c in conns if "sourceoutputuid" not in c] == ["OPEN"], "anything that is not a command still opens the book"
+
+
+def test_index_src_keyword_is_gone(workflow):
+    assert not any(o["config"].get("keyword") == "kb:index-src" for o in workflow["objects"]), "kb:index now covers the sources too"
