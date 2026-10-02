@@ -13,6 +13,7 @@ kb:rnd fmt:epub              five random complete books, filters allowed
 kb:stats                     counts: books, incomplete downloads, duplicate titles
 kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
 kb:inbox                     books without a genre yet, oldest first
+kb stats · kb plan · kb index…   every kb:x also works as `kb x [query]`: its rows come first, then books matching the word
 kb:plan                      proposed moves/renames/trash, written to plan.tsv — ↩ on a row applies that line, ↩ on the head row applies all
 kb:apply                     apply plan.tsv, then rebuild the index
 kb:undo                      move the last batch back
@@ -20,6 +21,12 @@ kb:classify                  pick an inbox book, then a genre; the inbox shrinks
 kb:src cal newport           search the other sources (same filters) — ↩ copies the book into the library inbox
 kb:index-src                 rebuild the sources index
 ```
+
+Inside plain `kb`, a first word that names a command (`stats`, `dups`, `rnd`, `lint`, `inbox`, `classify`, `plan`,
+`src`, `index`, `apply`, `undo`, `index-src`) runs it: `kb plan` lists the plan and ↩ on a row applies that row;
+`kb src delany` searches the sources and ↩ imports; `kb index` shows one row that rebuilds the index on ↩. Books whose
+title, author or path contain the word are listed after. Only ↩ is rerouted: ⌥↩ / ⌘↩ keep their `kb` meaning
+(reveal / copy path), so "move into the inbox" stays a `kb:src` feature.
 
 Each result shows: title · authors · series #n · year · FORMAT size · path relative to the library root.
 Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbnail via `qlmanage`).

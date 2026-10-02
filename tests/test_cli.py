@@ -428,3 +428,72 @@ def test_tag_with_genre_accepts_notify_like_the_other_movers(env, library, mocke
     assert main(["tag", "--notify", str(book), "genre=productivity"]) == 0, "--notify should be accepted before the book"
 
     assert notify.call_count == 1 and "moved → productivity/" in notify.call_args.args[0], "the notification should name the new home"
+
+
+@pytest.mark.parametrize(
+    "query, first_title, action",
+    [
+        ("stats", "4 books indexed", "stats"),
+        ("dups", "No duplicate titles", "dups"),
+        ("plan", "Apply all 1 operations", "apply-one"),
+        ("inbox", "", "open"),
+        ("classify", "", "classify"),
+        ("lint", "", "open"),
+        ("index", "Rebuild the index", "index"),
+        ("apply", "Apply the plan", "apply"),
+        ("undo", "Undo the last apply", "undo"),
+        ("index-src", "Index the sources", "index-src"),
+        ("src", "No sources index yet", "import"),
+    ],
+)
+def test_search_runs_a_command_named_by_its_first_word(env, capsys, query, first_title, action):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["search", query])
+
+    first = output(capsys)["items"][0]
+    assert first["title"].startswith(first_title), f"kb {query} should show the same items as kb:{query}"
+    assert first.get("variables", {}).get("action") == action, "every command item should say how ↩ dispatches it"
+
+
+def test_search_command_items_come_before_matching_books(env, library, capsys):
+    (library / "00_Inbox" / "Stats for Dummies - Anon.pdf").write_bytes(b"%PDF-1.4")
+    main(["index"])
+    capsys.readouterr()
+
+    main(["search", "stats"])
+
+    titles = [i["title"] for i in output(capsys)["items"]]
+    assert titles[0] == "5 books indexed", "the command comes first"
+    assert "Stats for Dummies" in titles, "books that happen to match the word still follow"
+
+
+def test_search_command_takes_the_rest_as_its_query(env, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["search", "rnd fmt:epub"])
+
+    items = output(capsys)["items"]
+    assert [i["title"] for i in items] == ["Deep Work"], "kb rnd <query> should filter like kb:rnd <query>"
+    assert items[0]["variables"]["action"] == "open", "a book item from a picker opens like any other book"
+
+
+def test_search_action_item_is_actionable_and_has_no_arg(env, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["search", "index"])
+
+    item = output(capsys)["items"][0]
+    assert item["valid"] is True and item["arg"] == "", "↩ on a keyword command should fire it with an empty argument"
+
+
+def test_search_plain_word_is_still_a_search(env, capsys):
+    main(["index"])
+    capsys.readouterr()
+
+    main(["search", "deep"])
+
+    assert output(capsys)["items"][0]["title"] == "Deep Work", "an ordinary word must not be mistaken for a command"

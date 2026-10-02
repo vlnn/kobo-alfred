@@ -108,7 +108,7 @@ Set the library root in the workflow configuration; the index lives in Alfred's 
 				<key>title</key>
 				<string>Search library</string>
 				<key>subtext</key>
-				<string>title, author, series · fmt:epub in:inbox author:x series:x lang:uk genre:fiction tag:now is:partial · ⇧↩ fix genre/tags</string>
+				<string>title, author, series · fmt:epub in:inbox author:x genre:x tag:x is:partial · stats dups rnd lint inbox classify plan src index apply undo · ⇧↩ fix</string>
 				<key>runningsubtext</key>
 				<string>Searching…</string>
 				<key>withspace</key>
@@ -894,6 +894,122 @@ nohup /usr/bin/python3 -m kobolib index-sources --notify &gt;/dev/null 2&gt;&amp
 echo "Indexing sources… you will get a notification when it finishes"</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>conditions</key>
+				<array>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>index</string>
+						<key>outputlabel</key>
+						<string>index</string>
+						<key>uid</key>
+						<string>D2BB2AA4-9769-43F6-A150-1C28D648FDB6</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>apply</string>
+						<key>outputlabel</key>
+						<string>apply</string>
+						<key>uid</key>
+						<string>DF061D5B-FCB1-4569-9868-D3F9BA7465CD</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>undo</string>
+						<key>outputlabel</key>
+						<string>undo</string>
+						<key>uid</key>
+						<string>0D99B9A6-3966-44BE-8958-5965343A6415</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>index-src</string>
+						<key>outputlabel</key>
+						<string>index-src</string>
+						<key>uid</key>
+						<string>E5451D93-4841-4B2D-AE95-6DC4DDD07DDD</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>apply-one</string>
+						<key>outputlabel</key>
+						<string>apply-one</string>
+						<key>uid</key>
+						<string>489683B0-6179-4060-9F20-FA7A2B93EB4A</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>classify</string>
+						<key>outputlabel</key>
+						<string>classify</string>
+						<key>uid</key>
+						<string>A5D663CF-09F5-4681-9BED-24D48AEB4FEB</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>import</string>
+						<key>outputlabel</key>
+						<string>import</string>
+						<key>uid</key>
+						<string>9CD12F4D-E799-4CF1-A9E6-A750E02699F7</string>
+					</dict>
+				</array>
+				<key>elselabel</key>
+				<string>open</string>
+				<key>hideelse</key>
+				<false/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.utility.conditional</string>
+			<key>uid</key>
+			<string>DISPATCH</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
 	</array>
 	<key>connections</key>
 	<dict>
@@ -901,7 +1017,7 @@ echo "Indexing sources… you will get a notification when it finishes"</string>
 		<array>
 			<dict>
 				<key>destinationuid</key>
-				<string>OPEN</string>
+				<string>DISPATCH</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -1313,6 +1429,103 @@ echo "Indexing sources… you will get a notification when it finishes"</string>
 				<false/>
 			</dict>
 		</array>
+		<key>DISPATCH</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>INDEX_RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>D2BB2AA4-9769-43F6-A150-1C28D648FDB6</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>APPLY_RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>DF061D5B-FCB1-4569-9868-D3F9BA7465CD</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>UNDO_RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>0D99B9A6-3966-44BE-8958-5965343A6415</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>INDEX_SRC_RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>E5451D93-4841-4B2D-AE95-6DC4DDD07DDD</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>APPLY_ONE</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>489683B0-6179-4060-9F20-FA7A2B93EB4A</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>GENRES</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>A5D663CF-09F5-4681-9BED-24D48AEB4FEB</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>IMPORT_RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>9CD12F4D-E799-4CF1-A9E6-A750E02699F7</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>OPEN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
 	</dict>
 	<key>uidata</key>
 	<dict>
@@ -1511,6 +1724,13 @@ echo "Indexing sources… you will get a notification when it finishes"</string>
 			<real>320.0</real>
 			<key>ypos</key>
 			<real>2020.0</real>
+		</dict>
+		<key>DISPATCH</key>
+		<dict>
+			<key>xpos</key>
+			<real>240.0</real>
+			<key>ypos</key>
+			<real>60.0</real>
 		</dict>
 	</dict>
 	<key>version</key>

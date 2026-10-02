@@ -129,12 +129,38 @@ def cmd_index(args) -> int:
     return 0
 
 
-def search_items(raw: str) -> list[dict]:
+def book_items(raw: str) -> list[dict]:
     index = Index(db_path())
     rows = index.search(parse_query(raw))
     if not rows and index.count() == 0:
         return [alfred.message_item("Index is empty", "Run kb:index with the library mounted; check Alfred's Removable Volumes permission")]
     return [alfred.book_item(r) for r in rows] or [alfred.empty_item(raw)]
+
+
+def split_command(raw: str) -> tuple[str, str]:
+    word, _, rest = raw.strip().partition(" ")
+    return (word.lower(), rest.strip()) if word.lower() in COMMANDS else ("", raw)
+
+
+def search_items(raw: str) -> list[dict]:
+    command, rest = split_command(raw)
+    if not command:
+        return book_items(raw)
+    books = [b for b in book_items(raw) if b.get("valid") is not False]
+    return command_items(command, rest) + books
+
+
+def with_action(item: dict, action: str) -> dict:
+    return {**item, "variables": {**item.get("variables", {}), "action": action}}
+
+
+def command_items(command: str, rest: str) -> list[dict]:
+    items, action = COMMANDS[command]
+    return [with_action(i, action) for i in items(rest)]
+
+
+def action_item(title: str, subtitle: str) -> dict:
+    return {"title": title, "subtitle": subtitle, "arg": "", "valid": True}
 
 
 def cmd_search(args) -> int:
@@ -145,17 +171,24 @@ def cmd_search(args) -> int:
     return 0
 
 
-def cmd_dups(args) -> int:
+def dups_items(query: str = "") -> list[dict]:
     groups = Index(db_path()).duplicates()
-    items = [alfred.duplicate_item(g) for g in groups] or [alfred.message_item("No duplicate titles")]
-    print(alfred.render(items))
+    return [alfred.duplicate_item(g) for g in groups] or [alfred.message_item("No duplicate titles")]
+
+
+def cmd_dups(args) -> int:
+    print(alfred.render(dups_items()))
     return 0
 
 
-def cmd_random(args) -> int:
-    rows = Index(db_path()).search(parse_query(args.query + " is:complete"), limit=5000)
+def random_items(query: str) -> list[dict]:
+    rows = Index(db_path()).search(parse_query(query + " is:complete"), limit=5000)
     picks = random.sample(rows, min(5, len(rows)))
-    print(alfred.render([alfred.book_item(r) for r in picks] or [alfred.empty_item(args.query)]))
+    return [alfred.book_item(r) for r in picks] or [alfred.empty_item(query)]
+
+
+def cmd_random(args) -> int:
+    print(alfred.render(random_items(args.query)))
     return 0
 
 
@@ -174,19 +207,25 @@ def unclassified_rows(query: str = "") -> list:
     return sorted(rows, key=lambda r: r.mtime)
 
 
+def inbox_items(query: str) -> list[dict]:
+    return [alfred.inbox_item(r, "") for r in unclassified_rows(query)] or [alfred.message_item("Inbox is empty", "Every book has a genre")]
+
+
 def cmd_inbox(args) -> int:
     if not db_path().exists():
         return without_index()
-    items = [alfred.inbox_item(r, "") for r in unclassified_rows(args.query)] or [alfred.message_item("Inbox is empty", "Every book has a genre")]
-    print(alfred.render(items))
+    print(alfred.render(inbox_items(args.query)))
     return 0
+
+
+def classify_items(query: str) -> list[dict]:
+    return [alfred.classify_item(r, "") for r in unclassified_rows(query)] or [alfred.message_item("Nothing to classify", "Every book has a genre")]
 
 
 def cmd_classify(args) -> int:
     if not db_path().exists():
         return without_index()
-    items = [alfred.classify_item(r, "") for r in unclassified_rows(args.query)] or [alfred.message_item("Nothing to classify", "Every book has a genre")]
-    print(alfred.render(items))
+    print(alfred.render(classify_items(args.query)))
     return 0
 
 
@@ -197,26 +236,37 @@ def text_report(findings) -> str:
 def cmd_lint(args) -> int:
     if not db_path().exists():
         return without_index()
-    findings = lint(all_rows(Index(db_path())), tag_store(), library_root(), exclude=(data_dir(),))
     if args.text:
-        print(text_report(findings))
+        print(text_report(findings()))
         return 0
-    items = [alfred.finding_item(f, str(library_root())) for f in findings] or [alfred.message_item("Nothing to fix", "The library is clean")]
-    print(alfred.render(items))
+    print(alfred.render(lint_items()))
     return 0
+
+
+def findings() -> list:
+    return lint(all_rows(Index(db_path())), tag_store(), library_root(), exclude=(data_dir(),))
+
+
+def lint_items(query: str = "") -> list[dict]:
+    return [alfred.finding_item(f, str(library_root())) for f in findings()] or [alfred.message_item("Nothing to fix", "The library is clean")]
 
 
 def cmd_plan(args) -> int:
     if not db_path().exists():
         return without_index()
-    rows, store = all_rows(Index(db_path())), tag_store()
-    ops = plan(rows, lint(rows, store, library_root(), exclude=(data_dir(),)), store)
+    ops = current_plan()
     write_plan(ops, plan_path())
     if args.text:
         print(plan_path().read_text(encoding="utf-8"), end="")
         return 0
     print(alfred.render(plan_items(ops)))
     return 0
+
+
+def written_plan_items(query: str = "") -> list[dict]:
+    ops = current_plan()
+    write_plan(ops, plan_path())
+    return plan_items(ops)
 
 
 def plan_items(ops) -> list[dict]:
@@ -405,11 +455,14 @@ def source_items(raw: str) -> list[dict]:
     return [alfred.source_item(r, copies.get(r.fingerprint)) for r in rows] or [alfred.empty_item(raw)]
 
 
-def cmd_sources(args) -> int:
+def sources_items(query: str) -> list[dict]:
     if not sources_db_path().exists():
-        print(alfred.render([alfred.message_item("No sources index yet", "Set KOBO_SOURCES, then run kb:index-src")]))
-        return 0
-    print(alfred.render(source_items(args.query)))
+        return [alfred.message_item("No sources index yet", "Set KOBO_SOURCES, then run kb:index-src")]
+    return source_items(query)
+
+
+def cmd_sources(args) -> int:
+    print(alfred.render(sources_items(args.query)))
     return 0
 
 
@@ -467,9 +520,31 @@ def sources_stats_items() -> list[dict]:
     return [alfred.message_item(f"{Index(sources_db_path()).count()} books in {len(sources())} sources", "kb:src")]
 
 
+def all_stats_items(query: str = "") -> list[dict]:
+    return stats_items() + sources_stats_items()
+
+
 def cmd_stats(args) -> int:
-    print(alfred.render(stats_items() + sources_stats_items()))
+    print(alfred.render(all_stats_items()))
     return 0
+
+
+COMMANDS = {
+    "stats": (all_stats_items, "stats"),
+    "dups": (dups_items, "dups"),
+    "rnd": (random_items, "open"),
+    "random": (random_items, "open"),
+    "lint": (lint_items, "open"),
+    "inbox": (inbox_items, "open"),
+    "classify": (classify_items, "classify"),
+    "plan": (written_plan_items, "apply-one"),
+    "src": (sources_items, "import"),
+    "sources": (sources_items, "import"),
+    "index": (lambda q: [action_item("Rebuild the index", "Reads every book, extracts covers · same as kb:index")], "index"),
+    "apply": (lambda q: [action_item("Apply the plan", "Runs what kb:plan showed, then rebuilds the index · same as kb:apply")], "apply"),
+    "undo": (lambda q: [action_item("Undo the last apply", "Reverses the last batch of moves · same as kb:undo")], "undo"),
+    "index-src": (lambda q: [action_item("Index the sources", "Rebuilds the sources index · same as kb:index-src")], "index-src"),
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
