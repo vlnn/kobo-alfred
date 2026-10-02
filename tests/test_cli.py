@@ -31,7 +31,9 @@ def test_index_then_search(env, capsys):
 
     items = output(capsys)["items"]
     assert [i["title"] for i in items] == ["Deep Work"], "search should hit the indexed epub"
-    assert items[0]["subtitle"].endswith("02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"), "subtitle should end with the library-relative path"
+    assert items[0]["subtitle"].endswith("02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"), (
+        "subtitle should end with the library-relative path"
+    )
 
 
 def test_index_fails_when_root_missing(monkeypatch, tmp_path, capsys):
@@ -115,7 +117,9 @@ def test_lint_text_report_for_terminal(env, capsys):
     main(["lint", "--text"])
 
     out = capsys.readouterr().out
-    assert "partial\t" in out and "00_Inbox/Delany, Samuel R - Nova - 2014.epub.part" in out, "text report should list rule and path per line"
+    assert "partial\t" in out and "00_Inbox/Delany, Samuel R - Nova - 2014.epub.part" in out, (
+        "text report should list rule and path per line"
+    )
 
 
 def test_lint_without_index_explains(env, capsys):
@@ -133,7 +137,9 @@ def test_plan_writes_file_and_emits_items(env, tmp_path, capsys):
     plan_file = tmp_path / "alfred-data" / "plan.tsv"
     assert plan_file.exists(), "plan should be written next to the index"
     assert any(i["subtitle"].startswith("move") for i in items), "the misnamed epub in a genre folder should be planned for renaming"
-    assert plan_file.read_text(encoding="utf-8").count("\n") == len(items), "every operation should be in the file (header line stands in for the head row)"
+    assert plan_file.read_text(encoding="utf-8").count("\n") == len(items), (
+        "every operation should be in the file (header line stands in for the head row)"
+    )
 
 
 def test_plan_text_prints_tsv(env, capsys):
@@ -154,7 +160,9 @@ def test_apply_runs_plan_and_reindexes(env, library, tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert out.startswith("Applied 1"), "the misnamed epub should be moved"
-    assert (library / "02_NonFiction" / "Newport, Cal" / "Newport, Cal - Deep Work (Focus 02) (2016).epub").exists(), "the book should be renamed into its author folder"
+    assert (library / "02_NonFiction" / "Newport, Cal" / "Newport, Cal - Deep Work (Focus 02) (2016).epub").exists(), (
+        "the book should be renamed into its author folder"
+    )
     assert (tmp_path / "alfred-data" / "journal.jsonl").exists(), "the move should be journaled"
     main(["search", "deep"])
     assert "Newport, Cal/" in output(capsys)["items"][0]["subtitle"], "the index should be rebuilt after applying"
@@ -164,6 +172,7 @@ def test_apply_refuses_stale_plan(env, library, capsys):
     main(["index"])
     main(["plan"])
     import time
+
     time.sleep(0.02)
     main(["index"])
     capsys.readouterr()
@@ -237,7 +246,9 @@ def test_genres_lists_known_genres_filtered(env, library, capsys):
     items = output(capsys)["items"]
     assert [i["arg"] for i in items] == ["genre=games/go"], "genres should be filtered by the typed prefix and offered as edits"
     main(["genres", ""])
-    assert [i["arg"] for i in output(capsys)["items"]] == ["genre=games/go", "genre=nonfiction"], "all genres from tags and folders should be listed"
+    assert [i["arg"] for i in output(capsys)["items"]] == ["genre=games/go", "genre=nonfiction"], (
+        "all genres from tags and folders should be listed"
+    )
 
 
 def test_genres_offers_new_genre_from_query(env, library, capsys):
@@ -247,7 +258,9 @@ def test_genres_offers_new_genre_from_query(env, library, capsys):
     main(["genres", "fiction/mystery"])
 
     items = output(capsys)["items"]
-    assert items[-1]["arg"] == "genre=fiction/mystery" and items[-1]["title"].startswith("New genre"), "an unknown genre can be created from the query"
+    assert items[-1]["arg"] == "genre=fiction/mystery" and items[-1]["title"].startswith("New genre"), (
+        "an unknown genre can be created from the query"
+    )
 
 
 def test_classify_lists_unclassified_with_book_variable(env, library, capsys):

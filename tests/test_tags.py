@@ -33,7 +33,9 @@ def test_store_roundtrips(tmp_path: Path):
 
     reloaded = TagStore(tmp_path / "tags.tsv").load()
 
-    assert reloaded.get("f1") == Tag(genre="fiction/sci-fi", tags=["bought", "now"], rel_path="a.epub"), "saved tags should load back unchanged"
+    assert reloaded.get("f1") == Tag(genre="fiction/sci-fi", tags=["bought", "now"], rel_path="a.epub"), (
+        "saved tags should load back unchanged"
+    )
 
 
 def test_missing_file_loads_empty(tmp_path: Path):

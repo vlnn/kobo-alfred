@@ -55,9 +55,9 @@ def take_leading_series(stem: str) -> tuple[str, str, str]:
     if match := BRACKET_SERIES.match(stem):
         body = match.group("body").split(" - ")[0].strip()
         parsed = SERIES_BODY.match(body)
-        return stem[match.end():], parsed.group("series").strip(" _"), parsed.group("index") or ""
+        return stem[match.end() :], parsed.group("series").strip(" _"), parsed.group("index") or ""
     if match := PAREN_SERIES.match(stem):
-        return stem[match.end():], match.group("series"), match.group("index")
+        return stem[match.end() :], match.group("series"), match.group("index")
     return stem, "", ""
 
 
@@ -69,7 +69,7 @@ def take_trailing_series(stem: str) -> tuple[str, str, str]:
 
 def take_braced_author(stem: str) -> tuple[str, list[str]]:
     if match := BRACED_AUTHOR.search(stem):
-        return stem[: match.start()] + stem[match.end():], split_authors(match.group("author"))
+        return stem[: match.start()] + stem[match.end() :], split_authors(match.group("author"))
     return stem, []
 
 

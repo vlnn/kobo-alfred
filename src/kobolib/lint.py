@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kobolib.filenames import BRACED_AUTHOR, strip_noise
-from kobolib.index import Row, normalize_title, series_key
+from kobolib.index import Row, series_key
 from kobolib.scan import BOOK_SUFFIXES, display_stem, iter_junk, relative_path
 from kobolib.tags import TagStore
 
@@ -42,7 +42,9 @@ def single(rule: str, detail: str, row: Row) -> Finding:
     return Finding(rule, detail, [row.rel_path])
 
 
-def flag(rule: str, rows: Iterable[Row], predicate: Callable[[Row], bool], detail: Callable[[Row], str] = lambda r: r.title) -> list[Finding]:
+def flag(
+    rule: str, rows: Iterable[Row], predicate: Callable[[Row], bool], detail: Callable[[Row], str] = lambda r: r.title
+) -> list[Finding]:
     return [single(rule, detail(r), r) for r in rows if predicate(r)]
 
 

@@ -62,7 +62,9 @@ def test_fat_safe_truncates_on_utf8_bytes_not_chars():
 
 def test_genre_root_prefers_existing_folder():
     folders = {"01_Fiction", "01_Fiction/01_Sci-Fi_Fantasy", "01_Fiction/01_Sci-Fi_Fantasy/Series", "02_NonFiction"}
-    assert genre_root("fiction/sci-fi_fantasy", folders) == "01_Fiction/01_Sci-Fi_Fantasy", "an existing folder for the genre should be reused"
+    assert genre_root("fiction/sci-fi_fantasy", folders) == "01_Fiction/01_Sci-Fi_Fantasy", (
+        "an existing folder for the genre should be reused"
+    )
     assert genre_root("fiction/mystery", folders) == "01_Fiction/mystery", "a new genre nests under the existing parent"
     assert genre_root("games/go", folders) == "games/go", "an unknown genre becomes its own path"
 
@@ -85,7 +87,9 @@ def test_destination(overrides, series_count, rel_path):
 def test_author_folder_prefers_existing_inverse_folder():
     known = {"Teague, Rowan"}
     assert author_folder("Rowan Teague", known) == "Teague, Rowan", "a normal name keeps its own folder"
-    assert author_folder("Teague Rowan", known) == "Teague, Rowan", "a surname-first name should join the existing folder instead of making 'Rowan, Teague'"
+    assert author_folder("Teague Rowan", known) == "Teague, Rowan", (
+        "a surname-first name should join the existing folder instead of making 'Rowan, Teague'"
+    )
     assert author_folder("Teague Rowan", set()) == "Rowan, Teague", "without a hint the last word is the surname"
 
 
@@ -111,4 +115,7 @@ def test_cyrillic_names_follow_surname_first_convention(authors, folder):
 def test_known_authors_includes_plain_folders():
     from kobolib.naming import known_authors
 
-    assert known_authors({"01_Fiction/Rowan Teague", "01_Fiction/Marlowe, Petra", "01_Fiction/Standalone"}) == {"Teague, Rowan", "Marlowe, Petra"}, "a 'First Last' folder counts as that author's home"
+    assert known_authors({"01_Fiction/Rowan Teague", "01_Fiction/Marlowe, Petra", "01_Fiction/Standalone"}) == {
+        "Teague, Rowan",
+        "Marlowe, Petra",
+    }, "a 'First Last' folder counts as that author's home"

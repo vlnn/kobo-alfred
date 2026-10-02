@@ -25,7 +25,9 @@ def workflow() -> dict:
 
 def test_every_object_has_the_version_alfred_expects(workflow):
     for obj in workflow["objects"]:
-        assert obj.get("version") == OBJECT_VERSIONS[obj["type"]], f"{obj['uid']} should carry its object type's version, or Alfred calls the workflow incompatible"
+        assert obj.get("version") == OBJECT_VERSIONS[obj["type"]], (
+            f"{obj['uid']} should carry its object type's version, or Alfred calls the workflow incompatible"
+        )
 
 
 def test_connections_point_at_existing_objects(workflow):
@@ -48,7 +50,9 @@ def test_keywords_are_wired(workflow, keyword):
 
 def test_plan_row_action_tells_apart_one_row_from_apply_all(workflow):
     script = next(o for o in workflow["objects"] if o["uid"] == "APPLY_ONE")["config"]["script"]
-    assert 'apply --only "$1"' in script and '[ -z "$1" ]' in script, "the plan row action should run the whole plan on an empty argument and say so"
+    assert 'apply --only "$1"' in script and '[ -z "$1" ]' in script, (
+        "the plan row action should run the whole plan on an empty argument and say so"
+    )
 
 
 ROUTES = {
@@ -83,7 +87,9 @@ def test_dispatcher_routes_each_command_action(workflow, action, destination):
 
 def test_dispatcher_else_opens_the_book(workflow):
     _, conns = dispatch(workflow)
-    assert [c["destinationuid"] for c in conns if "sourceoutputuid" not in c] == ["OPEN"], "anything that is not a command still opens the book"
+    assert [c["destinationuid"] for c in conns if "sourceoutputuid" not in c] == ["OPEN"], (
+        "anything that is not a command still opens the book"
+    )
 
 
 def test_index_src_keyword_is_gone(workflow):

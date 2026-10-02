@@ -44,7 +44,9 @@ def test_search(index: Index, raw, expected):
 
 
 def test_empty_query_lists_recent_first(index: Index, library: Path):
-    import os, time
+    import os
+    import time
+
     newest = library / "00_Inbox" / "Napkin.pdf"
     os.utime(newest, (time.time() + 100, time.time() + 100))
     build_index(library, index.db_path, cover_cache=library / "c")
@@ -101,7 +103,9 @@ def test_concurrent_build_is_refused(index: Index, library: Path):
 
 
 def test_stale_lock_is_ignored(index: Index, library: Path):
-    import os, time
+    import os
+    import time
+
     from kobolib.index import lock_path
 
     lock = lock_path(index.db_path)
@@ -113,7 +117,6 @@ def test_stale_lock_is_ignored(index: Index, library: Path):
 
 
 def test_metadata_pass_is_searchable_before_thumbnails(index: Index, library: Path, mocker):
-    from kobolib.index import fill_thumbnails
 
     counts = []
     mocker.patch("kobolib.index.fill_thumbnails", side_effect=lambda db, cache: counts.append(Index(db).count()))
@@ -149,6 +152,7 @@ def test_fingerprint_stored_per_book(index: Index):
 
 def test_write_tags_updates_rows_and_search_filters(index: Index):
     from kobolib.tags import Tag, TagStore
+
     store = TagStore(index.db_path.parent / "tags.tsv")
     (deep,) = index.search(parse_query("deep"))
     store.set(deep.fingerprint, Tag(genre="nonfiction/focus", tags=["bought", "now"]))

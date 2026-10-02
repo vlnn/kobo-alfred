@@ -12,11 +12,7 @@ class Query:
     filters: dict[str, str] = field(default_factory=dict)
 
     def fts_match(self) -> str:
-        column_terms = [
-            f"{column}:{fts_token(self.filters[key])}"
-            for key, column in FTS_COLUMN_FILTERS.items()
-            if key in self.filters
-        ]
+        column_terms = [f"{column}:{fts_token(self.filters[key])}" for key, column in FTS_COLUMN_FILTERS.items() if key in self.filters]
         return " ".join(column_terms + [fts_token(t) for t in self.terms])
 
     def is_empty(self) -> bool:

@@ -26,9 +26,26 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 """
 
 COLUMNS = (
-    "title", "authors", "series", "series_index", "folder", "rel_path", "path", "format",
-    "partial", "language", "year", "publisher", "source", "cover", "size", "mtime", "norm_title",
-    "fingerprint", "genre", "tags",
+    "title",
+    "authors",
+    "series",
+    "series_index",
+    "folder",
+    "rel_path",
+    "path",
+    "format",
+    "partial",
+    "language",
+    "year",
+    "publisher",
+    "source",
+    "cover",
+    "size",
+    "mtime",
+    "norm_title",
+    "fingerprint",
+    "genre",
+    "tags",
 )
 
 FILTER_SQL = {
@@ -84,11 +101,26 @@ def series_key(series: str) -> str:
 
 def to_record(book: Book, cover: Path | None) -> tuple:
     return (
-        book.title, "; ".join(book.authors), book.series, book.series_index,
-        str(Path(book.rel_path).parent), book.rel_path, book.path, book.format,
-        int(book.partial), book.language, book.year, book.publisher, book.source,
-        str(cover) if cover else "", book.size, book.mtime, normalize_title(book.title),
-        book.fingerprint, "", "",
+        book.title,
+        "; ".join(book.authors),
+        book.series,
+        book.series_index,
+        str(Path(book.rel_path).parent),
+        book.rel_path,
+        book.path,
+        book.format,
+        int(book.partial),
+        book.language,
+        book.year,
+        book.publisher,
+        book.source,
+        str(cover) if cover else "",
+        book.size,
+        book.mtime,
+        normalize_title(book.title),
+        book.fingerprint,
+        "",
+        "",
     )
 
 
@@ -105,9 +137,7 @@ def source_records(roots: list[Path], cover_cache: Path, exclude: tuple[Path, ..
 
 def thumbnail_candidates(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
     formats = ", ".join(f"'{f}'" for f in sorted(THUMBNAIL_FORMATS))
-    return conn.execute(
-        f"SELECT path, rel_path, format FROM books WHERE cover = '' AND partial = 0 AND format IN ({formats})"
-    ).fetchall()
+    return conn.execute(f"SELECT path, rel_path, format FROM books WHERE cover = '' AND partial = 0 AND format IN ({formats})").fetchall()
 
 
 def fill_thumbnails(db_path: Path, cover_cache: Path) -> int:
@@ -178,7 +208,9 @@ def build_index(root: Path, db_path: Path, cover_cache: Path, thumbnails: bool =
     return rebuild(db_path, records(root, cover_cache, exclude), cover_cache, thumbnails)
 
 
-def build_sources_index(roots: list[Path], db_path: Path, cover_cache: Path, thumbnails: bool = True, exclude: tuple[Path, ...] = ()) -> int:
+def build_sources_index(
+    roots: list[Path], db_path: Path, cover_cache: Path, thumbnails: bool = True, exclude: tuple[Path, ...] = ()
+) -> int:
     return rebuild(db_path, source_records(roots, cover_cache, exclude), cover_cache, thumbnails)
 
 
@@ -232,9 +264,7 @@ class Index:
 
     def duplicates(self) -> list[DuplicateGroup]:
         with self.connect() as conn:
-            rows = conn.execute(
-                f"SELECT {', '.join(COLUMNS)} FROM books WHERE norm_title != '' ORDER BY norm_title, rel_path"
-            ).fetchall()
+            rows = conn.execute(f"SELECT {', '.join(COLUMNS)} FROM books WHERE norm_title != '' ORDER BY norm_title, rel_path").fetchall()
         groups = defaultdict(list)
         for row in rows:
             groups[row.norm_title].append(row)

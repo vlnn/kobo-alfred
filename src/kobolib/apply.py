@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from kobolib.koreader import fix_paths, sidecar_of
-from kobolib.scan import nfc
 from kobolib.plan import Operation
+from kobolib.scan import nfc
 
 EXECUTABLE = {"move", "trash", "dups"}
 MOVES = {"apply", "undo"}

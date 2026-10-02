@@ -38,7 +38,9 @@ def test_prefer_picks_the_best_copy(candidates, winner):
 def test_junk_goes_to_trash(tmp_path):
     findings = [Finding("junk", "FSCK0000.000: not a book", ["00_Inbox/FSCK0000.000"])]
     result = plan([], findings, store_with(tmp_path))
-    assert ops(result) == [("trash", "00_Inbox/FSCK0000.000", "_trash/00_Inbox/FSCK0000.000")], "junk should move to _trash keeping its path"
+    assert ops(result) == [("trash", "00_Inbox/FSCK0000.000", "_trash/00_Inbox/FSCK0000.000")], (
+        "junk should move to _trash keeping its path"
+    )
 
 
 def test_exact_duplicates_keep_one_trash_the_rest(tmp_path):
@@ -50,7 +52,9 @@ def test_exact_duplicates_keep_one_trash_the_rest(tmp_path):
 
     result = [o for o in plan(rows, findings, store_with(tmp_path)) if o.kind == "trash"]
 
-    assert ops(result) == [("trash", "00_Inbox/NOW/hlaskvyl.epub", "_trash/00_Inbox/NOW/hlaskvyl.epub")], "identical copies are trash, the first path survives"
+    assert ops(result) == [("trash", "00_Inbox/NOW/hlaskvyl.epub", "_trash/00_Inbox/NOW/hlaskvyl.epub")], (
+        "identical copies are trash, the first path survives"
+    )
 
 
 def test_title_duplicates_move_losers_to_dups(tmp_path):
@@ -62,25 +66,45 @@ def test_title_duplicates_move_losers_to_dups(tmp_path):
 
     result = [o for o in plan(rows, findings, store_with(tmp_path)) if o.kind == "dups"]
 
-    assert ops(result) == [("dups", "00_Inbox/Verdigris.fb2", "_dups/00_Inbox/Verdigris.fb2")], "the less preferred format goes to _dups for review"
+    assert ops(result) == [("dups", "00_Inbox/Verdigris.fb2", "_dups/00_Inbox/Verdigris.fb2")], (
+        "the less preferred format goes to _dups for review"
+    )
 
 
 def test_classified_books_move_to_their_destination(tmp_path):
     rows = [
-        named("x.epub", folder="01_Fiction/01_Sci-Fi_Fantasy/Standalone", title="Ash", authors="Rowan Teague", series="", year="2011", fingerprint="f"),
+        named(
+            "x.epub",
+            folder="01_Fiction/01_Sci-Fi_Fantasy/Standalone",
+            title="Ash",
+            authors="Rowan Teague",
+            series="",
+            year="2011",
+            fingerprint="f",
+        ),
         named("y.epub", folder="00_Inbox", title="Ember", authors="Rowan Teague", series="", year="", fingerprint="u"),
     ]
     store = store_with(tmp_path, f="fiction/sci-fi_fantasy")
 
     result = plan(rows, [], store)
 
-    assert ops(result) == [("move", "01_Fiction/01_Sci-Fi_Fantasy/Standalone/x.epub", "01_Fiction/01_Sci-Fi_Fantasy/Teague, Rowan/Teague, Rowan - Ash (2011).epub")], "classified books move; unclassified wait"
+    assert ops(result) == [
+        (
+            "move",
+            "01_Fiction/01_Sci-Fi_Fantasy/Standalone/x.epub",
+            "01_Fiction/01_Sci-Fi_Fantasy/Teague, Rowan/Teague, Rowan - Ash (2011).epub",
+        )
+    ], "classified books move; unclassified wait"
     assert result[0].reason == "relocate + rename", "reason should say what changes"
 
 
 def test_book_already_in_place_is_not_moved(tmp_path):
     folder = "01_Fiction/01_Sci-Fi_Fantasy/Teague, Rowan"
-    rows = [named("Teague, Rowan - Ash (2011).epub", folder=folder, title="Ash", authors="Rowan Teague", series="", year="2011", fingerprint="f")]
+    rows = [
+        named(
+            "Teague, Rowan - Ash (2011).epub", folder=folder, title="Ash", authors="Rowan Teague", series="", year="2011", fingerprint="f"
+        )
+    ]
 
     assert plan(rows, [], store_with(tmp_path, f="fiction/sci-fi_fantasy")) == [], "a correctly placed book yields no operation"
 
@@ -116,7 +140,9 @@ def test_partials_and_duplicate_losers_are_not_relocated(tmp_path):
 def test_books_without_author_stay_where_they_are(tmp_path):
     rows = [named("Хроніки 2.fb2", folder="01_Fiction/01_Sci-Fi_Fantasy/Series/Amber", title="Хроніки 2", authors="", fingerprint="f")]
 
-    assert plan(rows, [], store_with(tmp_path, f="fiction/sci-fi_fantasy")) == [], "without an author there is no destination worth moving to"
+    assert plan(rows, [], store_with(tmp_path, f="fiction/sci-fi_fantasy")) == [], (
+        "without an author there is no destination worth moving to"
+    )
 
 
 def test_destination_collisions_are_reported_not_planned(tmp_path):

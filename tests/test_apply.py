@@ -35,7 +35,9 @@ def test_apply_moves_files_with_sidecar_and_journals(library: Path, tmp_path: Pa
 
     assert result == Applied(done=2, skipped=[]), "both operations should run"
     assert (library / "01_Fiction/Teague, Rowan/Teague, Rowan - Ash.epub").read_bytes() == b"a", "the book should be at its destination"
-    assert (library / "01_Fiction/Teague, Rowan/Teague, Rowan - Ash.sdr/metadata.epub.lua").exists(), "the KOReader sidecar should travel with the book"
+    assert (library / "01_Fiction/Teague, Rowan/Teague, Rowan - Ash.sdr/metadata.epub.lua").exists(), (
+        "the KOReader sidecar should travel with the book"
+    )
     assert (library / "_trash/00_Inbox/FSCK0000.000").exists(), "junk should be in _trash"
     assert [l["src"] for l in journal_lines(journal)] == ["00_Inbox/a.epub", "00_Inbox/FSCK0000.000"], "every move should be journaled"
     assert len({l["batch"] for l in journal_lines(journal)}) == 1, "one apply is one batch"
@@ -52,7 +54,9 @@ def test_apply_skips_missing_sources_and_occupied_destinations(library: Path, tm
     result = apply(ops, library, tmp_path / "j.jsonl")
 
     assert result.done == 0, "nothing should move"
-    assert [s.split(":")[0] for s in result.skipped] == ["00_Inbox/none.epub", "00_Inbox/a.epub"], "missing and occupied should be reported; skip lines ignored silently"
+    assert [s.split(":")[0] for s in result.skipped] == ["00_Inbox/none.epub", "00_Inbox/a.epub"], (
+        "missing and occupied should be reported; skip lines ignored silently"
+    )
     assert (library / "00_Inbox/a.epub").exists(), "a blocked move leaves the source alone"
 
 
@@ -113,7 +117,6 @@ def test_apply_fixes_koreader_collections(library: Path, tmp_path: Path):
     assert "/mnt/sd/01_Fiction/a.epub" in (settings / "collection.lua").read_text(), "collections should point at the new path"
 
 
-
 def test_apply_finds_sources_whose_names_are_not_nfc(tmp_path):
     root = tmp_path / "lib"
     nfd = unicodedata.normalize("NFD", "Čapek - Válka.epub")
@@ -138,7 +141,9 @@ def test_apply_sees_an_nfd_named_file_at_the_destination(tmp_path):
 
     result = apply([op], root, tmp_path / "journal.jsonl")
 
-    assert result.skipped == ["inbox/Čapek - Válka.epub: destination exists, different content"], "a differently normalized file at the destination still blocks the move"
+    assert result.skipped == ["inbox/Čapek - Válka.epub: destination exists, different content"], (
+        "a differently normalized file at the destination still blocks the move"
+    )
 
 
 def test_identical_source_is_removed_when_destination_exists(library: Path, tmp_path: Path):
@@ -176,10 +181,14 @@ def test_undo_restores_deleted_copy_and_folder(library: Path, tmp_path: Path):
     (library / "kept.epub").write_bytes(b"a")
     (library / "00_Inbox" / "Empty").mkdir()
     (library / "_trash" / "00_Inbox" / "Empty").mkdir(parents=True)
-    apply([
-        Operation("move", "00_Inbox/a.epub", "kept.epub", ""),
-        Operation("trash", "00_Inbox/Empty", "_trash/00_Inbox/Empty", "junk"),
-    ], library, journal)
+    apply(
+        [
+            Operation("move", "00_Inbox/a.epub", "kept.epub", ""),
+            Operation("trash", "00_Inbox/Empty", "_trash/00_Inbox/Empty", "junk"),
+        ],
+        library,
+        journal,
+    )
 
     assert undo(library, journal) == 2, "both deletions should be undone"
     assert (library / "00_Inbox" / "a.epub").read_bytes() == b"a", "the deleted copy comes back from the kept file"
@@ -193,12 +202,19 @@ def test_case_only_folder_rename_renames_the_folder_in_place(tmp_path: Path):
     old.mkdir(parents=True)
     (old / "Wolfe, Gene - Claw.fb2").write_bytes(b"claw")
     (old / "Wolfe, Gene - Claw.sdr").mkdir()
-    op = Operation("move", "Wolfe, Gene/Book of The New Sun/Wolfe, Gene - Claw.fb2", "Wolfe, Gene/Book of the New Sun/Wolfe, Gene - Claw.fb2", "relocate")
+    op = Operation(
+        "move",
+        "Wolfe, Gene/Book of The New Sun/Wolfe, Gene - Claw.fb2",
+        "Wolfe, Gene/Book of the New Sun/Wolfe, Gene - Claw.fb2",
+        "relocate",
+    )
 
     result = apply([op], root, tmp_path / "j.jsonl")
 
     assert result == Applied(done=1, skipped=[]), "a case-only folder rename is a real operation"
-    assert (root / "Wolfe, Gene" / "Book of the New Sun" / "Wolfe, Gene - Claw.fb2").read_bytes() == b"claw", "the book is under the respelled folder, intact"
+    assert (root / "Wolfe, Gene" / "Book of the New Sun" / "Wolfe, Gene - Claw.fb2").read_bytes() == b"claw", (
+        "the book is under the respelled folder, intact"
+    )
     assert (root / "Wolfe, Gene" / "Book of the New Sun" / "Wolfe, Gene - Claw.sdr").is_dir(), "the sidecar stays beside it"
     assert not old.exists(), "the old spelling of the folder is gone"
 
@@ -219,12 +235,21 @@ def test_the_same_file_is_never_treated_as_a_duplicate(tmp_path: Path, mocker):
     root = tmp_path / "card"
     (root / "a").mkdir(parents=True)
     (root / "a" / "x.epub").write_bytes(b"x")
-    mocker.patch("kobolib.apply.child_named", side_effect=lambda folder, name: (folder / "x.epub") if name.lower() == "x.epub" and (folder / "x.epub").exists() else (folder / name if (folder / name).exists() else None))
+    mocker.patch(
+        "kobolib.apply.child_named",
+        side_effect=lambda folder, name: (
+            (folder / "x.epub")
+            if name.lower() == "x.epub" and (folder / "x.epub").exists()
+            else (folder / name if (folder / name).exists() else None)
+        ),
+    )
     op = Operation("move", "a/x.epub", "a/X.epub", "rename")
 
     result = apply([op], root, tmp_path / "j.jsonl")
 
-    assert result.done == 1 and (root / "a" / "X.epub").read_bytes() == b"x", "a case-insensitive hit on the source itself is an in-place rename"
+    assert result.done == 1 and (root / "a" / "X.epub").read_bytes() == b"x", (
+        "a case-insensitive hit on the source itself is an in-place rename"
+    )
     assert not any(l["kind"] == "delete" for l in journal_lines(tmp_path / "j.jsonl")), "nothing is deleted"
 
 

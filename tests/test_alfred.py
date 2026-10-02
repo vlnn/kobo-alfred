@@ -6,10 +6,26 @@ from kobolib.index import Row
 
 def row(**overrides) -> Row:
     base = dict(
-        title="Deep Work", authors="Cal Newport", series="Focus", series_index="2",
-        folder="02_NonFiction", rel_path="02_NonFiction/x.epub", path="/lib/02_NonFiction/x.epub",
-        format="epub", partial=False, language="en", year="2016", publisher="GC",
-        source="epub", cover="/cache/abc.png", size=1_500_000, mtime=0.0, norm_title="deep work", fingerprint="f00", genre="", tags="",
+        title="Deep Work",
+        authors="Cal Newport",
+        series="Focus",
+        series_index="2",
+        folder="02_NonFiction",
+        rel_path="02_NonFiction/x.epub",
+        path="/lib/02_NonFiction/x.epub",
+        format="epub",
+        partial=False,
+        language="en",
+        year="2016",
+        publisher="GC",
+        source="epub",
+        cover="/cache/abc.png",
+        size=1_500_000,
+        mtime=0.0,
+        norm_title="deep work",
+        fingerprint="f00",
+        genre="",
+        tags="",
     )
     return Row(**{**base, **overrides})
 
@@ -18,7 +34,9 @@ def test_item_shows_metadata_and_relative_path():
     item = book_item(row())
 
     assert item["title"] == "Deep Work", "title should be the book title"
-    assert item["subtitle"] == "Cal Newport · Focus #2 · 2016 · EPUB 1.4 MB · 02_NonFiction/x.epub", "subtitle should show author, series, year, format, size and rel path"
+    assert item["subtitle"] == "Cal Newport · Focus #2 · 2016 · EPUB 1.4 MB · 02_NonFiction/x.epub", (
+        "subtitle should show author, series, year, format, size and rel path"
+    )
     assert item["arg"] == "/lib/02_NonFiction/x.epub", "arg should be the absolute path to open"
     assert item["icon"] == {"path": "/cache/abc.png"}, "cover should be used as the icon"
     assert item["quicklookurl"] == "/lib/02_NonFiction/x.epub", "quicklook should preview the book"
@@ -88,9 +106,13 @@ def test_plan_item_shows_source_and_destination():
     item = plan_item(op, "/lib")
 
     assert item["title"] == "Teague, Rowan - Ash (2011).epub", "title should be the destination file name"
-    assert item["subtitle"] == "move · relocate + rename · 00_Inbox/a.epub → 01_Fiction/Teague, Rowan/", "subtitle should show kind, reason, source and destination folder"
+    assert item["subtitle"] == "move · relocate + rename · 00_Inbox/a.epub → 01_Fiction/Teague, Rowan/", (
+        "subtitle should show kind, reason, source and destination folder"
+    )
     assert item["arg"] == "/lib/00_Inbox/a.epub", "arg should point at the current file"
-    assert item["text"]["copy"] == "00_Inbox/a.epub\t01_Fiction/Teague, Rowan/Teague, Rowan - Ash (2011).epub", "copy should give the plan line"
+    assert item["text"]["copy"] == "00_Inbox/a.epub\t01_Fiction/Teague, Rowan/Teague, Rowan - Ash (2011).epub", (
+        "copy should give the plan line"
+    )
 
 
 def test_skip_item_is_not_actionable():

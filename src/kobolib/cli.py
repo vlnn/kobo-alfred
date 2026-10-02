@@ -13,9 +13,8 @@ from kobolib.apply import apply, undo
 from kobolib.index import Index, IndexBusy, Row, add_book, build_index, build_sources_index, fill_thumbnails, index_busy
 from kobolib.lint import lint
 from kobolib.plan import plan, read_plan, write_plan
-from kobolib.scan import fingerprint, relative_path
 from kobolib.query import parse_query
-from kobolib.scan import probe_root
+from kobolib.scan import fingerprint, probe_root, relative_path
 from kobolib.tags import Tag, TagStore, folder_slug, genre_from_folder
 
 
@@ -221,7 +220,9 @@ def cmd_inbox(args) -> int:
 
 
 def classify_items(query: str) -> list[dict]:
-    return [alfred.classify_item(r, "") for r in unclassified_rows(query)] or [alfred.message_item("Nothing to classify", "Every book has a genre")]
+    return [alfred.classify_item(r, "") for r in unclassified_rows(query)] or [
+        alfred.message_item("Nothing to classify", "Every book has a genre")
+    ]
 
 
 def cmd_classify(args) -> int:
@@ -250,7 +251,9 @@ def findings() -> list:
 
 
 def lint_items(query: str = "") -> list[dict]:
-    return [alfred.finding_item(f, str(library_root())) for f in findings()] or [alfred.message_item("Nothing to fix", "The library is clean")]
+    return [alfred.finding_item(f, str(library_root())) for f in findings()] or [
+        alfred.message_item("Nothing to fix", "The library is clean")
+    ]
 
 
 def cmd_plan(args) -> int:
@@ -546,8 +549,14 @@ COMMANDS = {
     "plan": (written_plan_items, "apply-one"),
     "src": (sources_items, "import"),
     "sources": (sources_items, "import"),
-    "index": (lambda q: [action_item("Rebuild the index", "Library and sources: reads every book, extracts covers · same as kb:index")], "index"),
-    "update": (lambda q: [action_item("Rebuild the index", "Library and sources: reads every book, extracts covers · same as kb:index")], "index"),
+    "index": (
+        lambda q: [action_item("Rebuild the index", "Library and sources: reads every book, extracts covers · same as kb:index")],
+        "index",
+    ),
+    "update": (
+        lambda q: [action_item("Rebuild the index", "Library and sources: reads every book, extracts covers · same as kb:index")],
+        "index",
+    ),
     "apply": (lambda q: [action_item("Apply the plan", "Runs what kb:plan showed, then rebuilds the index · same as kb:apply")], "apply"),
     "undo": (lambda q: [action_item("Undo the last apply", "Reverses the last batch of moves · same as kb:undo")], "undo"),
 }

@@ -20,3 +20,17 @@ packages = ["src/kobolib"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 140
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I", "UP", "B", "SIM", "C4"]
+ignore = ["SIM112"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_filenames.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["kobolib", "tests"]

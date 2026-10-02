@@ -4,7 +4,6 @@ import csv
 import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

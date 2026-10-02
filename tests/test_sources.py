@@ -136,7 +136,9 @@ def test_index_without_sources_stays_quiet_about_them(env, capsys, monkeypatch):
 
     assert main(["index"]) == 0, "no sources is not an error for index"
 
-    assert "from 2 sources" not in capsys.readouterr().out and "No sources" not in capsys.readouterr().out, "nothing to say about sources when none are configured"
+    assert "from 2 sources" not in capsys.readouterr().out and "No sources" not in capsys.readouterr().out, (
+        "nothing to say about sources when none are configured"
+    )
 
 
 def test_index_reports_unmounted_sources_without_failing(env, capsys, monkeypatch, tmp_path, calibre):

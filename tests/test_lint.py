@@ -97,7 +97,9 @@ def test_exact_duplicates_group_by_fingerprint():
         named("no2.epub", fingerprint=""),
     ]
 
-    assert paths(exact_duplicates(rows)) == [["00_Inbox/bought/hlaskvyl.epub", "00_Inbox/NOW/hlaskvyl.epub"]], "identical files should be grouped, empty fingerprints ignored"
+    assert paths(exact_duplicates(rows)) == [["00_Inbox/bought/hlaskvyl.epub", "00_Inbox/NOW/hlaskvyl.epub"]], (
+        "identical files should be grouped, empty fingerprints ignored"
+    )
 
 
 def test_title_duplicates_exclude_exact_copies_and_partials():
@@ -112,7 +114,9 @@ def test_title_duplicates_exclude_exact_copies_and_partials():
 
     found = title_duplicates(rows)
 
-    assert paths(found) == [["00_Inbox/Verdigris.fb2", "00_Inbox/Verdigris.epub"]], "same title in different complete files should be reported once; exact copies belong to another rule"
+    assert paths(found) == [["00_Inbox/Verdigris.fb2", "00_Inbox/Verdigris.epub"]], (
+        "same title in different complete files should be reported once; exact copies belong to another rule"
+    )
     assert found[0].detail == "Verdigris: fb2, epub", "detail should list the formats"
 
 
@@ -126,7 +130,9 @@ def test_misfiled_series_points_at_existing_series_folder():
 
     found = misfiled_series(rows)
 
-    assert paths(found) == [["00_Inbox/Saltmarsh Cycle Ansel B. Rooke.epub"]], "a book whose series has a folder elsewhere should be flagged"
+    assert paths(found) == [["00_Inbox/Saltmarsh Cycle Ansel B. Rooke.epub"]], (
+        "a book whose series has a folder elsewhere should be flagged"
+    )
     assert found[0].detail.endswith(home), "detail should name the series folder"
 
 
@@ -140,7 +146,9 @@ def test_misfiled_series_matches_short_folder_names():
 
     found = misfiled_series(rows)
 
-    assert paths(found) == [["01_Fiction/02_Adventure_Historical/[Kestrel in the Rain №1] Тіґ, Ровен.fb2"]], "a folder name contained in the series name should count; tiny keys should not"
+    assert paths(found) == [["01_Fiction/02_Adventure_Historical/[Kestrel in the Rain №1] Тіґ, Ровен.fb2"]], (
+        "a folder name contained in the series name should count; tiny keys should not"
+    )
 
 
 def test_unclassified_lists_books_without_genre(tmp_path: Path):

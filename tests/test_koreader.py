@@ -3,14 +3,14 @@ from pathlib import Path
 
 from kobolib.koreader import KOREADER_DIR, fix_paths, rewrite_lua, settings_files
 
-COLLECTION = '''return {
+COLLECTION = """return {
     ["favorites"] = {
         ["/mnt/sd/00_Inbox/a.epub"] = { ["order"] = 1 },
         ["/mnt/sd/00_Inbox/a.epub.sdr"] = { ["order"] = 2 },
         ["/mnt/sd/other/a.epub"] = { ["order"] = 3 },
     },
 }
-'''
+"""
 
 
 def test_rewrite_lua_replaces_exact_paths_only():
@@ -72,4 +72,6 @@ def test_fix_paths_moves_nfd_named_mirrored_sidecar(tmp_path: Path):
 
     fix_paths(tmp_path, {"00_Inbox/Čapek.epub": "01_Fiction/Čapek.epub"})
 
-    assert (tmp_path / KOREADER_DIR / "docsettings" / "mnt" / "sd" / "01_Fiction" / "Čapek.sdr" / "metadata.epub.lua").exists(), "an NFD-named mirrored sidecar should follow its book"
+    assert (tmp_path / KOREADER_DIR / "docsettings" / "mnt" / "sd" / "01_Fiction" / "Čapek.sdr" / "metadata.epub.lua").exists(), (
+        "an NFD-named mirrored sidecar should follow its book"
+    )
