@@ -25,7 +25,8 @@ Inside plain `kb`, a first word that names a command (`stats`, `dups`, `rnd`, `l
 `src`, `index`/`update`, `apply`, `undo`) runs it: `kb plan` lists the plan and ↩ on a row applies that row;
 `kb src delany` searches the sources and ↩ imports; `kb index` shows one row that rebuilds the index on ↩. Books whose
 title, author or path contain the word are listed after. Only ↩ is rerouted: ⌥↩ / ⌘↩ keep their `kb` meaning
-(reveal / copy path), so "move into the inbox" stays a `kb:src` feature.
+(reveal / copy path), so "move into the inbox" stays a `kb:src` feature. Typing the start of a command (`kb ind`,
+`kb cl`) shows `kb index`, `kb classify`… rows above the books; ↩ or ⇥ completes the word.
 
 Each result shows: title · authors · series #n · year · FORMAT size · path relative to the library root.
 Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbnail via `qlmanage`).
@@ -47,8 +48,9 @@ Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbn
 ## Install
 
 Download `Kobo Library.alfredworkflow` (or build it with `./build.sh`) and open it. The workflow is
-self-contained: the `kobolib` package is bundled inside and runs on macOS's `/usr/bin/python3` (3.9+),
-no dependencies, no virtualenv.
+self-contained: the `kobolib` package is bundled inside and runs on macOS's `/usr/bin/python3` (3.9, the
+version the Command Line Tools ship), no dependencies, no virtualenv. The code stays 3.9-compatible on purpose:
+`pyproject.toml` pins `requires-python = ">=3.9"` and CI runs the tests and ruff (target `py39`) on 3.9 and 3.13.
 
 In the workflow's configuration set **Library root** (`/Volumes/Transcend/kobo`). Run `kb:index` once;
 rerun after adding books.
@@ -68,7 +70,8 @@ renames and moves. `kb:index` bootstraps a genre for every book from its first t
 stay unclassified and show up in `kb:inbox`.
 
 Setting a genre (`kb:classify`, or ⇧↩ "Fix" on any book) moves the book to its genre home right away —
-`genre/author[/series]/` with a normalised filename — and refreshes the index; `kb:undo` reverses the move.
+`genre/author[/series]/` with a normalised filename — and updates that book's row in the index (no full
+reindex); `kb:undo` reverses the move.
 Books without a recognisable author stay put, as do tag-only edits (`+tag`, `-tag`). `kb:plan` / `kb:apply`
 remain for bulk work: junk, duplicates and anything classified before this behaviour existed.
 
@@ -154,4 +157,9 @@ Filename parsing is a heuristic; `Author - Title` vs `Title - Author` is decided
 
 ```sh
 uv run pytest
+uv run ruff check && uv run ruff format --check
 ```
+
+Modules, from the bottom up: `model` (the records), `paths`/`scan`/`filenames`/`metadata` (reading the card),
+`index` (SQLite FTS5), `tags`, `lint`, `naming`, `plan`, `apply`/`koreader` (moving files), `alfred` (JSON items),
+`config` (paths from the environment), `library` (operations), `commands` (the `kb` item lists) and `cli`.

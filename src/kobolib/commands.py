@@ -79,11 +79,11 @@ def random_items(query: str) -> list[dict]:
 
 
 def inbox_items(query: str) -> list[dict]:
-    return [alfred.inbox_item(r, "") for r in unclassified_rows(query)] or [alfred.message_item("Inbox is empty", "Every book has a genre")]
+    return [alfred.inbox_item(r) for r in unclassified_rows(query)] or [alfred.message_item("Inbox is empty", "Every book has a genre")]
 
 
 def classify_items(query: str) -> list[dict]:
-    return [alfred.classify_item(r, "") for r in unclassified_rows(query)] or [
+    return [alfred.classify_item(r) for r in unclassified_rows(query)] or [
         alfred.message_item("Nothing to classify", "Every book has a genre")
     ]
 
@@ -124,7 +124,7 @@ def tag_edits(query: str, current: list[str], book: str) -> list[dict]:
 
 def source_items(raw: str) -> list[dict]:
     rows = not_in_library(Index(sources_db_path()).search(parse_query(raw)))
-    return [alfred.source_item(r, None) for r in rows] or [alfred.empty_item(raw)]
+    return [alfred.source_item(r) for r in rows] or [alfred.empty_item(raw)]
 
 
 def sources_items(query: str) -> list[dict]:

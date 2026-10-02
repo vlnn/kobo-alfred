@@ -68,8 +68,8 @@ def book_item(row: Row) -> dict:
     }
 
 
-def classify_item(row: Row, genre: str) -> dict:
-    return {**inbox_item(row, genre), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row, genre) + " · ↩ pick a genre"}
+def classify_item(row: Row) -> dict:
+    return {**inbox_item(row), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row) + " · ↩ pick a genre"}
 
 
 def fix_header(row: Row, genre: str, tags: list[str]) -> dict:
@@ -81,17 +81,9 @@ def edit_item(edit: str, title: str, book: str, uid: str | None = None) -> dict:
     return {"uid": uid or f"edit:{edit}", "title": title, "arg": edit, "autocomplete": edit, "variables": {"book": book}}
 
 
-def source_subtitle(row: Row, in_library: Row | None) -> str:
-    if in_library:
-        return SEPARATOR.join(["✓ in library", in_library.rel_path])
-    return subtitle(row)
-
-
-def source_item(row: Row, in_library: Row | None) -> dict:
+def source_item(row: Row) -> dict:
     return {
         **book_item(row),
-        "subtitle": source_subtitle(row, in_library),
-        "valid": not row.partial and in_library is None,
         "variables": {},
         "mods": {
             "alt": {"arg": row.path, "subtitle": "Move into the library inbox instead of copying"},
@@ -101,13 +93,13 @@ def source_item(row: Row, in_library: Row | None) -> dict:
     }
 
 
-def inbox_subtitle(row: Row, genre: str) -> str:
-    parts = [row.authors or "author ?", series_label(row), genre or "genre ?", format_label(row), row.rel_path]
+def inbox_subtitle(row: Row) -> str:
+    parts = [row.authors or "author ?", series_label(row), row.genre or "genre ?", format_label(row), row.rel_path]
     return SEPARATOR.join(p for p in parts if p)
 
 
-def inbox_item(row: Row, genre: str) -> dict:
-    return {**book_item(row), "subtitle": inbox_subtitle(row, genre)}
+def inbox_item(row: Row) -> dict:
+    return {**book_item(row), "subtitle": inbox_subtitle(row)}
 
 
 def finding_item(finding: Finding, root: str) -> dict:
@@ -183,8 +175,5 @@ def message_item(title: str, subtitle: str = "") -> dict:
     return {"title": title, "subtitle": subtitle, "valid": False}
 
 
-def render(items: list[dict], rerun: float | None = None) -> str:
-    payload = {"items": items}
-    if rerun:
-        payload["rerun"] = rerun
-    return json.dumps(payload, ensure_ascii=False)
+def render(items: list[dict]) -> str:
+    return json.dumps({"items": items}, ensure_ascii=False)

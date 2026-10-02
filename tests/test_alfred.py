@@ -84,7 +84,7 @@ def test_finding_item_points_at_first_file_and_copies_all():
 def test_inbox_item_shows_what_is_missing():
     from kobolib.alfred import inbox_item
 
-    item = inbox_item(row(authors="", series="", rel_path="00_Inbox/x.epub"), genre="")
+    item = inbox_item(row(authors="", series="", rel_path="00_Inbox/x.epub"))
 
     assert item["subtitle"] == "author ? · genre ? · EPUB 1.4 MB · 00_Inbox/x.epub", "unknown author and genre should be marked"
 
@@ -92,7 +92,7 @@ def test_inbox_item_shows_what_is_missing():
 def test_inbox_item_shows_known_genre():
     from kobolib.alfred import inbox_item
 
-    item = inbox_item(row(), genre="fiction/sci-fi")
+    item = inbox_item(row(genre="fiction/sci-fi"))
 
     assert item["subtitle"].startswith("Cal Newport · Focus #2 · fiction/sci-fi · "), "known author, series and genre should be shown"
 
