@@ -8,9 +8,10 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from kobolib.filenames import guess_from_stem
+from kobolib.identity import fingerprint
 from kobolib.model import Book, Cover
 from kobolib.paths import relative_path
-from kobolib.scan import book_format, display_stem, fingerprint, is_partial
+from kobolib.scan import book_format, display_stem, is_partial
 
 NS = {
     "opf": "http://www.idpf.org/2007/opf",
@@ -115,6 +116,39 @@ def read_fb2(path: Path, book: Book) -> Book:
 
 
 READERS = {"epub": read_epub, "fb2": read_fb2}
+MAGIC = {
+    "pdf": (0, (b"%PDF",)),
+    "djvu": (0, (b"AT&TFORM",)),
+    "mobi": (60, (b"BOOKMOBI", b"TEXtREAd")),
+    "azw": (60, (b"BOOKMOBI", b"TEXtREAd")),
+    "azw3": (60, (b"BOOKMOBI",)),
+}
+
+
+def looks_like(path: Path, fmt: str) -> bool:
+    if fmt not in MAGIC:
+        return True
+    offset, signatures = MAGIC[fmt]
+    with path.open("rb") as handle:
+        handle.seek(offset)
+        head = handle.read(max(map(len, signatures)))
+    return head.startswith(signatures)
+
+
+def read_metadata(path: Path, book: Book) -> Book:
+    reader = READERS.get(book.format)
+    if reader is None:
+        book.broken = not looks_like(path, book.format)
+        return book
+    try:
+        return reader(path, book)
+    except Exception:
+        book.broken = True
+        return book
+
+
+def is_sound(book: Book) -> bool:
+    return not book.partial and not book.broken
 
 
 def from_filename(path: Path, book: Book) -> Book:
@@ -139,10 +173,6 @@ def read_book(path: Path, root: Path) -> Book:
         mtime=stat.st_mtime,
         fingerprint=fingerprint(path),
     )
-    reader = READERS.get(book.format)
-    if reader and not book.partial:
-        try:
-            book = reader(path, book)
-        except Exception:
-            book.source = "filename"
+    if not book.partial:
+        book = read_metadata(path, book)
     return from_filename(path, book)

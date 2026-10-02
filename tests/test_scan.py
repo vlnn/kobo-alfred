@@ -55,36 +55,6 @@ def test_probe_ok(tmp_path):
     assert probe_root(tmp_path) == "", "a readable non-empty root should produce no message"
 
 
-def test_fingerprint_is_stable_across_moves(tmp_path):
-    from kobolib.scan import fingerprint
-
-    original = tmp_path / "a.epub"
-    original.write_bytes(b"x" * 200_000)
-    before = fingerprint(original)
-    moved = original.rename(tmp_path / "b.epub")
-
-    assert fingerprint(moved) == before, "renaming a file should not change its fingerprint"
-
-
-def test_fingerprint_differs_for_different_content(tmp_path):
-    from kobolib.scan import fingerprint
-
-    (tmp_path / "a.epub").write_bytes(b"x" * 1000)
-    (tmp_path / "b.epub").write_bytes(b"y" * 1000)
-
-    assert fingerprint(tmp_path / "a.epub") != fingerprint(tmp_path / "b.epub"), "different content should fingerprint differently"
-
-
-def test_fingerprint_sees_the_end_of_large_files(tmp_path):
-    from kobolib.scan import FINGERPRINT_BYTES, fingerprint
-
-    body = b"x" * (FINGERPRINT_BYTES * 3)
-    (tmp_path / "a.epub").write_bytes(body)
-    (tmp_path / "b.epub").write_bytes(body[:-1] + b"y")
-
-    assert fingerprint(tmp_path / "a.epub") != fingerprint(tmp_path / "b.epub"), "a change in the tail should alter the fingerprint"
-
-
 def test_iter_junk_reports_non_books_and_empty_dirs(tmp_path):
     from kobolib.scan import iter_junk
 

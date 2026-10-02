@@ -71,7 +71,16 @@ class TagStore:
         tag = self.get(row.fingerprint)
         return tag.genre if tag else ""
 
+    def rekey(self, rows: list[Row]) -> None:
+        current = {row.fingerprint for row in rows}
+        by_path = {row.rel_path: row.fingerprint for row in rows}
+        stale = [fp for fp, tag in self.entries.items() if fp not in current and tag.rel_path in by_path]
+        for old in stale:
+            tag = self.entries.pop(old)
+            self.entries[by_path[tag.rel_path]] = tag
+
     def bootstrap(self, rows: list[Row]) -> int:
+        self.rekey(rows)
         added = 0
         for row in rows:
             current = self.get(row.fingerprint) or Tag()

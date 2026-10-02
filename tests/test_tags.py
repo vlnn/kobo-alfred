@@ -75,3 +75,28 @@ def test_tags_are_sorted_and_unique(tmp_path: Path):
     store.save()
 
     assert TagStore(tmp_path / "tags.tsv").load().get("f1").tags == ["bought", "now"], "tags should be stored sorted without duplicates"
+
+
+def test_bootstrap_carries_tags_over_to_a_new_fingerprint(tmp_path: Path):
+    store = TagStore(tmp_path / "tags.tsv")
+    store.set("old", Tag(genre="fiction/spy", tags=["now"], rel_path="01_Fiction/x.epub"))
+    rows = [row(fingerprint="new", folder="01_Fiction", rel_path="01_Fiction/x.epub")]
+
+    store.bootstrap(rows)
+
+    assert store.get("new") == Tag(genre="fiction/spy", tags=["now"], rel_path="01_Fiction/x.epub"), (
+        "a book whose fingerprint changed should keep its genre and tags by path"
+    )
+    assert store.get("old") is None, "the stale fingerprint should be dropped"
+
+
+def test_bootstrap_keeps_entries_for_moved_and_absent_books(tmp_path: Path):
+    store = TagStore(tmp_path / "tags.tsv")
+    store.set("moved", Tag(genre="fiction/spy", rel_path="00_Inbox/a.epub"))
+    store.set("absent", Tag(genre="reference", rel_path="04_Reference/gone.epub"))
+    rows = [row(fingerprint="moved", folder="01_Fiction", rel_path="01_Fiction/a.epub")]
+
+    store.bootstrap(rows)
+
+    assert store.get("moved").rel_path == "01_Fiction/a.epub", "a known fingerprint follows the book to its new path"
+    assert store.get("absent") == Tag(genre="reference", rel_path="04_Reference/gone.epub"), "an unmounted book's tags are kept"

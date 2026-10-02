@@ -65,7 +65,11 @@ From a terminal: `KOBO_ROOT=… KOBO_DATA=… uv run kobolib index|search|dups|r
 
 The folder tree is the on-device browser, so it should encode exactly one thing: genre → author → series.
 `kobolib` keeps a tag store (`tags.tsv` next to the index) keyed by a content fingerprint, so tags survive
-renames and moves. `kb:index` bootstraps a genre for every book from its first two folder levels
+renames and moves. The fingerprint is a hash of the book's text — an epub's HTML files regardless of their
+names or order, an fb2's `<body>` — so a repacked epub, a swapped cover or edited metadata is still the same
+book; other formats, partial downloads and unreadable files are hashed whole. `kb:index` computes it while
+reading each book (it reads every byte, so a full reindex of a large card takes a minute or two longer), and
+carries tags over by path when a book's fingerprint changes. `kb:index` bootstraps a genre for every book from its first two folder levels
 (`01_Fiction/01_Sci-Fi_Fantasy/…` → `fiction/sci-fi_fantasy`); books under `00_Inbox` or `99_Archives`
 stay unclassified and show up in `kb:inbox`.
 
@@ -138,12 +142,14 @@ Set **Other sources** (`KOBO_SOURCES`, paths separated by `:`) to the folders of
 library yet — a Calibre library, a downloads folder, an old reader's card. `kb:index` (or `kb update`) then also indexes them into a
 separate `sources.db`; an unmounted source is skipped and mentioned, never an error. `kb:src` searches it with the same query syntax, and
 the source folder's name is part of the path, so `kb:src in:calibre` narrows by source. Books whose
-fingerprint is already in the library are not listed — `kb:src` only ever shows what you could still import.
+fingerprint is already in the library are not listed — `kb:src` only ever shows what you could still import —
+and neither are `.part` downloads, epubs and fb2s that cannot be read, or pdf/mobi/azw/djvu files without
+their signature bytes.
 
 ↩ copies the book into the library's inbox folder (the one whose name is `inbox` after the order prefix, or a
 new `_inbox/`) and adds it to the library index right away — no full reindex — so it shows up in `kb`,
 `kb:inbox` and `kb:classify` immediately. ⌥↩ moves instead of copying. Nothing is overwritten: an occupied
-destination refuses the import. From a terminal: `kobolib index` (both), `kobolib index-sources` (sources only), `kobolib sources "query"`,
+destination refuses the import, and so does an unreadable or unfinished file. From a terminal: `kobolib index` (both), `kobolib index-sources` (sources only), `kobolib sources "query"`,
 `kobolib import [--move] <path>`.
 
 ## Metadata sources
@@ -162,6 +168,6 @@ uv run pytest
 uv run ruff check && uv run ruff format --check
 ```
 
-Modules, from the bottom up: `model` (the records), `paths`/`scan`/`filenames`/`metadata` (reading the card),
+Modules, from the bottom up: `model` (the records), `paths`/`scan`/`identity`/`filenames`/`metadata` (reading the card),
 `index` (SQLite FTS5), `tags`, `lint`, `naming`, `plan`, `apply`/`koreader` (moving files), `alfred` (JSON items),
 `config` (paths from the environment), `library` (operations), `commands` (the `kb` item lists) and `cli`.

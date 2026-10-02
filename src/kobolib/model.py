@@ -11,6 +11,7 @@ class Book:
     rel_path: str
     format: str
     partial: bool
+    broken: bool = False
     title: str = ""
     authors: list[str] = field(default_factory=list)
     series: str = ""

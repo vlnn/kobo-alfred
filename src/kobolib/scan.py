@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -10,7 +9,6 @@ from kobolib.paths import in_sidecar, is_empty_dir, nfc
 BOOK_SUFFIXES = {".epub", ".fb2", ".mobi", ".azw", ".azw3", ".pdf", ".djvu"}
 PARTIAL_SUFFIX = ".part"
 JUNK_SUFFIXES = {".textclipping", ".txt", ".zip"}
-FINGERPRINT_BYTES = 64 * 1024
 SKIP_FOLDERS = {"_trash", "_dups"}
 
 
@@ -57,17 +55,6 @@ def iter_junk(root: Path, exclude: tuple[Path, ...] = ()) -> Iterator[Path]:
             continue
         if is_empty_dir(path) or (path.is_file() and not is_book(path)):
             yield path
-
-
-def fingerprint(path: Path) -> str:
-    size = path.stat().st_size
-    digest = hashlib.sha1(str(size).encode())
-    with path.open("rb") as handle:
-        digest.update(handle.read(FINGERPRINT_BYTES))
-        if size > 2 * FINGERPRINT_BYTES:
-            handle.seek(-FINGERPRINT_BYTES, os.SEEK_END)
-        digest.update(handle.read(FINGERPRINT_BYTES))
-    return digest.hexdigest()
 
 
 def display_stem(path: Path) -> str:

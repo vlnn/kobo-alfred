@@ -19,11 +19,12 @@ from kobolib.config import (
 )
 from kobolib.index import Index, IndexBusy, build_index, build_sources_index
 from kobolib.lint import lint
+from kobolib.metadata import is_sound, read_book
 from kobolib.model import Operation, Row, Tag
 from kobolib.paths import relative_path
 from kobolib.plan import plan, read_plan, relocation
 from kobolib.query import parse_query
-from kobolib.scan import fingerprint, probe_root
+from kobolib.scan import probe_root
 from kobolib.tags import TagStore, folder_slug, genre_from_folder
 
 
@@ -180,7 +181,10 @@ def import_blocked(src: Path, dst: Path) -> str:
         return f"source missing: {src}"
     if dst.exists():
         return f"destination exists: {relative_path(dst, library_root())}"
-    if (copy := Index(db_path()).by_fingerprint(fingerprint(src))) is not None:
+    book = read_book(src, src.parent)
+    if not is_sound(book):
+        return f"unreadable or unfinished file: {src.name}"
+    if (copy := Index(db_path()).by_fingerprint(book.fingerprint)) is not None:
         return f"already in library: {copy.rel_path}"
     return ""
 

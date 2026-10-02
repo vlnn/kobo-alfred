@@ -37,6 +37,9 @@ def downloads(elsewhere: Path, library: Path) -> Path:
     root.mkdir()
     deep = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
     (root / "deep_work_copy.epub").write_bytes(deep.read_bytes())
+    (root / "Nova.epub.part").write_bytes(b"half a zip")
+    (root / "Dead Lines.epub").write_bytes(b"garbage")
+    (root / "Not Found.pdf").write_bytes(b"<html>404</html>")
     return root
 
 
@@ -92,6 +95,21 @@ def test_sources_search_uses_query_syntax(env, capsys, query, expected):
     main(["sources", query])
 
     assert sorted(titles(capsys)) == expected, "in: narrows by source folder; books the library already holds are hidden"
+
+
+@pytest.mark.parametrize("query", ["nova", "dead", "found", "is:partial"])
+def test_sources_skip_partial_and_broken_files(env, capsys, query):
+    main(["index-sources"])
+    capsys.readouterr()
+
+    main(["sources", query])
+
+    assert titles(capsys)[0].startswith("No books match"), f"{query}: unfinished and unreadable files are not worth importing"
+
+
+def test_import_refuses_broken_file(env, downloads, capsys):
+    assert main(["import", str(downloads / "Dead Lines.epub")]) == 1, "an unreadable file is not imported"
+    assert "unreadable" in capsys.readouterr().out, "the reason should be reported"
 
 
 def test_sources_search_before_index_explains(env, capsys, tmp_path):

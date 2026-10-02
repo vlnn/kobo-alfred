@@ -5,13 +5,13 @@ import re
 import sqlite3
 import time
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import astuple, fields
 from pathlib import Path
 
 from kobolib.covers import THUMBNAIL_FORMATS, cover_key, ensure_cover
-from kobolib.metadata import read_book
+from kobolib.metadata import is_sound, read_book
 from kobolib.model import Book, DuplicateGroup, Row, Tag
 from kobolib.query import SQL_CLAUSES, STATE_CLAUSES, Query
 from kobolib.scan import SKIP_FOLDERS, iter_books
@@ -66,15 +66,23 @@ def to_record(book: Book, cover: Path | None) -> tuple:
     return astuple(to_row(book, cover))
 
 
-def records(root: Path, cover_cache: Path, exclude: tuple[Path, ...], base: Path | None = None) -> Iterator[tuple]:
+def books(root: Path, exclude: tuple[Path, ...], base: Path | None = None) -> Iterator[Book]:
     for path in iter_books(root, exclude):
-        book = read_book(path, base or root)
+        yield read_book(path, base or root)
+
+
+def to_records(found: Iterable[Book], cover_cache: Path) -> Iterator[tuple]:
+    for book in found:
         yield to_record(book, ensure_cover(book, cover_cache, thumbnails=False))
+
+
+def records(root: Path, cover_cache: Path, exclude: tuple[Path, ...]) -> Iterator[tuple]:
+    return to_records(books(root, exclude), cover_cache)
 
 
 def source_records(roots: list[Path], cover_cache: Path, exclude: tuple[Path, ...]) -> Iterator[tuple]:
     for root in roots:
-        yield from records(root, cover_cache, exclude, base=root.parent)
+        yield from to_records(filter(is_sound, books(root, exclude, base=root.parent)), cover_cache)
 
 
 @contextmanager

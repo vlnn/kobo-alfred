@@ -79,3 +79,37 @@ def test_filename_metadata_is_nfc_normalized(tmp_path):
 
     assert book.authors == ["Вайс Йосип"] and book.title == "Пісня", "decomposed macOS filenames should yield composed metadata"
     assert unicodedata.is_normalized("NFC", book.rel_path), "rel_path should be composed too"
+
+
+@pytest.mark.parametrize(
+    "name, content, broken",
+    [
+        ("Napkin.pdf", b"%PDF-1.4 ...", False),
+        ("Napkin.pdf", b"<html>not found</html>", True),
+        ("Make It Stick.mobi", b"\0" * 60 + b"BOOKMOBI", False),
+        ("Old.azw", b"\0" * 60 + b"TEXtREAd", False),
+        ("Make It Stick.azw3", b"\0" * 60 + b"BOOKMOBI", False),
+        ("Make It Stick.mobi", b"\0" * 80, True),
+        ("Scan.djvu", b"AT&TFORM....DJVM", False),
+        ("Scan.djvu", b"", True),
+        ("Greg Bear - Dead Lines.epub", b"garbage", True),
+        ("Broken.fb2", b"<FictionBook><description>", True),
+    ],
+)
+def test_broken_files_are_flagged(tmp_path: Path, name: str, content: bytes, broken: bool):
+    path = tmp_path / name
+    path.write_bytes(content)
+
+    assert read_book(path, tmp_path).broken is broken, f"{name} with {content[:12]!r} broken should be {broken}"
+
+
+def test_readable_books_are_sound(epub_file: Path, fb2_file: Path):
+    assert read_book(epub_file, epub_file.parent).broken is False, "a readable epub is not broken"
+    assert read_book(fb2_file, fb2_file.parent).broken is False, "a readable fb2 is not broken"
+
+
+def test_partial_download_is_not_judged(tmp_path: Path):
+    path = tmp_path / "Nova.epub.part"
+    path.write_bytes(b"half a zip")
+
+    assert read_book(path, tmp_path).broken is False, "a partial download is incomplete, not broken"
