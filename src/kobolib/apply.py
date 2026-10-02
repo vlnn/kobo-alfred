@@ -8,9 +8,9 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from kobolib.koreader import fix_paths, sidecar_of
-from kobolib.plan import Operation
-from kobolib.scan import nfc
+from kobolib.koreader import fix_paths
+from kobolib.model import Operation
+from kobolib.paths import is_empty_dir, nfc, sidecar_of
 
 EXECUTABLE = {"move", "trash", "dups"}
 MOVES = {"apply", "undo"}
@@ -81,10 +81,6 @@ def is_same_file(a: Path, b: Path) -> bool:
         return a == b or a.samefile(b)
     except OSError:
         return False
-
-
-def is_empty_dir(path: Path) -> bool:
-    return path.is_dir() and not any(path.iterdir())
 
 
 def same_content(a: Path, b: Path) -> bool:

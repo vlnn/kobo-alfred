@@ -12,12 +12,14 @@ from pathlib import Path
 
 from kobolib import alfred
 from kobolib.apply import Applied, apply, undo
-from kobolib.index import Index, IndexBusy, Row, add_book, build_index, build_sources_index, fill_thumbnails, index_busy
+from kobolib.index import Index, IndexBusy, add_book, build_index, build_sources_index, fill_thumbnails, index_busy
 from kobolib.lint import lint
-from kobolib.plan import Operation, plan, read_plan, relocation, write_plan
+from kobolib.model import Operation, Row, Tag
+from kobolib.paths import relative_path
+from kobolib.plan import plan, read_plan, relocation, write_plan
 from kobolib.query import parse_query
-from kobolib.scan import fingerprint, probe_root, relative_path
-from kobolib.tags import Tag, TagStore, folder_slug, genre_from_folder
+from kobolib.scan import fingerprint, probe_root
+from kobolib.tags import TagStore, folder_slug, genre_from_folder
 
 
 def library_root() -> Path:

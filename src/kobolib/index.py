@@ -5,48 +5,24 @@ import re
 import sqlite3
 import time
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import astuple, fields
 from pathlib import Path
 
 from kobolib.covers import THUMBNAIL_FORMATS, ensure_cover
-from kobolib.metadata import Book, read_book
+from kobolib.metadata import read_book
+from kobolib.model import Book, DuplicateGroup, Row, Tag
 from kobolib.query import Query
 from kobolib.scan import SKIP_FOLDERS, iter_books
-from kobolib.tags import Tag, TagStore
+from kobolib.tags import TagStore
 
-SCHEMA = """
+COLUMNS = tuple(f.name for f in fields(Row))
+SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path"}
+SCHEMA = f"""
 CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
-    title, authors, series, series_index, folder, rel_path,
-    path UNINDEXED, format UNINDEXED, partial UNINDEXED, language UNINDEXED,
-    year UNINDEXED, publisher UNINDEXED, source UNINDEXED, cover UNINDEXED,
-    size UNINDEXED, mtime UNINDEXED, norm_title UNINDEXED, fingerprint UNINDEXED,
-    genre UNINDEXED, tags UNINDEXED,
+    {", ".join(c if c in SEARCHABLE else f"{c} UNINDEXED" for c in COLUMNS)},
     tokenize = 'unicode61 remove_diacritics 2'
 );
 """
-
-COLUMNS = (
-    "title",
-    "authors",
-    "series",
-    "series_index",
-    "folder",
-    "rel_path",
-    "path",
-    "format",
-    "partial",
-    "language",
-    "year",
-    "publisher",
-    "source",
-    "cover",
-    "size",
-    "mtime",
-    "norm_title",
-    "fingerprint",
-    "genre",
-    "tags",
-)
 
 FILTER_SQL = {
     "fmt": "format = :fmt",
@@ -56,36 +32,6 @@ FILTER_SQL = {
     "genre": "(genre = :genre OR genre LIKE :genre || '/%')",
     "tag": "',' || tags || ',' LIKE '%,' || :tag || ',%'",
 }
-
-
-@dataclass
-class Row:
-    title: str
-    authors: str
-    series: str
-    series_index: str
-    folder: str
-    rel_path: str
-    path: str
-    format: str
-    partial: bool
-    language: str
-    year: str
-    publisher: str
-    source: str
-    cover: str
-    size: int
-    mtime: float
-    norm_title: str
-    fingerprint: str
-    genre: str
-    tags: str
-
-
-@dataclass
-class DuplicateGroup:
-    title: str
-    books: list[Row]
 
 
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
@@ -99,29 +45,33 @@ def series_key(series: str) -> str:
     return LEADING_ARTICLE.sub("", normalize_title(series))
 
 
-def to_record(book: Book, cover: Path | None) -> tuple:
-    return (
-        book.title,
-        "; ".join(book.authors),
-        book.series,
-        book.series_index,
-        str(Path(book.rel_path).parent),
-        book.rel_path,
-        book.path,
-        book.format,
-        int(book.partial),
-        book.language,
-        book.year,
-        book.publisher,
-        book.source,
-        str(cover) if cover else "",
-        book.size,
-        book.mtime,
-        normalize_title(book.title),
-        book.fingerprint,
-        "",
-        "",
+def to_row(book: Book, cover: Path | None) -> Row:
+    return Row(
+        title=book.title,
+        authors="; ".join(book.authors),
+        series=book.series,
+        series_index=book.series_index,
+        folder=str(Path(book.rel_path).parent),
+        rel_path=book.rel_path,
+        path=book.path,
+        format=book.format,
+        partial=book.partial,
+        language=book.language,
+        year=book.year,
+        publisher=book.publisher,
+        source=book.source,
+        cover=str(cover) if cover else "",
+        size=book.size,
+        mtime=book.mtime,
+        norm_title=normalize_title(book.title),
+        fingerprint=book.fingerprint,
+        genre="",
+        tags="",
     )
+
+
+def to_record(book: Book, cover: Path | None) -> tuple:
+    return astuple(to_row(book, cover))
 
 
 def records(root: Path, cover_cache: Path, exclude: tuple[Path, ...], base: Path | None = None):

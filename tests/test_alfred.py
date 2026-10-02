@@ -1,7 +1,7 @@
 import json
 
 from kobolib.alfred import book_item, empty_item, render
-from kobolib.index import Row
+from kobolib.model import Finding, Operation, Row
 
 BASE_ROW = {
     "title": "Deep Work",
@@ -69,7 +69,6 @@ def test_render_and_empty():
 
 def test_finding_item_points_at_first_file_and_copies_all():
     from kobolib.alfred import finding_item
-    from kobolib.lint import Finding
 
     finding = Finding("exact_duplicate", "Glasswing ×2: identical files", ["00_Inbox/bought/a.epub", "00_Inbox/NOW/a.epub"])
 
@@ -100,7 +99,6 @@ def test_inbox_item_shows_known_genre():
 
 def test_plan_item_shows_source_and_destination():
     from kobolib.alfred import plan_item
-    from kobolib.plan import Operation
 
     op = Operation("move", "00_Inbox/a.epub", "01_Fiction/Teague, Rowan/Teague, Rowan - Ash (2011).epub", "relocate + rename")
 
@@ -118,7 +116,6 @@ def test_plan_item_shows_source_and_destination():
 
 def test_skip_item_is_not_actionable():
     from kobolib.alfred import plan_item
-    from kobolib.plan import Operation
 
     item = plan_item(Operation("skip", "a.epub", "b.epub", "destination taken by c.epub"), "/lib")
 

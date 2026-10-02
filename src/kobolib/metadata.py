@@ -4,14 +4,13 @@ import base64
 import posixpath
 import re
 import zipfile
-from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from kobolib.filenames import guess_from_stem
-from kobolib.scan import book_format, display_stem, fingerprint, is_partial, relative_path
-
-Cover = tuple[str, bytes]
+from kobolib.model import Book, Cover
+from kobolib.paths import relative_path
+from kobolib.scan import book_format, display_stem, fingerprint, is_partial
 
 NS = {
     "opf": "http://www.idpf.org/2007/opf",
@@ -20,26 +19,6 @@ NS = {
     "fb": "http://www.gribuser.ru/xml/fictionbook/2.0",
     "xl": "http://www.w3.org/1999/xlink",
 }
-
-
-@dataclass
-class Book:
-    path: str
-    rel_path: str
-    format: str
-    partial: bool
-    title: str = ""
-    authors: list[str] = field(default_factory=list)
-    series: str = ""
-    series_index: str = ""
-    language: str = ""
-    year: str = ""
-    publisher: str = ""
-    source: str = "filename"
-    cover: Cover | None = None
-    size: int = 0
-    mtime: float = 0.0
-    fingerprint: str = ""
 
 
 def text_of(root: ET.Element, xpath: str) -> str:

@@ -2,25 +2,16 @@ from __future__ import annotations
 
 import csv
 import re
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from kobolib.index import Row
+from kobolib.model import Row, Tag
 
 GENRE_DEPTH = 2
 ORDER_PREFIX = re.compile(r"^\d+_")
 UNCLASSIFIED_FOLDERS = {"inbox", "archives", "system_files", "_inbox", "_dups", "_trash", "_broken"}
 FIELDS = ("fingerprint", "genre", "tags", "rel_path")
 TAG_SEPARATOR = ","
-
-
-@dataclass
-class Tag:
-    genre: str = ""
-    tags: list[str] = field(default_factory=list)
-    rel_path: str = ""
 
 
 def folder_slug(name: str) -> str:

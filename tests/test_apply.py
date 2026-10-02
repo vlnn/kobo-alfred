@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from kobolib.apply import apply, prune_empty_dirs, undo
-from kobolib.koreader import sidecar_of
-from kobolib.plan import Operation
+from kobolib.model import Operation
+from kobolib.paths import sidecar_of
 
 
 @pytest.fixture

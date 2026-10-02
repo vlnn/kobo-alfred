@@ -4,13 +4,10 @@ import os
 import unicodedata
 from pathlib import Path
 
+from kobolib.paths import SIDECAR_SUFFIX, nfc, sidecar_of
+
 KOREADER_DIR = ".adds/koreader"
 SETTINGS_FILES = ("collection.lua", "history.lua", "bookmarks.lua")
-SIDECAR_SUFFIX = ".sdr"
-
-
-def sidecar_of(book: Path) -> Path:
-    return book.with_name(book.stem + SIDECAR_SUFFIX)
 
 
 def settings_dir(root: Path) -> Path:
@@ -52,7 +49,7 @@ def mirrored_sidecar(src: str) -> str:
 
 def ends_with_sidecar_of(path: Path, src: str) -> bool:
     tail = "/" + mirrored_sidecar(src)
-    return unicodedata.normalize("NFC", path.as_posix()).endswith(unicodedata.normalize("NFC", tail))
+    return nfc(path.as_posix()).endswith(nfc(tail))
 
 
 def mirrored_candidates(root: Path, src: str) -> list[Path]:

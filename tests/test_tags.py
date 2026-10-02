@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.tags import Tag, TagStore, genre_from_folder
+from kobolib.model import Tag
+from kobolib.tags import TagStore, genre_from_folder
 from tests.test_alfred import row
 
 

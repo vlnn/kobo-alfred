@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from kobolib.covers import cover_key, ensure_cover
-from kobolib.metadata import Book
+from kobolib.model import Book
 from tests.conftest import PNG_1X1
 
 

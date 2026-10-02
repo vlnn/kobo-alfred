@@ -3,9 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import PurePosixPath
 
-from kobolib.index import DuplicateGroup, Row
-from kobolib.lint import Finding
-from kobolib.plan import Operation
+from kobolib.model import DuplicateGroup, Finding, Operation, Row
 
 SEPARATOR = " · "
 

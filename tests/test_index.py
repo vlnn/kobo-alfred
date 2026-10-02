@@ -151,7 +151,8 @@ def test_fingerprint_stored_per_book(index: Index):
 
 
 def test_write_tags_updates_rows_and_search_filters(index: Index):
-    from kobolib.tags import Tag, TagStore
+    from kobolib.model import Tag
+    from kobolib.tags import TagStore
 
     store = TagStore(index.db_path.parent / "tags.tsv")
     (deep,) = index.search(parse_query("deep"))
@@ -221,7 +222,7 @@ def test_fingerprints_among_returns_only_the_known_ones(index: Index):
 
 
 def test_write_tag_touches_only_one_book(index: Index):
-    from kobolib.tags import Tag
+    from kobolib.model import Tag
 
     napkin = index.by_rel_path("00_Inbox/Napkin.pdf")
     index.write_tag(napkin.fingerprint, Tag(genre="games/go", tags=["now", "bought"]))
@@ -229,3 +230,13 @@ def test_write_tag_touches_only_one_book(index: Index):
     tagged = index.by_fingerprint(napkin.fingerprint)
     assert (tagged.genre, tagged.tags) == ("games/go", "now,bought"), "the one book carries its genre and tags"
     assert index.genres() == ["games/go"], "no other book gained a genre"
+
+
+def test_columns_follow_the_row_dataclass():
+    from dataclasses import fields
+
+    from kobolib.index import COLUMNS, SCHEMA
+    from kobolib.model import Row
+
+    assert tuple(f.name for f in fields(Row)) == COLUMNS, "the insert order and the Row field order are one and the same"
+    assert all(column in SCHEMA for column in COLUMNS), "every Row field is a column of the books table"

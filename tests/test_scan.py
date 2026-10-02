@@ -1,6 +1,7 @@
 import pytest
 
-from kobolib.scan import is_junk, iter_books, probe_root, relative_path
+from kobolib.paths import relative_path
+from kobolib.scan import is_junk, iter_books, probe_root
 
 
 @pytest.mark.parametrize(

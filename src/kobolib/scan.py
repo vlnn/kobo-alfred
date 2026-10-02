@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import os
-import unicodedata
 from collections.abc import Iterator
 from pathlib import Path
+
+from kobolib.paths import in_sidecar, is_empty_dir, nfc
 
 BOOK_SUFFIXES = {".epub", ".fb2", ".mobi", ".azw", ".azw3", ".pdf", ".djvu"}
 PARTIAL_SUFFIX = ".part"
 JUNK_SUFFIXES = {".textclipping", ".txt", ".zip"}
 FINGERPRINT_BYTES = 64 * 1024
 SKIP_FOLDERS = {"_trash", "_dups"}
-SIDECAR_SUFFIX = ".sdr"
 
 
 def book_format(path: Path) -> str:
@@ -47,16 +47,8 @@ def iter_books(root: Path, exclude: tuple[Path, ...] = ()) -> Iterator[Path]:
             yield path
 
 
-def is_empty_dir(path: Path) -> bool:
-    return path.is_dir() and not any(path.iterdir())
-
-
 def is_hidden(path: Path, root: Path) -> bool:
     return any(part.startswith(".") for part in path.relative_to(root).parts)
-
-
-def in_sidecar(path: Path, root: Path) -> bool:
-    return any(part.endswith(SIDECAR_SUFFIX) for part in path.relative_to(root).parts)
 
 
 def iter_junk(root: Path, exclude: tuple[Path, ...] = ()) -> Iterator[Path]:
@@ -76,14 +68,6 @@ def fingerprint(path: Path) -> str:
             handle.seek(-FINGERPRINT_BYTES, os.SEEK_END)
         digest.update(handle.read(FINGERPRINT_BYTES))
     return digest.hexdigest()
-
-
-def nfc(text: str) -> str:
-    return unicodedata.normalize("NFC", text)
-
-
-def relative_path(path: Path, root: Path) -> str:
-    return nfc(path.relative_to(root).as_posix())
 
 
 def display_stem(path: Path) -> str:

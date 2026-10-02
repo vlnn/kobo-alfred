@@ -3,12 +3,13 @@ from __future__ import annotations
 import re
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
 from pathlib import Path
 
 from kobolib.filenames import BRACED_AUTHOR, strip_noise
-from kobolib.index import Row, series_key
-from kobolib.scan import BOOK_SUFFIXES, display_stem, iter_junk, relative_path
+from kobolib.index import series_key
+from kobolib.model import Finding, Row
+from kobolib.paths import relative_path
+from kobolib.scan import BOOK_SUFFIXES, display_stem, iter_junk
 from kobolib.tags import TagStore
 
 WORD_BREAK = re.compile(r"[\s_\-]+")
@@ -21,13 +22,6 @@ OPAQUE_STEMS = [
     re.compile(r"^[0-9a-f]{10,}(?:[_-]|$)", re.I),
     re.compile(r"^fb\d+u?_", re.I),
 ]
-
-
-@dataclass
-class Finding:
-    rule: str
-    detail: str
-    rel_paths: list[str]
 
 
 def stem_of(row: Row) -> str:

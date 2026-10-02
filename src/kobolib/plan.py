@@ -5,8 +5,9 @@ from collections import Counter
 from dataclasses import astuple, dataclass
 from pathlib import Path
 
-from kobolib.index import Row, series_key
-from kobolib.lint import Finding, all_folders
+from kobolib.index import series_key
+from kobolib.lint import all_folders
+from kobolib.model import Finding, Operation, Row
 from kobolib.naming import Shelves, destination, shelves
 from kobolib.tags import TagStore, genre_from_folder
 
@@ -14,14 +15,6 @@ FORMAT_RANK = ("epub", "kepub", "fb2", "mobi", "azw3", "azw", "pdf", "djvu")
 TRASH = "_trash"
 DUPS = "_dups"
 FIELDS = ("kind", "src", "dst", "reason")
-
-
-@dataclass
-class Operation:
-    kind: str
-    src: str
-    dst: str
-    reason: str
 
 
 def format_rank(fmt: str) -> int:

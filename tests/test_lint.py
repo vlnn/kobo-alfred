@@ -14,7 +14,8 @@ from kobolib.lint import (
     title_duplicates,
     unclassified,
 )
-from kobolib.tags import Tag, TagStore
+from kobolib.model import Tag
+from kobolib.tags import TagStore
 from tests.test_alfred import row
 
 

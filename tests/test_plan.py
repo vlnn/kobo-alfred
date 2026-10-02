@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.lint import Finding
-from kobolib.plan import Operation, plan, prefer, read_plan, write_plan
-from kobolib.tags import Tag, TagStore
+from kobolib.model import Finding, Operation, Tag
+from kobolib.plan import plan, prefer, read_plan, write_plan
+from kobolib.tags import TagStore
 from tests.test_lint import named
 
 
