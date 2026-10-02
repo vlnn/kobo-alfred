@@ -13,8 +13,8 @@ def make_book(tmp_path: Path, name: str, cover=None) -> Book:
 
 def test_cover_key_is_stable_per_relative_path(tmp_path: Path):
     a = make_book(tmp_path, "a.epub")
-    assert cover_key(a) == cover_key(a), "same rel_path should give same key"
-    assert cover_key(a) != cover_key(make_book(tmp_path, "b.epub")), "different rel_path should give different key"
+    assert cover_key(a.rel_path) == cover_key(a.rel_path), "same rel_path should give same key"
+    assert cover_key(a.rel_path) != cover_key(make_book(tmp_path, "b.epub").rel_path), "different rel_path should give different key"
 
 
 def test_embedded_cover_is_written_once(tmp_path: Path, mocker):

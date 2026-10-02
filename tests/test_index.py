@@ -264,3 +264,20 @@ def test_filters_fold_case_beyond_ascii(index: Index, library: Path, raw):
     build_index(library, index.db_path, cover_cache=library / "c")
 
     assert titles(index.search(parse_query(raw))) == ["Deep Work"], f"{raw!r} should match regardless of case, Cyrillic included"
+
+
+def test_relocate_carries_the_cover_to_the_new_key(index: Index, library: Path):
+    from kobolib.covers import cover_key
+
+    src = "02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+    dst = "02_NonFiction/Newport, Cal/Newport, Cal - Deep Work (2016).epub"
+    old_cover = Path(index.by_rel_path(src).cover)
+
+    index.relocate(src, dst, library)
+
+    new_cover = Path(index.by_rel_path(dst).cover)
+    assert new_cover.name == f"{cover_key(dst)}{old_cover.suffix}" and new_cover.exists(), (
+        "the cover file follows the book under its new key"
+    )
+    assert not old_cover.exists(), "no orphan is left under the old key"
+    assert index.by_rel_path(dst).cover == str(new_cover), "the row points at the renamed cover"

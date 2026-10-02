@@ -14,12 +14,12 @@ IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 THUMB_SIZE = "256"
 
 
-def cover_key(book: Book) -> str:
-    return hashlib.sha1(book.rel_path.encode()).hexdigest()
+def cover_key(rel_path: str) -> str:
+    return hashlib.sha1(rel_path.encode()).hexdigest()
 
 
 def existing_cover(book: Book, cache: Path) -> Path | None:
-    key = cover_key(book)
+    key = cover_key(book.rel_path)
     return next((p for p in cache.glob(f"{key}.*")), None)
 
 
@@ -28,7 +28,7 @@ def write_embedded(book: Book, cache: Path) -> Path | None:
     suffix = Path(name).suffix.lower()
     if suffix not in IMAGE_SUFFIXES or not data:
         return None
-    target = cache / f"{cover_key(book)}{suffix}"
+    target = cache / f"{cover_key(book.rel_path)}{suffix}"
     target.write_bytes(data)
     return target
 
@@ -49,7 +49,7 @@ def quicklook_thumbnail(book: Book, cache: Path) -> Path | None:
         produced = next(Path(tmp).glob("*.png"), None)
         if produced is None:
             return None
-        target = cache / f"{cover_key(book)}.png"
+        target = cache / f"{cover_key(book.rel_path)}.png"
         shutil.move(produced, target)
     return target
 

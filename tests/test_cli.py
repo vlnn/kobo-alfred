@@ -417,6 +417,28 @@ def test_apply_only_moves_one_book_without_a_full_rebuild(indexed, library, caps
     assert run(["search", "deep"], capsys)["items"][0]["subtitle"].count("Newport, Cal/") == 1, "the index should know the new path"
 
 
+def test_single_book_move_updates_the_tag_store_path(indexed, library, tmp_path, capsys):
+    import csv
+
+    main(["tag", str(library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"), "genre=productivity"])
+
+    with (tmp_path / "alfred-data" / "tags.tsv").open(newline="", encoding="utf-8") as handle:
+        paths = {r["rel_path"] for r in csv.DictReader(handle, delimiter="\t")}
+    assert "productivity/Newport, Cal/Newport, Cal - Deep Work (Focus 02) (2016).epub" in paths, (
+        "tags.tsv should name the book's new path right away"
+    )
+
+
+def test_apply_only_runs_a_plan_row_even_when_the_plan_went_stale(indexed, library, capsys):
+    (library / "00_Inbox" / "FSCK0000.000").write_bytes(b"")
+    main(["plan"])
+    main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=reference"])
+    capsys.readouterr()
+
+    assert main(["apply", "--only", str(library / "00_Inbox" / "FSCK0000.000")]) == 0, "↩ on a row still works after the index changed"
+    assert (library / "_trash" / "00_Inbox" / "FSCK0000.000").exists(), "the row's own operation runs, recomputed from the current library"
+
+
 def test_apply_only_follows_a_fresh_plan_row(indexed, library, capsys):
     (library / "00_Inbox" / "FSCK0000.000").write_bytes(b"")
     main(["plan"])

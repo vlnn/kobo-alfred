@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 from kobolib.apply import Applied, apply
@@ -130,20 +131,19 @@ def fresh_plan() -> list[Operation]:
 
 def ops_for_one(path: str) -> list[Operation]:
     rel = relative_path(Path(path), library_root())
-    if planned := [o for o in fresh_plan() if o.src == rel]:
-        return planned
-    index = Index(db_path())
-    row = index.by_rel_path(rel)
-    op = relocation(row, all_rows(index), tag_store()) if row else None
-    return [op] if op else []
+    planned = [o for o in fresh_plan() if o.src == rel]
+    return planned or [o for o in current_plan() if o.src == rel]
 
 
 def refresh_index(result: Applied) -> None:
-    index = Index(db_path())
+    index, store = Index(db_path()), tag_store()
     for src, dst in result.moved.items():
+        if (row := index.by_rel_path(src)) and (tag := store.get(row.fingerprint)):
+            store.set(row.fingerprint, replace(tag, rel_path=dst))
         index.relocate(src, dst, library_root())
     for src in result.removed:
         index.remove(src)
+    store.save()
 
 
 def skip_reasons(skipped: list[str]) -> str:

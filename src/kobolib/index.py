@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from dataclasses import astuple, fields
 from pathlib import Path
 
-from kobolib.covers import THUMBNAIL_FORMATS, ensure_cover
+from kobolib.covers import THUMBNAIL_FORMATS, cover_key, ensure_cover
 from kobolib.metadata import read_book
 from kobolib.model import Book, DuplicateGroup, Row, Tag
 from kobolib.query import SQL_CLAUSES, STATE_CLAUSES, Query
@@ -270,9 +270,10 @@ class Index:
     def relocate(self, src: str, dst: str, root: Path) -> None:
         if set_aside(dst):
             return self.remove(src)
-        self.execute(
-            "UPDATE books SET rel_path = ?, path = ?, folder = ? WHERE rel_path = ?", (dst, str(root / dst), str(Path(dst).parent), src)
-        )
+        row = self.by_rel_path(src)
+        cover = carry_cover(row.cover, dst) if row else ""
+        moved = (dst, str(root / dst), str(Path(dst).parent), cover, src)
+        self.execute("UPDATE books SET rel_path = ?, path = ?, folder = ?, cover = ? WHERE rel_path = ?", moved)
 
     def remove(self, rel_path: str) -> None:
         self.execute("DELETE FROM books WHERE rel_path = ?", (rel_path,))
@@ -282,6 +283,16 @@ class Index:
         for row in self.rows(f"{SELECT_ROWS} WHERE norm_title != '' ORDER BY norm_title, rel_path"):
             groups[row.norm_title].append(row)
         return [DuplicateGroup(books[0].title, books) for books in groups.values() if len(books) > 1]
+
+
+def carry_cover(cover: str, dst: str) -> str:
+    if not cover:
+        return ""
+    old = Path(cover)
+    new = old.with_name(cover_key(dst) + old.suffix)
+    if old.exists():
+        os.replace(old, new)
+    return str(new)
 
 
 def set_aside(rel_path: str) -> bool:
