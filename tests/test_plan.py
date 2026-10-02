@@ -110,7 +110,7 @@ def test_book_already_in_place_is_not_moved(tmp_path):
 
 
 def test_series_folder_only_when_several_books(tmp_path):
-    common = dict(folder="00_Inbox", authors="Rowan Teague", series="Grey Tide", year="")
+    common = {"folder": "00_Inbox", "authors": "Rowan Teague", "series": "Grey Tide", "year": ""}
     rows = [
         named("a.epub", title="Ash", series_index="1", fingerprint="a", **common),
         named("b.epub", title="Ember", series_index="2", fingerprint="b", **common),
@@ -146,7 +146,7 @@ def test_books_without_author_stay_where_they_are(tmp_path):
 
 
 def test_destination_collisions_are_reported_not_planned(tmp_path):
-    common = dict(folder="00_Inbox", title="Ash", authors="Rowan Teague", series="", year="2011")
+    common = {"folder": "00_Inbox", "title": "Ash", "authors": "Rowan Teague", "series": "", "year": "2011"}
     rows = [named("one.epub", fingerprint="a", **common), named("two.epub", fingerprint="b", **common)]
     store = store_with(tmp_path, a="fiction", b="fiction")
 
@@ -164,7 +164,7 @@ def test_plan_file_roundtrip(tmp_path):
 
 
 def test_series_counted_across_article_variants(tmp_path):
-    common = dict(folder="00_Inbox", authors="Rowan Teague", year="")
+    common = {"folder": "00_Inbox", "authors": "Rowan Teague", "year": ""}
     rows = [
         named("a.epub", title="Ash", series="Grey Tide", series_index="1", fingerprint="a", **common),
         named("b.epub", title="Ember", series="The Grey Tide", series_index="2", fingerprint="b", **common),

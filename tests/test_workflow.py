@@ -94,3 +94,56 @@ def test_dispatcher_else_opens_the_book(workflow):
 
 def test_index_src_keyword_is_gone(workflow):
     assert not any(o["config"].get("keyword") == "kb:index-src" for o in workflow["objects"]), "kb:index now covers the sources too"
+
+
+@pytest.fixture
+def indexed(library: Path, tmp_path: Path, monkeypatch):
+    from kobolib.cli import main
+
+    monkeypatch.setenv("KOBO_ROOT", str(library))
+    monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
+    monkeypatch.delenv("KOBO_DATA", raising=False)
+    main(["index"])
+
+
+def route(workflow: dict, item: dict) -> str:
+    obj, conns = dispatch(workflow)
+    action = item.get("variables", {}).get("action", "")
+    for condition in obj["config"]["conditions"]:
+        if action.lower() == condition["matchstring"].lower():
+            return next(c["destinationuid"] for c in conns if c.get("sourceoutputuid") == condition["uid"])
+    return next(c["destinationuid"] for c in conns if "sourceoutputuid" not in c)
+
+
+@pytest.mark.parametrize(
+    "query, destination, arg",
+    [
+        ("index", "INDEX_RUN", ""),
+        ("update", "INDEX_RUN", ""),
+        ("apply", "APPLY_RUN", ""),
+        ("undo", "UNDO_RUN", ""),
+        ("plan", "APPLY_ONE", ""),
+        ("classify", "GENRES", ""),
+        ("inbox", "OPEN", "/"),
+        ("lint", "OPEN", "/"),
+        ("rnd", "OPEN", "/"),
+        ("deep", "OPEN", "/"),
+    ],
+)
+def test_enter_on_a_kb_row_reaches_the_same_object_as_the_keyword(workflow, indexed, query, destination, arg):
+    from kobolib.cli import search_items
+
+    first = next(i for i in search_items(query) if i.get("valid", True))
+
+    assert route(workflow, first) == destination, f"↩ on the first kb {query} row should reach {destination}"
+    assert first["arg"].startswith(arg), f"kb {query} should hand {arg!r}… to {destination}"
+
+
+def test_keyword_entry_points_and_kb_words_share_their_targets(workflow):
+    by_keyword = {o["config"].get("keyword"): o["uid"] for o in workflow["objects"] if o["config"].get("keyword")}
+    for keyword, uid in by_keyword.items():
+        if keyword in ("kb:index", "kb:apply", "kb:undo"):
+            target = workflow["connections"][uid][0]["destinationuid"]
+            assert target == ROUTES[keyword.removeprefix("kb:")], (
+                f"{keyword} and kb {keyword.removeprefix('kb:')} should run the same script"
+            )

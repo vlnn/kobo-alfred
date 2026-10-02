@@ -2,14 +2,14 @@
 name = "kobolib"
 version = "0.1.0"
 description = "Alfred workflow: search an ebook library by metadata, with covers"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = []
 
 [project.scripts]
 kobolib = "kobolib.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-mock>=3.14"]
+dev = ["pytest>=8", "pytest-mock>=3.14", "ruff>=0.8"]
 
 [build-system]
 requires = ["hatchling"]

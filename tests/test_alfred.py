@@ -3,31 +3,32 @@ import json
 from kobolib.alfred import book_item, empty_item, render
 from kobolib.index import Row
 
+BASE_ROW = {
+    "title": "Deep Work",
+    "authors": "Cal Newport",
+    "series": "Focus",
+    "series_index": "2",
+    "folder": "02_NonFiction",
+    "rel_path": "02_NonFiction/x.epub",
+    "path": "/lib/02_NonFiction/x.epub",
+    "format": "epub",
+    "partial": False,
+    "language": "en",
+    "year": "2016",
+    "publisher": "GC",
+    "source": "epub",
+    "cover": "/cache/abc.png",
+    "size": 1_500_000,
+    "mtime": 0.0,
+    "norm_title": "deep work",
+    "fingerprint": "f00",
+    "genre": "",
+    "tags": "",
+}
+
 
 def row(**overrides) -> Row:
-    base = dict(
-        title="Deep Work",
-        authors="Cal Newport",
-        series="Focus",
-        series_index="2",
-        folder="02_NonFiction",
-        rel_path="02_NonFiction/x.epub",
-        path="/lib/02_NonFiction/x.epub",
-        format="epub",
-        partial=False,
-        language="en",
-        year="2016",
-        publisher="GC",
-        source="epub",
-        cover="/cache/abc.png",
-        size=1_500_000,
-        mtime=0.0,
-        norm_title="deep work",
-        fingerprint="f00",
-        genre="",
-        tags="",
-    )
-    return Row(**{**base, **overrides})
+    return Row(**{**BASE_ROW, **overrides})
 
 
 def test_item_shows_metadata_and_relative_path():

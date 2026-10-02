@@ -95,7 +95,8 @@ def probe_root(root: Path) -> str:
     try:
         entries = os.listdir(root)
     except PermissionError as error:
-        return f"permission denied reading {root} ({error}); grant Alfred access to Removable Volumes / Files and Folders in System Settings → Privacy & Security"
+        hint = "grant Alfred access to Removable Volumes / Files and Folders in System Settings → Privacy & Security"
+        return f"permission denied reading {root} ({error}); {hint}"
     except OSError as error:
         return f"cannot read {root}: {error}"
     return f"{root} is empty" if not entries else ""

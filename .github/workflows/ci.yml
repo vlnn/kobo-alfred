@@ -12,12 +12,17 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - run: uv run --frozen pytest
+      - run: uv run --frozen --python ${{ matrix.python }} ruff check
+      - run: uv run --frozen --python ${{ matrix.python }} ruff format --check
+      - run: uv run --frozen --python ${{ matrix.python }} pytest
 
   build:
     needs: test

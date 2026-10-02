@@ -93,9 +93,12 @@ def known_genres(rows: list, store: TagStore) -> list[str]:
     return sorted(from_tags | from_folders)
 
 
+NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobo Library"', "end run")
+
+
 def notify(message: str) -> None:
-    script = f'display notification "{message}" with title "Kobo Library"'
-    subprocess.run(["osascript", "-e", script], capture_output=True, check=False)
+    lines = [arg for line in NOTIFY_SCRIPT for arg in ("-e", line)]
+    subprocess.run(["osascript", *lines, "--", message], capture_output=True, check=False)
 
 
 def run_index() -> tuple[int, str]:
@@ -131,6 +134,8 @@ def cmd_index(args) -> int:
 
 
 def book_items(raw: str) -> list[dict]:
+    if not db_path().exists():
+        return without_index_items()
     index = Index(db_path())
     rows = index.search(parse_query(raw))
     if not rows and index.count() == 0:
@@ -151,12 +156,18 @@ def search_items(raw: str) -> list[dict]:
     return command_items(command, rest) + books
 
 
+def needs_index(command: str) -> bool:
+    return command not in INDEX_FREE_COMMANDS
+
+
 def with_action(item: dict, action: str) -> dict:
     return {**item, "variables": {**item.get("variables", {}), "action": action}}
 
 
 def command_items(command: str, rest: str) -> list[dict]:
     items, action = COMMANDS[command]
+    if needs_index(command) and not db_path().exists():
+        return without_index_items()
     return [with_action(i, action) for i in items(rest)]
 
 
@@ -165,9 +176,6 @@ def action_item(title: str, subtitle: str) -> dict:
 
 
 def cmd_search(args) -> int:
-    print(f"kobolib search query={args.query!r} db={db_path()} root={library_root()}", file=sys.stderr)
-    if not db_path().exists():
-        return without_index()
     print(alfred.render(search_items(args.query)))
     return 0
 
@@ -193,8 +201,12 @@ def cmd_random(args) -> int:
     return 0
 
 
+def without_index_items() -> list[dict]:
+    return [alfred.message_item("No index yet", "Run kb:index to build it")]
+
+
 def without_index() -> int:
-    print(alfred.render([alfred.message_item("No index yet", "Run kb:index to build it")]))
+    print(alfred.render(without_index_items()))
     return 0
 
 
@@ -537,6 +549,8 @@ def cmd_stats(args) -> int:
     print(alfred.render(all_stats_items()))
     return 0
 
+
+INDEX_FREE_COMMANDS = {"index", "update", "apply", "undo", "src", "sources"}
 
 COMMANDS = {
     "stats": (all_stats_items, "stats"),

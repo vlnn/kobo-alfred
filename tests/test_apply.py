@@ -21,7 +21,7 @@ def library(tmp_path: Path) -> Path:
 
 
 def journal_lines(path: Path) -> list[dict]:
-    return [json.loads(l) for l in path.read_text().splitlines()]
+    return [json.loads(line) for line in path.read_text().splitlines()]
 
 
 def test_apply_moves_files_with_sidecar_and_journals(library: Path, tmp_path: Path):
@@ -39,8 +39,10 @@ def test_apply_moves_files_with_sidecar_and_journals(library: Path, tmp_path: Pa
         "the KOReader sidecar should travel with the book"
     )
     assert (library / "_trash/00_Inbox/FSCK0000.000").exists(), "junk should be in _trash"
-    assert [l["src"] for l in journal_lines(journal)] == ["00_Inbox/a.epub", "00_Inbox/FSCK0000.000"], "every move should be journaled"
-    assert len({l["batch"] for l in journal_lines(journal)}) == 1, "one apply is one batch"
+    assert [line["src"] for line in journal_lines(journal)] == ["00_Inbox/a.epub", "00_Inbox/FSCK0000.000"], (
+        "every move should be journaled"
+    )
+    assert len({line["batch"] for line in journal_lines(journal)}) == 1, "one apply is one batch"
 
 
 def test_apply_skips_missing_sources_and_occupied_destinations(library: Path, tmp_path: Path):
@@ -250,7 +252,7 @@ def test_the_same_file_is_never_treated_as_a_duplicate(tmp_path: Path, mocker):
     assert result.done == 1 and (root / "a" / "X.epub").read_bytes() == b"x", (
         "a case-insensitive hit on the source itself is an in-place rename"
     )
-    assert not any(l["kind"] == "delete" for l in journal_lines(tmp_path / "j.jsonl")), "nothing is deleted"
+    assert not any(line["kind"] == "delete" for line in journal_lines(tmp_path / "j.jsonl")), "nothing is deleted"
 
 
 def test_journal_is_written_step_by_step(library: Path, tmp_path: Path, mocker):
@@ -273,4 +275,6 @@ def test_journal_is_written_step_by_step(library: Path, tmp_path: Path, mocker):
     with pytest.raises(OSError):
         apply(ops, library, journal)
 
-    assert [l["src"] for l in journal_lines(journal)] == ["00_Inbox/a.epub"], "the step that succeeded before the crash must be journaled"
+    assert [line["src"] for line in journal_lines(journal)] == ["00_Inbox/a.epub"], (
+        "the step that succeeded before the crash must be journaled"
+    )
