@@ -116,16 +116,6 @@ def test_stale_lock_is_ignored(index: Index, library: Path):
     assert not lock.exists(), "lock should be removed after a successful build"
 
 
-def test_metadata_pass_is_searchable_before_thumbnails(index: Index, library: Path, mocker):
-
-    counts = []
-    mocker.patch("kobolib.index.fill_thumbnails", side_effect=lambda db, cache: counts.append(Index(db).count()))
-
-    build_index(library, index.db_path, cover_cache=library / "c")
-
-    assert counts == [4], "the metadata pass should be committed before thumbnails start"
-
-
 def test_fill_thumbnails_updates_pdf_rows(index: Index, library: Path, mocker):
     from kobolib.index import fill_thumbnails
     from tests.conftest import PNG_1X1
@@ -240,3 +230,26 @@ def test_columns_follow_the_row_dataclass():
 
     assert tuple(f.name for f in fields(Row)) == COLUMNS, "the insert order and the Row field order are one and the same"
     assert all(column in SCHEMA for column in COLUMNS), "every Row field is a column of the books table"
+
+
+def test_every_connection_is_closed_after_use(index: Index, mocker):
+    import sqlite3
+
+    from kobolib.model import Tag
+
+    opened = []
+    real_connect = sqlite3.connect
+
+    def tracked(*args, **kwargs):
+        opened.append(conn := real_connect(*args, **kwargs))
+        return conn
+
+    mocker.patch("kobolib.index.sqlite3.connect", side_effect=tracked)
+    index.count()
+    index.search(parse_query("deep"))
+    index.write_tag("nope", Tag(genre="x"))
+
+    assert len(opened) == 3, "each operation opens its own connection"
+    for conn in opened:
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn.execute("SELECT 1")

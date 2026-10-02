@@ -5,6 +5,8 @@ import re
 import sqlite3
 import time
 from collections import defaultdict
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import astuple, fields
 from pathlib import Path
 
@@ -64,33 +66,53 @@ def to_record(book: Book, cover: Path | None) -> tuple:
     return astuple(to_row(book, cover))
 
 
-def records(root: Path, cover_cache: Path, exclude: tuple[Path, ...], base: Path | None = None):
+def records(root: Path, cover_cache: Path, exclude: tuple[Path, ...], base: Path | None = None) -> Iterator[tuple]:
     for path in iter_books(root, exclude):
         book = read_book(path, base or root)
         yield to_record(book, ensure_cover(book, cover_cache, thumbnails=False))
 
 
-def source_records(roots: list[Path], cover_cache: Path, exclude: tuple[Path, ...]):
+def source_records(roots: list[Path], cover_cache: Path, exclude: tuple[Path, ...]) -> Iterator[tuple]:
     for root in roots:
         yield from records(root, cover_cache, exclude, base=root.parent)
 
 
-def thumbnail_candidates(conn: sqlite3.Connection) -> list[tuple[str, str, str]]:
+@contextmanager
+def reading(db_path: Path) -> Iterator[sqlite3.Connection]:
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+@contextmanager
+def writing(db_path: Path) -> Iterator[sqlite3.Connection]:
+    conn = sqlite3.connect(db_path)
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
+
+def thumbnail_candidates(db_path: Path) -> list[Book]:
     formats = ", ".join(f"'{f}'" for f in sorted(THUMBNAIL_FORMATS))
-    return conn.execute(f"SELECT path, rel_path, format FROM books WHERE cover = '' AND partial = 0 AND format IN ({formats})").fetchall()
+    with reading(db_path) as conn:
+        found = conn.execute(
+            f"SELECT path, rel_path, format FROM books WHERE cover = '' AND partial = 0 AND format IN ({formats})"
+        ).fetchall()
+    return [Book(path=path, rel_path=rel_path, format=fmt, partial=False) for path, rel_path, fmt in found]
 
 
 def fill_thumbnails(db_path: Path, cover_cache: Path) -> int:
-    with sqlite3.connect(db_path) as conn:
-        candidates = thumbnail_candidates(conn)
     made = 0
-    for path, rel_path, fmt in candidates:
-        book = Book(path=path, rel_path=rel_path, format=fmt, partial=False)
+    for book in thumbnail_candidates(db_path):
         cover = ensure_cover(book, cover_cache)
         if cover is None:
             continue
-        with sqlite3.connect(db_path) as conn:
-            conn.execute("UPDATE books SET cover = ? WHERE rel_path = ?", (str(cover), rel_path))
+        with writing(db_path) as conn:
+            conn.execute("UPDATE books SET cover = ? WHERE rel_path = ?", (str(cover), book.rel_path))
         made += 1
     return made
 
@@ -122,13 +144,13 @@ def acquire_lock(db_path: Path) -> Path:
 INSERT_SQL = f"INSERT INTO books ({', '.join(COLUMNS)}) VALUES ({', '.join('?' for _ in COLUMNS)})"
 
 
-def write_database(target: Path, rows) -> int:
-    with sqlite3.connect(target) as conn:
+def write_database(target: Path, rows: Iterator[tuple]) -> int:
+    with writing(target) as conn:
         conn.executescript(SCHEMA)
         return conn.executemany(INSERT_SQL, rows).rowcount
 
 
-def rebuild(db_path: Path, rows, cover_cache: Path, thumbnails: bool) -> int:
+def rebuild(db_path: Path, rows: Iterator[tuple]) -> int:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     lock = acquire_lock(db_path)
     temp = db_path.with_suffix(".tmp")
@@ -136,28 +158,24 @@ def rebuild(db_path: Path, rows, cover_cache: Path, thumbnails: bool) -> int:
         temp.unlink(missing_ok=True)
         count = write_database(temp, rows)
         os.replace(temp, db_path)
-        if thumbnails and count:
-            fill_thumbnails(db_path, cover_cache)
         return count
     finally:
         temp.unlink(missing_ok=True)
         lock.unlink(missing_ok=True)
 
 
-def build_index(root: Path, db_path: Path, cover_cache: Path, thumbnails: bool = True, exclude: tuple[Path, ...] = ()) -> int:
-    return rebuild(db_path, records(root, cover_cache, exclude), cover_cache, thumbnails)
+def build_index(root: Path, db_path: Path, cover_cache: Path, exclude: tuple[Path, ...] = ()) -> int:
+    return rebuild(db_path, records(root, cover_cache, exclude))
 
 
-def build_sources_index(
-    roots: list[Path], db_path: Path, cover_cache: Path, thumbnails: bool = True, exclude: tuple[Path, ...] = ()
-) -> int:
-    return rebuild(db_path, source_records(roots, cover_cache, exclude), cover_cache, thumbnails)
+def build_sources_index(roots: list[Path], db_path: Path, cover_cache: Path, exclude: tuple[Path, ...] = ()) -> int:
+    return rebuild(db_path, source_records(roots, cover_cache, exclude))
 
 
 def add_book(db_path: Path, path: Path, root: Path, cover_cache: Path) -> Book:
     book = read_book(path, root)
     record = to_record(book, ensure_cover(book, cover_cache))
-    with sqlite3.connect(db_path) as conn:
+    with writing(db_path) as conn:
         conn.execute(INSERT_SQL, record)
     return book
 
@@ -175,28 +193,39 @@ def row_factory(cursor, values) -> Row:
     return Row(**data)
 
 
+SELECT_ROWS = f"SELECT {', '.join(COLUMNS)} FROM books"
+
+
 class Index:
     def __init__(self, db_path: Path):
         self.db_path = db_path
 
-    def connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True)
-        conn.row_factory = row_factory
-        return conn
+    def rows(self, sql: str, params: tuple | dict = ()) -> list[Row]:
+        with reading(self.db_path) as conn:
+            cursor = conn.execute(sql, params)
+            cursor.row_factory = row_factory
+            return cursor.fetchall()
+
+    def values(self, sql: str, params: tuple | list = ()) -> list:
+        with reading(self.db_path) as conn:
+            return [value for (value,) in conn.execute(sql, params)]
+
+    def execute(self, sql: str, params: tuple = ()) -> None:
+        with writing(self.db_path) as conn:
+            conn.execute(sql, params)
+
+    def execute_many(self, sql: str, rows: list[tuple]) -> None:
+        with writing(self.db_path) as conn:
+            conn.executemany(sql, rows)
 
     def count(self) -> int:
-        with sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True) as conn:
-            return conn.execute("SELECT count(*) FROM books").fetchone()[0]
+        return self.values("SELECT count(*) FROM books")[0]
 
     def search(self, query: Query, limit: int = 40) -> list[Row]:
         clauses, params = where_clauses(query)
         order = "rank, title" if query.fts_match() else "mtime DESC"
-        sql = f"SELECT {', '.join(COLUMNS)} FROM books"
-        if clauses:
-            sql += " WHERE " + " AND ".join(clauses)
-        sql += f" ORDER BY {order} LIMIT :limit"
-        with self.connect() as conn:
-            return conn.execute(sql, {**params, "limit": limit}).fetchall()
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        return self.rows(f"{SELECT_ROWS}{where} ORDER BY {order} LIMIT :limit", {**params, "limit": limit})
 
     def by_fingerprint(self, fingerprint: str) -> Row | None:
         return self.one("fingerprint = ?", fingerprint)
@@ -205,13 +234,10 @@ class Index:
         return self.one("rel_path = ?", rel_path)
 
     def one(self, condition: str, value: str) -> Row | None:
-        with self.connect() as conn:
-            return conn.execute(f"SELECT {', '.join(COLUMNS)} FROM books WHERE {condition}", (value,)).fetchone()
+        return next(iter(self.rows(f"{SELECT_ROWS} WHERE {condition}", (value,))), None)
 
     def unclassified(self, query: str = "") -> list[Row]:
-        with self.connect() as conn:
-            rows = conn.execute(f"SELECT {', '.join(COLUMNS)} FROM books WHERE genre = '' ORDER BY mtime").fetchall()
-        return [r for r in rows if matches(r, query)]
+        return [r for r in self.rows(f"{SELECT_ROWS} WHERE genre = '' ORDER BY mtime") if matches(r, query)]
 
     def genres(self) -> list[str]:
         return self.distinct("genre")
@@ -220,46 +246,36 @@ class Index:
         return self.distinct("folder")
 
     def distinct(self, column: str) -> list[str]:
-        with sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True) as conn:
-            return [v for (v,) in conn.execute(f"SELECT DISTINCT {column} FROM books WHERE {column} != '' ORDER BY {column}")]
+        return self.values(f"SELECT DISTINCT {column} FROM books WHERE {column} != '' ORDER BY {column}")
 
     def fingerprints_among(self, fingerprints: list[str]) -> set[str]:
         if not fingerprints:
             return set()
         marks = ", ".join("?" for _ in fingerprints)
-        with sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True) as conn:
-            return {fp for (fp,) in conn.execute(f"SELECT fingerprint FROM books WHERE fingerprint IN ({marks})", fingerprints)}
+        return set(self.values(f"SELECT fingerprint FROM books WHERE fingerprint IN ({marks})", fingerprints))
 
     def write_genres(self, genres: dict[str, str]) -> None:
-        with sqlite3.connect(self.db_path) as conn:
-            conn.executemany("UPDATE books SET genre = ? WHERE fingerprint = ?", [(g, fp) for fp, g in genres.items()])
+        self.execute_many("UPDATE books SET genre = ? WHERE fingerprint = ?", [(g, fp) for fp, g in genres.items()])
 
     def write_tags(self, store: TagStore) -> None:
-        with sqlite3.connect(self.db_path) as conn:
-            conn.executemany(TAG_SQL, [tag_values(fp, tag) for fp, tag in store.entries.items()])
+        self.execute_many(TAG_SQL, [tag_values(fp, tag) for fp, tag in store.entries.items()])
 
     def write_tag(self, fingerprint: str, tag: Tag) -> None:
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(TAG_SQL, tag_values(fingerprint, tag))
+        self.execute(TAG_SQL, tag_values(fingerprint, tag))
 
     def relocate(self, src: str, dst: str, root: Path) -> None:
         if set_aside(dst):
             return self.remove(src)
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "UPDATE books SET rel_path = ?, path = ?, folder = ? WHERE rel_path = ?",
-                (dst, str(root / dst), str(Path(dst).parent), src),
-            )
+        self.execute(
+            "UPDATE books SET rel_path = ?, path = ?, folder = ? WHERE rel_path = ?", (dst, str(root / dst), str(Path(dst).parent), src)
+        )
 
     def remove(self, rel_path: str) -> None:
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("DELETE FROM books WHERE rel_path = ?", (rel_path,))
+        self.execute("DELETE FROM books WHERE rel_path = ?", (rel_path,))
 
     def duplicates(self) -> list[DuplicateGroup]:
-        with self.connect() as conn:
-            rows = conn.execute(f"SELECT {', '.join(COLUMNS)} FROM books WHERE norm_title != '' ORDER BY norm_title, rel_path").fetchall()
         groups = defaultdict(list)
-        for row in rows:
+        for row in self.rows(f"{SELECT_ROWS} WHERE norm_title != '' ORDER BY norm_title, rel_path"):
             groups[row.norm_title].append(row)
         return [DuplicateGroup(books[0].title, books) for books in groups.values() if len(books) > 1]
 

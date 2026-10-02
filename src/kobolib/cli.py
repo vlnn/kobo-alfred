@@ -109,7 +109,7 @@ def run_index() -> tuple[int, str]:
     if not root.exists():
         return 1, f"Library root not mounted: {root}"
     try:
-        count = build_index(root, db_path(), covers_dir(), thumbnails=False, exclude=(data_dir(),))
+        count = build_index(root, db_path(), covers_dir(), exclude=(data_dir(),))
     except IndexBusy:
         return 1, "Indexing is already running"
     if count == 0:
@@ -481,7 +481,7 @@ def run_index_sources() -> tuple[int, str]:
     if not found:
         return 1, f"No source is mounted: {', '.join(map(str, missing))}"
     try:
-        count = build_sources_index(found, sources_db_path(), covers_dir(), thumbnails=False, exclude=(data_dir(),))
+        count = build_sources_index(found, sources_db_path(), covers_dir(), exclude=(data_dir(),))
     except IndexBusy:
         return 1, "Indexing is already running"
     skipped = f", skipped {len(missing)} unmounted" if missing else ""
