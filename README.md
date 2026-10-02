@@ -64,14 +64,17 @@ From a terminal: `KOBO_ROOT=… KOBO_DATA=… uv run kobolib index|search|dups|r
 ## Organizing
 
 The folder tree is the on-device browser, so it should encode exactly one thing: genre → author → series.
-`kobolib` keeps a tag store (`tags.tsv` next to the index) keyed by a content fingerprint, so tags survive
-renames and moves. The fingerprint is a hash of the book's text — an epub's HTML files regardless of their
-names or order, an fb2's `<body>` — so a repacked epub, a swapped cover or edited metadata is still the same
-book; other formats, partial downloads and unreadable files are hashed whole. `kb:index` computes it while
-reading each book (it reads every byte, so a full reindex of a large card takes a minute or two longer), and
-carries tags over by path when a book's fingerprint changes. `kb:index` bootstraps a genre for every book from its first two folder levels
+`kb:index` bootstraps a genre for every book from its first two folder levels
 (`01_Fiction/01_Sci-Fi_Fantasy/…` → `fiction/sci-fi_fantasy`); books under `00_Inbox` or `99_Archives`
 stay unclassified and show up in `kb:inbox`.
+
+Genres and tags live in a tag store (`tags.tsv` next to the index) keyed by a fingerprint of the book's
+*text*, not its bytes: for an epub the set of its HTML files (whatever they are named or ordered), for an fb2
+its `<body>`. A renamed, moved or repacked epub, a swapped cover or edited metadata is therefore still the
+same book and keeps its tags; other formats, partial downloads and unreadable files are hashed whole.
+`kb:index` computes the fingerprint while reading each book — it reads every byte, so a full reindex of a big
+card takes a minute or two longer — and if a book's fingerprint has changed since the last run, its tags are
+carried over by path.
 
 Setting a genre (`kb:classify`, or ⇧↩ "Fix" on any book) moves the book to its genre home right away —
 `genre/author[/series]/` with a normalised filename — and updates that book's row in the index (no full
@@ -139,18 +142,23 @@ one book of the series. Partial downloads and unclassified books are never moved
 ## Other sources
 
 Set **Other sources** (`KOBO_SOURCES`, paths separated by `:`) to the folders of ebooks that are not the
-library yet — a Calibre library, a downloads folder, an old reader's card. `kb:index` (or `kb update`) then also indexes them into a
-separate `sources.db`; an unmounted source is skipped and mentioned, never an error. `kb:src` searches it with the same query syntax, and
-the source folder's name is part of the path, so `kb:src in:calibre` narrows by source. Books whose
-fingerprint is already in the library are not listed — `kb:src` only ever shows what you could still import —
-and neither are `.part` downloads, epubs and fb2s that cannot be read, or pdf/mobi/azw/djvu files without
-their signature bytes.
+library yet — a Calibre library, a downloads folder, an old reader's card. `kb:index` (or `kb update`) then
+also indexes them into a separate `sources.db`; an unmounted source is skipped and mentioned, never an error.
+`kb:src` searches it with the same query syntax, and the source folder's name is part of the path, so
+`kb:src in:calibre` narrows by source.
+
+`kb:src` only ever shows what you could still import. Left out of the sources index:
+
+- books whose fingerprint is already in the library, under any name or path;
+- `.part` downloads;
+- epubs and fb2s that cannot be read;
+- pdf / mobi / azw / azw3 / djvu files without their signature bytes (`%PDF`, `BOOKMOBI`, `AT&TFORM`).
 
 ↩ copies the book into the library's inbox folder (the one whose name is `inbox` after the order prefix, or a
 new `_inbox/`) and adds it to the library index right away — no full reindex — so it shows up in `kb`,
 `kb:inbox` and `kb:classify` immediately. ⌥↩ moves instead of copying. Nothing is overwritten: an occupied
-destination refuses the import, and so does an unreadable or unfinished file. From a terminal: `kobolib index` (both), `kobolib index-sources` (sources only), `kobolib sources "query"`,
-`kobolib import [--move] <path>`.
+destination refuses the import, and so does an unreadable or unfinished file. From a terminal: `kobolib index`
+(both), `kobolib index-sources` (sources only), `kobolib sources "query"`, `kobolib import [--move] <path>`.
 
 ## Metadata sources
 
