@@ -11,7 +11,7 @@ from pathlib import Path
 from kobolib.covers import THUMBNAIL_FORMATS, ensure_cover
 from kobolib.metadata import read_book
 from kobolib.model import Book, DuplicateGroup, Row, Tag
-from kobolib.query import Query
+from kobolib.query import SQL_CLAUSES, STATE_CLAUSES, Query
 from kobolib.scan import SKIP_FOLDERS, iter_books
 from kobolib.tags import TagStore
 
@@ -23,16 +23,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
     tokenize = 'unicode61 remove_diacritics 2'
 );
 """
-
-FILTER_SQL = {
-    "fmt": "format = :fmt",
-    "in": "lower(folder) LIKE '%' || :in || '%'",
-    "lang": "lower(language) = :lang",
-    "year": "year = :year",
-    "genre": "(genre = :genre OR genre LIKE :genre || '/%')",
-    "tag": "',' || tags || ',' LIKE '%,' || :tag || ',%'",
-}
-
 
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
@@ -287,12 +277,10 @@ def where_clauses(query: Query) -> tuple[list[str], dict]:
     if match := query.fts_match():
         clauses.append("books MATCH :match")
         params["match"] = match
-    for key, sql in FILTER_SQL.items():
+    for key, sql in SQL_CLAUSES.items():
         if key in query.filters:
             clauses.append(sql)
             params[key] = query.filters[key]
-    if query.filters.get("is") == "partial":
-        clauses.append("partial = 1")
-    if query.filters.get("is") == "complete":
-        clauses.append("partial = 0")
+    if state := STATE_CLAUSES.get(query.filters.get("is", "")):
+        clauses.append(state)
     return clauses, params

@@ -2,8 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-FILTER_KEYS = {"fmt", "in", "author", "series", "lang", "is", "year", "genre", "tag"}
-FTS_COLUMN_FILTERS = {"author": "authors", "series": "series"}
+FTS_COLUMNS = {"author": "authors", "series": "series"}
+SQL_CLAUSES = {
+    "fmt": "format = :fmt",
+    "in": "lower(folder) LIKE '%' || :in || '%'",
+    "lang": "lower(language) = :lang",
+    "year": "year = :year",
+    "genre": "(genre = :genre OR genre LIKE :genre || '/%')",
+    "tag": "',' || tags || ',' LIKE '%,' || :tag || ',%'",
+}
+STATE_CLAUSES = {"partial": "partial = 1", "complete": "partial = 0"}
+FILTER_KEYS = FTS_COLUMNS.keys() | SQL_CLAUSES.keys() | {"is"}
 
 
 @dataclass
@@ -12,7 +21,7 @@ class Query:
     filters: dict[str, str] = field(default_factory=dict)
 
     def fts_match(self) -> str:
-        column_terms = [f"{column}:{fts_token(self.filters[key])}" for key, column in FTS_COLUMN_FILTERS.items() if key in self.filters]
+        column_terms = [f"{column}:{fts_token(self.filters[key])}" for key, column in FTS_COLUMNS.items() if key in self.filters]
         return " ".join(column_terms + [fts_token(t) for t in self.terms])
 
     def is_empty(self) -> bool:
@@ -35,7 +44,8 @@ def parse_query(raw: str) -> Query:
     query = Query()
     for word in raw.split():
         if parsed := split_filter(word):
-            query.filters.__setitem__(*parsed)
+            key, value = parsed
+            query.filters[key] = value
         else:
             query.terms.append(word)
     return query
