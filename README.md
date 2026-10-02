@@ -13,7 +13,6 @@ kb:rnd fmt:epub              five random complete books, filters allowed
 kb:stats                     counts: books, incomplete downloads, duplicate titles
 kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
 kb:inbox                     books without a genre yet, oldest first
-kb:classify                  pick a genre for an inbox book; it moves to its genre home at once
 kb:plan                      proposed moves/renames/trash, written to plan.tsv — ↩ on a row applies that line, ↩ on the head row applies all
 kb:apply                     apply plan.tsv, then rebuild the index
 kb:undo                      move the last batch back
