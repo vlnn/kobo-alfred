@@ -425,6 +425,51 @@ def test_search_explains_index_bound_commands_before_any_index(env, capsys, quer
     assert first["title"] == "No index yet" and first["valid"] is False, f"kb {query} without an index should point at kb:index, not crash"
 
 
+@pytest.mark.parametrize(
+    "query, suggested",
+    [
+        ("ind", ["index"]),
+        ("IN", ["inbox", "index"]),
+        ("cl", ["classify"]),
+        ("so", ["sources"]),
+        ("ap", ["apply"]),
+        ("ra", ["random"]),
+        ("sr", ["src"]),
+    ],
+)
+def test_search_suggests_commands_matching_a_typed_prefix(indexed, capsys, query, suggested):
+    items = run(["search", query], capsys)["items"]
+
+    hints = [i for i in items if i.get("autocomplete", "").rstrip() in suggested]
+    assert [h["autocomplete"] for h in hints] == [f"{s} " for s in suggested], f"kb {query} should offer to complete to kb {suggested}"
+    assert all(h["valid"] is False and h["title"] == f"kb {h['autocomplete'].strip()}" for h in hints), (
+        "a suggestion completes the word on ↩/⇥ rather than acting"
+    )
+    assert items[: len(hints)] == hints, "suggestions come before any books matching the letters"
+
+
+def test_search_suggestions_follow_the_prefix_into_the_books(indexed, library, capsys):
+    (library / "00_Inbox" / "Index Cards - Smith, John.pdf").write_bytes(b"%PDF-1.4")
+    main(["index"])
+    capsys.readouterr()
+
+    titles = [i["title"] for i in run(["search", "ind"], capsys)["items"]]
+    assert titles == ["kb index", "Index Cards"], "the completion hint sits above the books that match the letters"
+
+
+@pytest.mark.parametrize("query", ["i", "ind deep", "index", "zzz"])
+def test_search_does_not_suggest_commands_for_other_input(indexed, capsys, query):
+    items = run(["search", query], capsys)["items"]
+    assert not any(i.get("autocomplete", "").endswith(" ") and i.get("valid") is False for i in items), (
+        "a single letter, a prefix followed by more words, a complete command or a non-prefix should not produce completion hints"
+    )
+
+
+def test_search_suggests_commands_before_any_index(env, capsys):
+    items = run(["search", "ind"], capsys)["items"]
+    assert items[0]["autocomplete"] == "index ", "completing to kb index must work before the first index exists"
+
+
 def test_notify_passes_the_message_as_an_argument(mocker):
     run = mocker.patch("kobolib.cli.subprocess.run")
     message = 'Deep "Work" → C:\\Users'

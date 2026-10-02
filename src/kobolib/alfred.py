@@ -177,6 +177,10 @@ def empty_item(query: str) -> dict:
     }
 
 
+def suggestion_item(command: str, help: str) -> dict:
+    return {"uid": f"kb:{command}", "title": f"kb {command}", "subtitle": help, "autocomplete": f"{command} ", "valid": False}
+
+
 def message_item(title: str, subtitle: str = "") -> dict:
     return {"title": title, "subtitle": subtitle, "valid": False}
 

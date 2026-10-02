@@ -6,6 +6,8 @@ import random
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from kobolib import alfred
@@ -151,13 +153,9 @@ def split_command(raw: str) -> tuple[str, str]:
 def search_items(raw: str) -> list[dict]:
     command, rest = split_command(raw)
     if not command:
-        return book_items(raw)
+        return suggestions(raw) + book_items(raw)
     books = [b for b in book_items(raw) if b.get("valid") is not False]
     return command_items(command, rest) + books
-
-
-def needs_index(command: str) -> bool:
-    return command not in INDEX_FREE_COMMANDS
 
 
 def with_action(item: dict, action: str) -> dict:
@@ -165,10 +163,22 @@ def with_action(item: dict, action: str) -> dict:
 
 
 def command_items(command: str, rest: str) -> list[dict]:
-    items, action = COMMANDS[command]
-    if needs_index(command) and not db_path().exists():
+    chosen = COMMANDS[command]
+    if chosen.needs_index and not db_path().exists():
         return without_index_items()
-    return [with_action(i, action) for i in items(rest)]
+    return [with_action(i, chosen.action) for i in chosen.items(rest)]
+
+
+def completes(word: str, command: Command) -> str:
+    return next((name for name in command.names if name.startswith(word)), "")
+
+
+def suggestions(raw: str) -> list[dict]:
+    word = raw.strip().lower()
+    if len(word) < MIN_SUGGESTION_PREFIX or " " in word or word in COMMANDS:
+        return []
+    completions = sorted((name, command) for command in COMMAND_LIST if (name := completes(word, command)))
+    return [alfred.suggestion_item(name, command.help) for name, command in completions]
 
 
 def action_item(title: str, subtitle: str) -> dict:
@@ -550,30 +560,47 @@ def cmd_stats(args) -> int:
     return 0
 
 
-INDEX_FREE_COMMANDS = {"index", "update", "apply", "undo", "src", "sources"}
+@dataclass(frozen=True)
+class Command:
+    name: str
+    items: Callable[[str], list[dict]]
+    action: str
+    help: str
+    aliases: tuple[str, ...] = ()
+    needs_index: bool = True
 
-COMMANDS = {
-    "stats": (all_stats_items, "stats"),
-    "dups": (dups_items, "dups"),
-    "rnd": (random_items, "open"),
-    "random": (random_items, "open"),
-    "lint": (lint_items, "open"),
-    "inbox": (inbox_items, "open"),
-    "classify": (classify_items, "classify"),
-    "plan": (written_plan_items, "apply-one"),
-    "src": (sources_items, "import"),
-    "sources": (sources_items, "import"),
-    "index": (
-        lambda q: [action_item("Rebuild the index", "Library and sources: reads every book, extracts covers · same as kb:index")],
-        "index",
-    ),
-    "update": (
-        lambda q: [action_item("Rebuild the index", "Library and sources: reads every book, extracts covers · same as kb:index")],
-        "index",
-    ),
-    "apply": (lambda q: [action_item("Apply the plan", "Runs what kb:plan showed, then rebuilds the index · same as kb:apply")], "apply"),
-    "undo": (lambda q: [action_item("Undo the last apply", "Reverses the last batch of moves · same as kb:undo")], "undo"),
-}
+    @property
+    def names(self) -> tuple[str, ...]:
+        return (self.name, *self.aliases)
+
+
+def index_items(query: str) -> list[dict]:
+    return [action_item("Rebuild the index", "Library and sources: reads every book, extracts covers · same as kb:index")]
+
+
+def apply_items(query: str) -> list[dict]:
+    return [action_item("Apply the plan", "Runs what kb:plan showed, then rebuilds the index · same as kb:apply")]
+
+
+def undo_items(query: str) -> list[dict]:
+    return [action_item("Undo the last apply", "Reverses the last batch of moves · same as kb:undo")]
+
+
+COMMAND_LIST = [
+    Command("stats", all_stats_items, "stats", "counts: books, incomplete downloads, duplicate titles"),
+    Command("dups", dups_items, "dups", "same title in several files or formats"),
+    Command("rnd", random_items, "open", "five random complete books, filters allowed", aliases=("random",)),
+    Command("lint", lint_items, "open", "problems: junk, partial downloads, noisy names, duplicates, misfiled series"),
+    Command("inbox", inbox_items, "open", "books without a genre yet, oldest first"),
+    Command("classify", classify_items, "classify", "pick an inbox book, then a genre"),
+    Command("plan", written_plan_items, "apply-one", "proposed moves, renames and trash · ↩ on a row applies it"),
+    Command("src", sources_items, "import", "search the other sources · ↩ imports into the inbox", aliases=("sources",), needs_index=False),
+    Command("index", index_items, "index", "rebuild the library and sources index", aliases=("update",), needs_index=False),
+    Command("apply", apply_items, "apply", "apply plan.tsv, then rebuild the index", needs_index=False),
+    Command("undo", undo_items, "undo", "move the last batch back", needs_index=False),
+]
+COMMANDS = {name: command for command in COMMAND_LIST for name in command.names}
+MIN_SUGGESTION_PREFIX = 2
 
 
 def build_parser() -> argparse.ArgumentParser:
