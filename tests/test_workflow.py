@@ -131,7 +131,7 @@ def route(workflow: dict, item: dict) -> str:
     ],
 )
 def test_enter_on_a_kb_row_reaches_the_same_object_as_the_keyword(workflow, indexed, query, destination, arg):
-    from kobolib.cli import search_items
+    from kobolib.commands import search_items
 
     first = next(i for i in search_items(query) if i.get("valid", True))
 

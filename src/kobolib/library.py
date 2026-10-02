@@ -1,0 +1,194 @@
+from __future__ import annotations
+
+import shutil
+from pathlib import Path
+
+from kobolib.apply import Applied, apply
+from kobolib.config import (
+    covers_dir,
+    data_dir,
+    db_path,
+    journal_path,
+    library_root,
+    mounted_sources,
+    plan_path,
+    sources,
+    sources_db_path,
+    tag_store,
+)
+from kobolib.index import Index, IndexBusy, build_index, build_sources_index
+from kobolib.lint import lint
+from kobolib.model import Operation, Row, Tag
+from kobolib.paths import relative_path
+from kobolib.plan import plan, read_plan, relocation
+from kobolib.query import parse_query
+from kobolib.scan import fingerprint, probe_root
+from kobolib.tags import TagStore, folder_slug, genre_from_folder
+
+
+def all_rows(index: Index) -> list:
+    return index.search(parse_query(""), limit=100_000)
+
+
+def bootstrap_tags() -> int:
+    store, index = tag_store(), Index(db_path())
+    added = store.bootstrap(all_rows(index))
+    store.save()
+    index.write_tags(store)
+    return added
+
+
+def row_by_reference(reference: str, index: Index) -> Row | None:
+    if reference.startswith("/"):
+        return index.by_rel_path(relative_path(Path(reference), library_root()))
+    return index.by_fingerprint(reference)
+
+
+def apply_edits(tag: Tag, edits: list[str]) -> Tag:
+    for edit in edits:
+        if edit.startswith("genre="):
+            tag.genre = edit.removeprefix("genre=").strip().lower()
+        elif edit.startswith("+"):
+            tag.tags = [*tag.tags, edit[1:]]
+        elif edit.startswith("-"):
+            tag.tags = [t for t in tag.tags if t != edit[1:].lower()]
+    return tag
+
+
+def sets_genre(edits: list[str]) -> bool:
+    return any(e.startswith("genre=") for e in edits)
+
+
+def tag_summary(title: str, tag: Tag) -> str:
+    return f"{title} → {tag.genre or 'no genre'}" + (f" · {', '.join(tag.tags)}" if tag.tags else "")
+
+
+def known_genres(index: Index, store: TagStore) -> list[str]:
+    from_tags = {t.genre for t in store.entries.values() if t.genre}
+    from_folders = {g for f in index.folders() if (g := genre_from_folder(f))}
+    return sorted(from_tags | from_folders | set(index.genres()))
+
+
+def run_index() -> tuple[int, str]:
+    root = library_root()
+    if not root.exists():
+        return 1, f"Library root not mounted: {root}"
+    try:
+        count = build_index(root, db_path(), covers_dir(), exclude=(data_dir(),))
+    except IndexBusy:
+        return 1, "Indexing is already running"
+    if count == 0:
+        return 1, f"No books found: {probe_root(root) or f'no ebook files under {root}'}"
+    bootstrap_tags()
+    return 0, f"Indexed {count} books from {root}"
+
+
+def run_index_sources() -> tuple[int, str]:
+    if not sources():
+        return 1, "No sources configured: set KOBO_SOURCES (paths separated by ':')"
+    found, missing = mounted_sources()
+    if not found:
+        return 1, f"No source is mounted: {', '.join(map(str, missing))}"
+    try:
+        count = build_sources_index(found, sources_db_path(), covers_dir(), exclude=(data_dir(),))
+    except IndexBusy:
+        return 1, "Indexing is already running"
+    skipped = f", skipped {len(missing)} unmounted" if missing else ""
+    return 0, f"Indexed {count} books from {len(found)} sources{skipped}"
+
+
+def findings() -> list:
+    return lint(all_rows(Index(db_path())), tag_store(), library_root(), exclude=(data_dir(),))
+
+
+def text_report(findings) -> str:
+    return "\n".join(f"{f.rule}\t{f.detail}\t{' | '.join(f.rel_paths)}" for f in findings)
+
+
+def unclassified_rows(query: str = "") -> list[Row]:
+    return Index(db_path()).unclassified(query)
+
+
+def current_plan():
+    rows, store = all_rows(Index(db_path())), tag_store()
+    return plan(rows, lint(rows, store, library_root(), exclude=(data_dir(),)), store)
+
+
+def plan_is_stale() -> bool:
+    return plan_path().stat().st_mtime < db_path().stat().st_mtime
+
+
+def fresh_plan() -> list[Operation]:
+    if not plan_path().exists() or plan_is_stale():
+        return []
+    return read_plan(plan_path())
+
+
+def ops_for_one(path: str) -> list[Operation]:
+    rel = relative_path(Path(path), library_root())
+    if planned := [o for o in fresh_plan() if o.src == rel]:
+        return planned
+    index = Index(db_path())
+    row = index.by_rel_path(rel)
+    op = relocation(row, all_rows(index), tag_store()) if row else None
+    return [op] if op else []
+
+
+def refresh_index(result: Applied) -> None:
+    index = Index(db_path())
+    for src, dst in result.moved.items():
+        index.relocate(src, dst, library_root())
+    for src in result.removed:
+        index.remove(src)
+
+
+def skip_reasons(skipped: list[str]) -> str:
+    reasons = sorted({s.rpartition(": ")[2] for s in skipped})
+    return ", ".join(reasons)
+
+
+def apply_summary(result) -> str:
+    if not result.skipped:
+        return f"Applied {result.done}"
+    return f"Applied {result.done}, skipped {len(result.skipped)} ({skip_reasons(result.skipped)})"
+
+
+def rehome(row: Row, index: Index, store: TagStore) -> str:
+    op = relocation(row, all_rows(index), store)
+    if op is None or op.kind != "move":
+        return "stays put (no author or already home)"
+    result = apply([op], library_root(), journal_path())
+    plan_path().unlink(missing_ok=True)
+    refresh_index(result)
+    if result.skipped:
+        return f"not moved: {skip_reasons(result.skipped)}"
+    return f"moved → {Path(op.dst).parent}/"
+
+
+def inbox_folder() -> Path:
+    root = library_root()
+    existing = next((p for p in sorted(root.iterdir()) if p.is_dir() and folder_slug(p.name) == "inbox"), None)
+    return existing or root / "_inbox"
+
+
+def import_blocked(src: Path, dst: Path) -> str:
+    if not src.is_file():
+        return f"source missing: {src}"
+    if dst.exists():
+        return f"destination exists: {relative_path(dst, library_root())}"
+    if (copy := Index(db_path()).by_fingerprint(fingerprint(src))) is not None:
+        return f"already in library: {copy.rel_path}"
+    return ""
+
+
+def transfer(src: Path, dst: Path, move: bool) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if move:
+        shutil.move(src, dst)
+    else:
+        shutil.copy2(src, dst)
+
+
+def not_in_library(rows: list[Row]) -> list[Row]:
+    copies = Index(db_path()).fingerprints_among([r.fingerprint for r in rows]) if db_path().exists() else set()
+    return [r for r in rows if r.fingerprint not in copies]

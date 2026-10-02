@@ -1,0 +1,198 @@
+from __future__ import annotations
+
+import random
+from collections.abc import Callable
+from dataclasses import dataclass
+
+from kobolib import alfred
+from kobolib.config import db_path, library_root, plan_path, sources, sources_db_path
+from kobolib.index import Index
+from kobolib.library import current_plan, findings, known_genres, not_in_library, unclassified_rows
+from kobolib.plan import write_plan
+from kobolib.query import parse_query
+from kobolib.tags import TagStore
+
+
+def without_index_items() -> list[dict]:
+    return [alfred.message_item("No index yet", "Run kb:index to build it")]
+
+
+def book_items(raw: str) -> list[dict]:
+    if not db_path().exists():
+        return without_index_items()
+    index = Index(db_path())
+    rows = index.search(parse_query(raw))
+    if not rows and index.count() == 0:
+        return [alfred.message_item("Index is empty", "Run kb:index with the library mounted; check Alfred's Removable Volumes permission")]
+    return [alfred.book_item(r) for r in rows] or [alfred.empty_item(raw)]
+
+
+def split_command(raw: str) -> tuple[str, str]:
+    word, _, rest = raw.strip().partition(" ")
+    return (word.lower(), rest.strip()) if word.lower() in COMMANDS else ("", raw)
+
+
+def search_items(raw: str) -> list[dict]:
+    command, rest = split_command(raw)
+    if not command:
+        return suggestions(raw) + book_items(raw)
+    books = [b for b in book_items(raw) if b.get("valid") is not False]
+    return command_items(command, rest) + books
+
+
+def with_action(item: dict, action: str) -> dict:
+    return {**item, "variables": {**item.get("variables", {}), "action": action}}
+
+
+def command_items(command: str, rest: str) -> list[dict]:
+    chosen = COMMANDS[command]
+    if chosen.needs_index and not db_path().exists():
+        return without_index_items()
+    return [with_action(i, chosen.action) for i in chosen.items(rest)]
+
+
+def completes(word: str, command: Command) -> str:
+    return next((name for name in command.names if name.startswith(word)), "")
+
+
+def suggestions(raw: str) -> list[dict]:
+    word = raw.strip().lower()
+    if len(word) < MIN_SUGGESTION_PREFIX or " " in word or word in COMMANDS:
+        return []
+    completions = sorted((name, command) for command in COMMAND_LIST if (name := completes(word, command)))
+    return [alfred.suggestion_item(name, command.help) for name, command in completions]
+
+
+def action_item(title: str, subtitle: str) -> dict:
+    return {"title": title, "subtitle": subtitle, "arg": "", "valid": True}
+
+
+def dups_items(query: str = "") -> list[dict]:
+    groups = Index(db_path()).duplicates()
+    return [alfred.duplicate_item(g) for g in groups] or [alfred.message_item("No duplicate titles")]
+
+
+def random_items(query: str) -> list[dict]:
+    rows = Index(db_path()).search(parse_query(query + " is:complete"), limit=5000)
+    picks = random.sample(rows, min(5, len(rows)))
+    return [alfred.book_item(r) for r in picks] or [alfred.empty_item(query)]
+
+
+def inbox_items(query: str) -> list[dict]:
+    return [alfred.inbox_item(r, "") for r in unclassified_rows(query)] or [alfred.message_item("Inbox is empty", "Every book has a genre")]
+
+
+def classify_items(query: str) -> list[dict]:
+    return [alfred.classify_item(r, "") for r in unclassified_rows(query)] or [
+        alfred.message_item("Nothing to classify", "Every book has a genre")
+    ]
+
+
+def lint_items(query: str = "") -> list[dict]:
+    return [alfred.finding_item(f, str(library_root())) for f in findings()] or [
+        alfred.message_item("Nothing to fix", "The library is clean")
+    ]
+
+
+def written_plan_items(query: str = "") -> list[dict]:
+    ops = current_plan()
+    write_plan(ops, plan_path())
+    return plan_items(ops)
+
+
+def plan_items(ops) -> list[dict]:
+    if not ops:
+        return [alfred.message_item("Nothing to do", "Every classified book is where it belongs")]
+    return [alfred.apply_all_item(len(ops)), *(alfred.plan_item(o, str(library_root())) for o in ops)]
+
+
+def genre_edits(query: str, index: Index, store: TagStore, book: str) -> list[dict]:
+    genres = [g for g in known_genres(index, store) if g.startswith(query)]
+    items = [alfred.edit_item(f"genre={g}", g, book, uid=f"genre:{g}") for g in genres]
+    if query and not genres:
+        items.append(alfred.edit_item(f"genre={query}", f"New genre: {query}", book))
+    return items
+
+
+def tag_edits(query: str, current: list[str], book: str) -> list[dict]:
+    if query.startswith("+") and len(query) > 1:
+        return [alfred.edit_item(query, f"Add tag: {query[1:]}", book)]
+    if query.startswith("-") and len(query) > 1:
+        return [alfred.edit_item(query, f"Remove tag: {query[1:]}", book)]
+    return [alfred.edit_item(f"-{t}", f"Remove tag: {t}", book) for t in current if not query]
+
+
+def source_items(raw: str) -> list[dict]:
+    rows = not_in_library(Index(sources_db_path()).search(parse_query(raw)))
+    return [alfred.source_item(r, None) for r in rows] or [alfred.empty_item(raw)]
+
+
+def sources_items(query: str) -> list[dict]:
+    if not sources_db_path().exists():
+        return [alfred.message_item("No sources index yet", "Set KOBO_SOURCES, then run kb:index")]
+    return source_items(query)
+
+
+def stats_items() -> list[dict]:
+    index = Index(db_path())
+    partial = len(index.search(parse_query("is:partial"), limit=5000))
+    return [
+        alfred.message_item(f"{index.count()} books indexed", str(library_root())),
+        alfred.message_item(f"{partial} incomplete downloads", "kb is:partial"),
+        alfred.message_item(f"{len(index.duplicates())} duplicate titles", "kb:dups"),
+    ]
+
+
+def sources_stats_items() -> list[dict]:
+    if not sources_db_path().exists():
+        return []
+    return [alfred.message_item(f"{Index(sources_db_path()).count()} books in {len(sources())} sources", "kb:src")]
+
+
+def all_stats_items(query: str = "") -> list[dict]:
+    return stats_items() + sources_stats_items()
+
+
+@dataclass(frozen=True)
+class Command:
+    name: str
+    items: Callable[[str], list[dict]]
+    action: str
+    help: str
+    aliases: tuple[str, ...] = ()
+    needs_index: bool = True
+
+    @property
+    def names(self) -> tuple[str, ...]:
+        return (self.name, *self.aliases)
+
+
+def index_items(query: str) -> list[dict]:
+    return [action_item("Rebuild the index", "Library and sources: reads every book, extracts covers · same as kb:index")]
+
+
+def apply_items(query: str) -> list[dict]:
+    return [action_item("Apply the plan", "Runs what kb:plan showed, then rebuilds the index · same as kb:apply")]
+
+
+def undo_items(query: str) -> list[dict]:
+    return [action_item("Undo the last apply", "Reverses the last batch of moves · same as kb:undo")]
+
+
+COMMAND_LIST = [
+    Command("stats", all_stats_items, "stats", "counts: books, incomplete downloads, duplicate titles"),
+    Command("dups", dups_items, "dups", "same title in several files or formats"),
+    Command("rnd", random_items, "open", "five random complete books, filters allowed", aliases=("random",)),
+    Command("lint", lint_items, "open", "problems: junk, partial downloads, noisy names, duplicates, misfiled series"),
+    Command("inbox", inbox_items, "open", "books without a genre yet, oldest first"),
+    Command("classify", classify_items, "classify", "pick an inbox book, then a genre"),
+    Command("plan", written_plan_items, "apply-one", "proposed moves, renames and trash · ↩ on a row applies it"),
+    Command("src", sources_items, "import", "search the other sources · ↩ imports into the inbox", aliases=("sources",), needs_index=False),
+    Command("index", index_items, "index", "rebuild the library and sources index", aliases=("update",), needs_index=False),
+    Command("apply", apply_items, "apply", "apply plan.tsv, then rebuild the index", needs_index=False),
+    Command("undo", undo_items, "undo", "move the last batch back", needs_index=False),
+]
+
+COMMANDS = {name: command for command in COMMAND_LIST for name in command.names}
+
+MIN_SUGGESTION_PREFIX = 2

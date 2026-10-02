@@ -64,8 +64,8 @@ def test_kobo_data_overrides_alfred_data_dir(env, tmp_path, monkeypatch):
 
 
 def test_index_reports_inaccessible_root(env, library, capsys, mocker):
-    mocker.patch("kobolib.cli.build_index", return_value=0)
-    mocker.patch("kobolib.cli.probe_root", return_value="permission denied reading root")
+    mocker.patch("kobolib.library.build_index", return_value=0)
+    mocker.patch("kobolib.library.probe_root", return_value="permission denied reading root")
 
     assert main(["index"]) == 1, "index should fail when no books were found"
     assert "permission denied" in capsys.readouterr().out, "the failure message should explain why"
@@ -82,7 +82,7 @@ def test_index_notify_posts_notification(env, capsys, mocker):
 
 
 def test_index_busy_is_reported(env, capsys, mocker):
-    mocker.patch("kobolib.cli.build_index", side_effect=IndexBusy("busy"))
+    mocker.patch("kobolib.library.build_index", side_effect=IndexBusy("busy"))
 
     assert main(["index"]) == 1, "busy index should exit non-zero"
     assert "already running" in capsys.readouterr().out, "busy index should be explained"
@@ -336,7 +336,7 @@ def test_tag_with_genre_moves_the_book_to_its_genre_home(indexed, library, capsy
 
 
 def test_single_book_moves_update_the_index_in_place(indexed, library, capsys, mocker):
-    rebuild = mocker.patch("kobolib.cli.build_index")
+    rebuild = mocker.patch("kobolib.library.build_index")
     book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
 
     main(["tag", str(book), "genre=productivity"])
@@ -351,7 +351,7 @@ def test_single_book_moves_update_the_index_in_place(indexed, library, capsys, m
 
 
 def test_apply_only_moves_one_book_without_a_full_rebuild(indexed, library, capsys, mocker):
-    rebuild = mocker.patch("kobolib.cli.build_index")
+    rebuild = mocker.patch("kobolib.library.build_index")
     book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
 
     assert main(["apply", "--only", str(book)]) == 0, "a single book can be moved home without a plan file"
