@@ -9,6 +9,7 @@ from kobolib import alfred
 from kobolib.config import db_path, library_root, plan_path, sources, sources_db_path
 from kobolib.index import Index, is_current
 from kobolib.library import current_plan, findings, known_genres, known_tags, not_in_library, unclassified_rows
+from kobolib.model import Row
 from kobolib.plan import write_plan
 from kobolib.query import parse_query
 from kobolib.tags import TagStore
@@ -55,7 +56,17 @@ def search_items(raw: str) -> list[dict]:
 
 
 def with_action(item: dict, action: str) -> dict:
-    return {**item, "variables": {**item.get("variables", {}), "action": action}}
+    mods = {key: {**mod, "variables": {"action": action, **mod.get("variables", {})}} for key, mod in item.get("mods", {}).items()}
+    return {**item, "variables": {**item.get("variables", {}), "action": action}, "mods": mods}
+
+
+def complete(rows: list[Row]) -> list[Row]:
+    return [r for r in rows if not r.partial]
+
+
+def classify_batch(rows: list[Row]) -> dict:
+    books = alfred.LINE.join(r.fingerprint for r in complete(rows))
+    return alfred.batch_mod(f"Classify all {len(complete(rows))} shown", variables={"book": books, "action": "classify"})
 
 
 def command_items(command: str, rest: str) -> list[dict]:
@@ -93,13 +104,15 @@ def random_items(query: str) -> list[dict]:
 
 
 def inbox_items(query: str) -> list[dict]:
-    return [alfred.inbox_item(r) for r in unclassified_rows(query)] or [alfred.message_item("Inbox is empty", "Every book has a genre")]
+    rows = unclassified_rows(query)
+    items = alfred.with_batch([alfred.inbox_item(r) for r in rows], classify_batch(rows))
+    return items or [alfred.message_item("Inbox is empty", "Every book has a genre")]
 
 
 def classify_items(query: str) -> list[dict]:
-    return [alfred.classify_item(r) for r in unclassified_rows(query)] or [
-        alfred.message_item("Nothing to classify", "Every book has a genre")
-    ]
+    rows = unclassified_rows(query)
+    items = alfred.with_batch([alfred.classify_item(r) for r in rows], classify_batch(rows))
+    return items or [alfred.message_item("Nothing to classify", "Every book has a genre")]
 
 
 def lint_items(query: str = "") -> list[dict]:
@@ -117,7 +130,8 @@ def written_plan_items(query: str = "") -> list[dict]:
 def plan_items(ops) -> list[dict]:
     if not ops:
         return [alfred.message_item("Nothing to do", "Every classified book is where it belongs")]
-    return [alfred.apply_all_item(len(ops)), *(alfred.plan_item(o, str(library_root())) for o in ops)]
+    rows = alfred.with_batch([alfred.plan_item(o, str(library_root())) for o in ops], alfred.batch_mod(f"Apply all {len(ops)} operations"))
+    return [alfred.apply_all_item(len(ops)), *rows]
 
 
 def contains(fragment: str, text: str) -> bool:
@@ -155,7 +169,8 @@ def tag_edits(query: str, current: list[str], index: Index, book: str) -> list[d
 
 def source_items(raw: str) -> list[dict]:
     rows = not_in_library(Index(sources_db_path()).search(parse_query(raw)))
-    return [alfred.source_item(r) for r in rows] or [alfred.empty_item(raw)]
+    batch = alfred.batch_mod(f"Import all {len(rows)} shown", alfred.LINE.join(r.path for r in rows))
+    return alfred.with_batch([alfred.source_item(r) for r in rows], batch) or [alfred.empty_item(raw)]
 
 
 def sources_items(query: str) -> list[dict]:

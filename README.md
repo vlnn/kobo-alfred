@@ -19,6 +19,8 @@ kb:apply                     apply plan.tsv, then rebuild the index
 kb:undo                      move the last batch back
 kb:classify                  pick an inbox book, then a genre; the inbox shrinks as you go
 kb:src cal newport           search the other sources (same filters) — ↩ copies the book into the library inbox
+⌥⇧↩                          on any row: do what ↩ does to every row shown — kb:src epub imports them all,
+                             kb:classify newport picks one genre for all, kb:plan applies the whole plan
 ```
 
 Inside plain `kb`, a first word that names a command (`stats`, `dups`, `rnd`, `lint`, `inbox`, `classify`, `plan`,
@@ -39,6 +41,7 @@ Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbn
 | ⌃↩           | browse the book's folder     |
 | ⇧ / ⌘Y       | Quick Look                   |
 | ⇧↩           | fix genre / tags             |
+| ⌥⇧↩          | ↩ for every row shown (`kb:src`, `kb:inbox`, `kb:classify`, `kb:plan`) |
 | fn↩          | move to its genre home now   |
 | ⌘C           | copy relative path           |
 | ⌘L           | large type: title/author/path|
@@ -125,7 +128,8 @@ batch (an undo is itself a batch, so undoing twice re-applies); a deleted copy c
 are left for you, and both are ignored by the scanner.
 
 `kb:classify` is the daily loop: type to find an inbox book, ↩, type a genre (existing ones are listed, an
-unknown one is created), ↩. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy +now -bought`.
+unknown one is created), ↩. Narrow the inbox to a batch instead (`kb:classify newport`, `kb:inbox author:…`) and
+⌥⇧↩ opens the same picker for every complete book listed; the genre you choose applies to all of them. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy +now -bought`.
 Genres and tags are searchable (`kb genre:fiction tag:now`); `genre:` matches by prefix.
 
 Any book you have just found — in `kb`, `kb:inbox`, or after `kb term` — can be fixed in place with ⇧↩: the
@@ -157,11 +161,13 @@ also indexes them into a separate `sources.db`; an unmounted source is skipped a
 - pdf / mobi / azw / azw3 / djvu files without their signature bytes (`%PDF`, `BOOKMOBI`, `AT&TFORM`).
 
 ↩ copies the book into the library's inbox folder (the one whose name is `inbox` after the order prefix, or a
-new `_inbox/`) and adds it to the library index right away — no full reindex — so it shows up in `kb`,
+new `_inbox/`); ⌥⇧↩ does the same for every book in the list (`kb:src in:calibre fmt:epub`, then ⌥⇧↩). Each
+import adds the book to the library index right away — no full reindex — so it shows up in `kb`,
 `kb:inbox` and `kb:classify` immediately. The source is never touched: import only copies, and once a book is in
 the library its source copy is simply no longer offered. Nothing is overwritten: an occupied destination refuses
 the import, and so does an unreadable or unfinished file. From a terminal: `kobolib index` (both),
-`kobolib index-sources` (sources only), `kobolib sources "query"`, `kobolib import <path>`.
+`kobolib index-sources` (sources only), `kobolib sources "query"`, `kobolib import <path>` (several paths,
+one per line, import as a batch; the notification counts them and names what was skipped).
 
 ## Metadata sources
 

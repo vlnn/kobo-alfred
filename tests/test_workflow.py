@@ -166,8 +166,23 @@ def test_keyword_entry_points_and_kb_words_share_their_targets(workflow):
             )
 
 
-MODIFIER_BITS = {"shift": 131072, "ctrl": 262144, "alt": 524288, "cmd": 1048576, "fn": 8388608}
-MEANING = {"REVEAL": "reveal", "COPY": "copy", "BROWSE": "browse", "FIX": "fix", "APPLY_ONE": "genre home"}
+MODIFIER_BITS = {"shift": 131072, "ctrl": 262144, "alt": 524288, "cmd": 1048576, "fn": 8388608, "alt+shift": 655360}
+MEANING = {
+    "REVEAL": ("reveal",),
+    "COPY": ("copy",),
+    "BROWSE": ("browse",),
+    "FIX": ("fix",),
+    "APPLY_ONE": ("genre home", "apply all"),
+    "IMPORT_RUN": ("import all",),
+    "GENRES": ("classify all",),
+}
+
+
+def resolved(workflow: dict, target: str, item: dict, spec: dict) -> str:
+    if target != "DISPATCH":
+        return target
+    merged = {**item, "variables": {**item.get("variables", {}), **spec.get("variables", {})}}
+    return route(workflow, merged)
 
 
 def modifier_targets(workflow: dict, uid: str) -> dict:
@@ -199,6 +214,9 @@ def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkey
         ("INBOX", lambda: __import__("kobolib.commands", fromlist=["inbox_items"]).inbox_items("")),
         ("LINT", lambda: __import__("kobolib.commands", fromlist=["lint_items"]).lint_items()),
         ("RANDOM", lambda: __import__("kobolib.commands", fromlist=["random_items"]).random_items("")),
+        ("CLASSIFY", lambda: __import__("kobolib.commands", fromlist=["classify_items"]).classify_items("")),
+        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("classify")),
+        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("inbox")),
         ("PLAN", lambda: __import__("kobolib.commands", fromlist=["written_plan_items"]).written_plan_items()),
     ],
 )
@@ -210,6 +228,7 @@ def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_s
         for mod, spec in item["mods"].items():
             target = targets.get(MODIFIER_BITS[mod])
             assert target, f"{filter_uid}: {item['title']!r} declares {mod} but the filter has no {mod} connection"
-            assert MEANING[target].lower() in spec["subtitle"].lower(), (
+            target = resolved(workflow, target, item, spec)
+            assert any(word in spec["subtitle"].lower() for word in MEANING[target]), (
                 f"{filter_uid}: {mod} on {item['title']!r} says {spec['subtitle']!r} but is wired to {target}"
             )

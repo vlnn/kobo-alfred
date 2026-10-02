@@ -181,6 +181,46 @@ def test_sources_items_carry_import_actions(env, capsys):
     assert item["mods"]["alt"]["arg"] == item["mods"]["cmd"]["arg"] == item["arg"], "both modifiers act on the source file itself"
 
 
+def test_sources_rows_offer_importing_the_whole_list(env, capsys):
+    main(["index-sources"])
+    capsys.readouterr()
+
+    items = run_items(["sources", ""], capsys)
+
+    everyone = "\n".join(i["arg"] for i in items)
+    for item in items:
+        assert item["mods"]["alt+shift"]["arg"] == everyone, "⌥⇧↩ imports every listed book"
+        assert item["mods"]["alt+shift"]["subtitle"] == f"Import all {len(items)} shown", "the subtitle should count the books"
+
+
+def run_items(argv: list[str], capsys) -> list[dict]:
+    main(argv)
+    return output(capsys)["items"]
+
+
+def test_import_copies_many_books_at_once(env, library, calibre, capsys):
+    paths = "\n".join(str(p) for p in sorted(calibre.rglob("*.epub")))
+
+    assert main(["import", paths]) == 0, "a batch import should succeed"
+
+    assert capsys.readouterr().out.startswith("Imported 2 books → 00_Inbox/"), "the summary should count the books"
+    assert sorted(p.name for p in (library / "00_Inbox").glob("*.epub")) == [
+        "A World Without Email.epub",
+        "Slow Productivity - Cal Newport.epub",
+    ], "both books should land in the inbox"
+
+
+def test_import_batch_reports_what_it_skipped(env, calibre, downloads, capsys):
+    paths = f"{calibre / 'Misc' / 'A World Without Email.epub'}\n{downloads / 'deep_work_copy.epub'}"
+
+    assert main(["import", paths]) == 0, "one blocked book does not fail the batch"
+
+    out = capsys.readouterr().out
+    assert out.startswith("Imported A World Without Email → 00_Inbox/") and "skipped 1: already in library" in out, (
+        "a single import is named, skipped ones are counted with their reason"
+    )
+
+
 def test_import_copies_into_inbox_and_indexes(env, library, calibre, capsys):
     main(["index-sources"])
     capsys.readouterr()

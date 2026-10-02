@@ -592,3 +592,63 @@ def test_notify_passes_the_message_as_an_argument(mocker):
     argv = run.call_args.args[0]
     assert argv[-1] == message, "the message must reach osascript verbatim, never spliced into the script"
     assert not any(message in a for a in argv[:-1]), "the message must not be interpolated into the AppleScript source"
+
+
+def fingerprints_of(items: list[dict]) -> list[str]:
+    return [i["variables"]["book"] for i in items if i.get("valid", True)]
+
+
+def test_classify_rows_offer_the_whole_list_on_alt_shift(indexed, capsys):
+    items = run(["classify", ""], capsys)["items"]
+    everyone = "\n".join(fingerprints_of(items))
+
+    for item in (i for i in items if i.get("valid", True)):
+        batch = item["mods"]["alt+shift"]
+        assert batch["arg"] == "" and batch["variables"]["book"] == everyone, "⌥⇧↩ opens the genre picker for every listed book"
+        assert batch["subtitle"] == f"Classify all {len(fingerprints_of(items))} shown", "the subtitle should count the books"
+    assert len(fingerprints_of(items)) == 2, "partial downloads are listed but not part of the batch"
+
+
+def test_inbox_rows_offer_classifying_the_whole_list(indexed, capsys):
+    items = run(["inbox", ""], capsys)["items"]
+
+    batch = next(i for i in items if i.get("valid", True))["mods"]["alt+shift"]
+    assert batch["variables"]["action"] == "classify", "from kb inbox the batch must be routed to the genre picker"
+    assert batch["variables"]["book"].count("\n") == 1, "both complete inbox books travel together"
+
+
+def test_tag_classifies_many_books_at_once(indexed, library, capsys):
+    books = "\n".join(fingerprints_of(run(["inbox", ""], capsys)["items"]))
+
+    assert main(["tag", books, "genre=reference"]) == 0, "tagging several books should succeed"
+
+    assert capsys.readouterr().out.startswith("2 books → reference"), "the summary should count the books"
+    assert fingerprints_of(run(["inbox", ""], capsys)["items"]) == [], "both books leave the inbox; only the partial download stays"
+    assert len(run(["search", "genre:reference"], capsys)["items"]) == 2, "both books carry the genre"
+
+
+def test_tag_skips_unknown_references_in_a_batch(indexed, library, capsys):
+    known = fingerprints_of(run(["inbox", ""], capsys)["items"])[0]
+
+    assert main(["tag", f"{known}\nnope", "+now"]) == 0, "one unknown reference does not fail the batch"
+    assert "skipped 1" in capsys.readouterr().out, "the unknown reference should be mentioned"
+
+
+def test_genres_for_many_books_says_so(indexed, capsys, monkeypatch):
+    monkeypatch.setenv("book", "aaa\nbbb")
+
+    items = run(["genres", ""], capsys)["items"]
+
+    assert items[0]["title"] == "Genre for 2 books" and items[0]["valid"] is False, "a header should say the pick applies to all"
+    assert items[1]["variables"] == {"book": "aaa\nbbb"}, "every genre item carries all the books on"
+
+
+def test_plan_rows_offer_apply_all_on_alt_shift(indexed, capsys):
+    items = run(["plan"], capsys)["items"]
+    rows = [i for i in items if i["uid"] != "plan:apply-all"]
+
+    assert rows, "the fixture library should have something to plan"
+    for row in rows:
+        assert row["mods"]["alt+shift"]["arg"] == "" and row["mods"]["alt+shift"]["subtitle"].startswith("Apply all"), (
+            "⌥⇧↩ on a plan row applies the whole plan, like the head row"
+        )

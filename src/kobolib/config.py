@@ -54,3 +54,7 @@ def tag_store() -> TagStore:
 
 def selected_book() -> str:
     return os.environ.get("book", "")
+
+
+def selected_books() -> list[str]:
+    return selected_book().splitlines()

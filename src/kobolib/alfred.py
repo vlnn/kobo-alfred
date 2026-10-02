@@ -51,6 +51,18 @@ def modifiers(row: Row) -> dict:
     }
 
 
+BATCH = "alt+shift"
+LINE = "\n"
+
+
+def batch_mod(subtitle: str, arg: str = "", variables: dict | None = None) -> dict:
+    return {"arg": arg, "subtitle": subtitle, **({"variables": variables} if variables else {})}
+
+
+def with_batch(items: list[dict], mod: dict) -> list[dict]:
+    return [{**i, "mods": {**i.get("mods", {}), BATCH: mod}} if i.get("valid", True) else i for i in items]
+
+
 def book_item(row: Row) -> dict:
     title = f"⚠︎ {row.title} (incomplete download)" if row.partial else row.title
     return {

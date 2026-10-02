@@ -24,7 +24,7 @@ from kobolib.commands import (
     tag_edits,
     without_index_items,
 )
-from kobolib.config import covers_dir, db_path, journal_path, library_root, plan_path, selected_book, sources, tag_store
+from kobolib.config import covers_dir, db_path, journal_path, library_root, plan_path, selected_book, selected_books, sources, tag_store
 from kobolib.index import Index, add_book, fill_thumbnails, index_busy
 from kobolib.library import (
     apply_edits,
@@ -45,8 +45,9 @@ from kobolib.library import (
     text_report,
     transfer,
 )
-from kobolib.model import Tag
+from kobolib.model import Book, Row, Tag
 from kobolib.plan import read_plan, write_plan
+from kobolib.tags import TagStore
 
 NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobo Library"', "end run")
 
@@ -185,23 +186,34 @@ def cmd_undo(args) -> int:
     return finish_with_reindex(f"Undid {undone}", args.notify)
 
 
-def cmd_tag(args) -> int:
-    if reason := not_writable():
-        return refuse(reason, args.notify)
-    index, store = Index(db_path()), tag_store()
-    row = row_by_reference(args.book, index)
-    if row is None:
-        print(f"Not indexed: {args.book}")
-        return 1
-    tag = apply_edits(store.get(row.fingerprint) or Tag(rel_path=row.rel_path), args.edits)
+def tag_one(row: Row, edits: list[str], index: Index, store: TagStore) -> str:
+    tag = apply_edits(store.get(row.fingerprint) or Tag(rel_path=row.rel_path), edits)
     store.set(row.fingerprint, tag)
     store.save()
     index.write_tag(row.fingerprint, store.get(row.fingerprint))
     summary = tag_summary(row.title, tag)
-    if not sets_genre(args.edits):
-        print(summary)
-        return 0
-    report(f"{summary} · {rehome(row, index, store)}", args.notify)
+    return summary if not sets_genre(edits) else f"{summary} · {rehome(row, index, store)}"
+
+
+def tagged_summary(rows: list[Row], results: list[str], edits: list[str], missing: list[str]) -> str:
+    if len(rows) == 1:
+        return results[0] + skipped_summary(missing)
+    what = " ".join(e for e in edits if e.startswith("genre=")).removeprefix("genre=") or ", ".join(edits)
+    return f"{counted(len(rows), 'book')} → {what}{skipped_summary(missing)}"
+
+
+def cmd_tag(args) -> int:
+    if reason := not_writable():
+        return refuse(reason, args.notify)
+    index, store = Index(db_path()), tag_store()
+    found = {ref: row_by_reference(ref, index) for ref in args.book.splitlines() if ref}
+    rows = [row for row in found.values() if row is not None]
+    missing = [f"not indexed: {ref}" for ref, row in found.items() if row is None]
+    if not rows:
+        print("; ".join(missing).capitalize())
+        return 1
+    results = [tag_one(row, args.edits, index, store) for row in rows]
+    report(tagged_summary(rows, results, args.edits, missing), args.notify)
     return 0
 
 
@@ -223,12 +235,19 @@ def cmd_fix(args) -> int:
 
 
 @requires_index
+def batch_header(books: list[str]) -> list[dict]:
+    if len(books) < 2:
+        return []
+    return [alfred.message_item(f"Genre for {len(books)} books", "↩ on a genre applies it to all of them")]
+
+
 def cmd_genres(args) -> int:
-    book = selected_book()
-    if not book:
+    books = selected_books()
+    if not books:
         print(alfred.render([alfred.message_item("No book selected", "Start from kb:classify")]))
         return 0
-    print(alfred.render(genre_edits(args.query.strip().lower(), Index(db_path()), tag_store(), book)))
+    edits = genre_edits(args.query.strip().lower(), Index(db_path()), tag_store(), selected_book())
+    print(alfred.render(batch_header(books) + edits))
     return 0
 
 
@@ -243,16 +262,38 @@ def cmd_sources(args) -> int:
     return 0
 
 
+def import_one(path: str) -> tuple[Book | None, str]:
+    src, dst = Path(path), inbox_folder() / Path(path).name
+    if reason := import_blocked(src, dst):
+        return None, reason
+    transfer(src, dst)
+    return add_book(db_path(), dst, library_root(), covers_dir()), ""
+
+
+def counted(n: int, noun: str) -> str:
+    return f"{n} {noun}" + ("" if n == 1 else "s")
+
+
+def skipped_summary(reasons: list[str]) -> str:
+    return f" · skipped {len(reasons)}: {'; '.join(reasons)}" if reasons else ""
+
+
+def imported_summary(books: list[Book], reasons: list[str]) -> str:
+    if not books:
+        return f"Not imported: {'; '.join(reasons)}"
+    folder = f"{Path(books[0].rel_path).parent}/"
+    what = books[0].title if len(books) == 1 else counted(len(books), "book")
+    return f"Imported {what} → {folder}{skipped_summary(reasons)}"
+
+
 def cmd_import(args) -> int:
     if reason := not_writable():
         return refuse(reason, args.notify)
-    src, dst = Path(args.book), inbox_folder() / Path(args.book).name
-    if reason := import_blocked(src, dst):
-        return refuse(f"Not imported: {reason}", args.notify)
-    transfer(src, dst)
-    book = add_book(db_path(), dst, library_root(), covers_dir())
-    report(f"Imported {book.title} → {Path(book.rel_path).parent}/", args.notify)
-    return 0
+    outcomes = [import_one(path) for path in args.book.splitlines() if path]
+    books = [book for book, _ in outcomes if book]
+    reasons = [reason for _, reason in outcomes if reason]
+    report(imported_summary(books, reasons), args.notify)
+    return 0 if books else 1
 
 
 @requires_index
