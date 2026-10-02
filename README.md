@@ -13,6 +13,7 @@ kb:rnd fmt:epub              five random complete books, filters allowed
 kb:stats                     counts: books, incomplete downloads, duplicate titles
 kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
 kb:inbox                     books without a genre yet, oldest first
+kb:classify                  pick a genre for an inbox book; it moves to its genre home at once
 kb:plan                      proposed moves/renames/trash, written to plan.tsv — ↩ on a row applies that line, ↩ on the head row applies all
 kb:apply                     apply plan.tsv, then rebuild the index
 kb:undo                      move the last batch back
@@ -61,6 +62,11 @@ renames and moves. `kb:index` bootstraps a genre for every book from its first t
 (`01_Fiction/01_Sci-Fi_Fantasy/…` → `fiction/sci-fi_fantasy`); books under `00_Inbox` or `99_Archives`
 stay unclassified and show up in `kb:inbox`.
 
+Setting a genre (`kb:classify`, or ⇧↩ "Fix" on any book) moves the book to its genre home right away —
+`genre/author[/series]/` with a normalised filename — and refreshes the index; `kb:undo` reverses the move.
+Books without a recognisable author stay put, as do tag-only edits (`+tag`, `-tag`). `kb:plan` / `kb:apply`
+remain for bulk work: junk, duplicates and anything classified before this behaviour existed.
+
 `kb:lint` reports, never changes anything:
 
 | rule | what it catches |
@@ -77,6 +83,7 @@ stay unclassified and show up in `kb:inbox`.
 | `unclassified` | no genre |
 
 From a terminal: `kobolib lint --text` prints one finding per line (`rule<TAB>detail<TAB>paths`).
+`kobolib tag <path|fingerprint> genre=fiction/sci-fi +tag -tag` sets the genre (and moves the book), adds or removes tags.
 
 `kb:plan` turns findings and genres into operations and writes them to `plan.tsv` next to the index
 (`kobolib plan --text` prints it). Review it, delete lines you disagree with; nothing is applied yet.

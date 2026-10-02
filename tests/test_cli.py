@@ -381,3 +381,50 @@ def test_apply_summary_names_the_skip_reason(env, library, tmp_path, capsys):
     main(["apply"])
 
     assert capsys.readouterr().out.startswith("Applied 0, skipped 1 (source missing)"), "the summary should say why operations were skipped"
+
+
+def test_tag_with_genre_moves_the_book_to_its_genre_home(env, library, capsys):
+    main(["index"])
+    capsys.readouterr()
+    book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+
+    assert main(["tag", str(book), "genre=productivity"]) == 0, "tagging with a genre should succeed"
+    out = capsys.readouterr().out
+
+    assert not book.exists(), "the book should leave its old folder as soon as the genre is set"
+    moved = list(library.rglob("*.epub"))
+    assert len(moved) == 1 and moved[0].parts[-3:-1] == ("productivity", "Newport, Cal"), "the book should land in genre/author"
+    assert "Deep Work → productivity" in out and "→ productivity/Newport, Cal/" in out, "the report should name the new home"
+    main(["search", "deep"])
+    assert output(capsys)["items"][0]["subtitle"].count("productivity") >= 1, "the index should already know the new path"
+
+
+def test_tag_without_genre_edit_leaves_the_file_alone(env, library, capsys):
+    main(["index"])
+    capsys.readouterr()
+    book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+
+    assert main(["tag", str(book), "+now"]) == 0, "adding a tag should succeed"
+
+    assert book.exists(), "a tag-only edit should not move anything"
+
+
+def test_tag_with_genre_reports_when_there_is_no_home_yet(env, library, capsys):
+    main(["index"])
+    capsys.readouterr()
+    book = library / "00_Inbox" / "Napkin.pdf"
+
+    assert main(["tag", str(book), "genre=reference"]) == 0, "a book without an author can still be tagged"
+
+    assert book.exists(), "a book whose home cannot be derived stays put"
+    assert "stays put" in capsys.readouterr().out, "the report should say the book was not moved"
+
+
+def test_tag_with_genre_accepts_notify_like_the_other_movers(env, library, mocker):
+    main(["index"])
+    notify = mocker.patch("kobolib.cli.notify")
+    book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+
+    assert main(["tag", "--notify", str(book), "genre=productivity"]) == 0, "--notify should be accepted before the book"
+
+    assert notify.call_count == 1 and "moved → productivity/" in notify.call_args.args[0], "the notification should name the new home"

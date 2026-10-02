@@ -297,8 +297,29 @@ def cmd_tag(args) -> int:
     store.set(row.fingerprint, tag)
     store.save()
     index.write_tags(store)
-    print(f"{row.title} → {tag.genre or 'no genre'}" + (f" · {', '.join(tag.tags)}" if tag.tags else ""))
-    return 0
+    summary = tag_summary(row.title, tag)
+    if not sets_genre(args.edits):
+        print(summary)
+        return 0
+    return finish_with_reindex(f"{summary} · {rehome(row.rel_path)}", args.notify)
+
+
+def sets_genre(edits: list[str]) -> bool:
+    return any(e.startswith("genre=") for e in edits)
+
+
+def tag_summary(title: str, tag: Tag) -> str:
+    return f"{title} → {tag.genre or 'no genre'}" + (f" · {', '.join(tag.tags)}" if tag.tags else "")
+
+
+def rehome(rel_path: str) -> str:
+    ops = [o for o in current_plan() if o.src == rel_path and o.kind == "move"]
+    if not ops:
+        return "stays put (no author or already home)"
+    result = apply(ops, library_root(), journal_path())
+    if result.skipped:
+        return f"not moved: {skip_reasons(result.skipped)}"
+    return f"moved → {Path(ops[0].dst).parent}/"
 
 
 def selected_book() -> str:
@@ -487,6 +508,7 @@ def build_parser() -> argparse.ArgumentParser:
     undo_cmd.set_defaults(func=cmd_undo)
     tag_cmd = sub.add_parser("tag")
     tag_cmd.add_argument("book")
+    tag_cmd.add_argument("--notify", action="store_true")
     tag_cmd.add_argument("edits", nargs=argparse.REMAINDER)
     tag_cmd.set_defaults(func=cmd_tag)
     fix_cmd = sub.add_parser("fix")

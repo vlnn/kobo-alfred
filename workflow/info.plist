@@ -709,7 +709,11 @@ if [ -z "$1" ]; then echo "Applying the plan… you will get a notification when
 				<key>type</key>
 				<integer>0</integer>
 				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib tag "$book" "$1"</string>
+				<string>case "$1" in
+  genre=*) PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib tag --notify "$book" "$1" &gt;/dev/null 2&gt;&amp;1 &amp;
+           echo "Moving to its genre home… you will get a notification when it finishes";;
+  *) PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib tag "$book" "$1";;
+esac</string>
 			</dict>
 		</dict>
 		<dict>
