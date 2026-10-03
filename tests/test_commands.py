@@ -442,3 +442,11 @@ def test_picker_for_several_books_says_how_many(napkin, indexed):
 @pytest.mark.parametrize("books", ["", "nope"])
 def test_picker_without_a_known_book_explains(indexed, books):
     assert titles(picker("", books)) == ["No book selected"], "the picker needs a book to set the genre of"
+
+
+def test_update_row_says_when_an_update_is_running(indexed, tmp_path):
+    (tmp_path / "alfred-data" / "library.lock").write_text("1")
+
+    (row,) = command_rows("update")
+
+    assert row["title"] == "Update is running" and row["valid"] is False, "a running update should be stated, not started twice"
