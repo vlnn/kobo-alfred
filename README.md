@@ -156,6 +156,15 @@ What the model sees is the book's metadata, its `dc:subject`/`dc:description` (f
 
 Suggested operations in `kb fix` apply only when you ↩ on their row (or name the file on the command line): **Fix all**, a bare `kobolib fix` and `--dry-run` stay certain-only. A merge moves books from the alias folders into the canonical one; if a book's embedded author still reads the alias spelling, the planner may later offer to move it back, because folders are derived from metadata — give it a genre with ⇧↩ and look at the row before accepting.
 
+Embeddings need a model made for them, served with `--embeddings`; the chat model that answers the questions cannot do it (the server answers 501 if asked), and a chat server started with `--embeddings` would pool its hidden states into poor vectors. The usual setup is a second server on its own port, pointed at by **Embedding server**:
+
+```sh
+llama-server --hf-repo Geofront/BGE-M3-GGUF --hf-file BGE-M3-Q8_0.gguf \
+  --embeddings --alias bge-m3 -c 2048 -b 2048 -ub 2048 -ngl 99 --port 8081
+```
+
+Any multilingual embedding model with a GGUF does; the batch sizes matter because an embedding model takes each input in one micro-batch, and the workflow sends up to 1 500 characters. If the server wants a key — `--api-key`, or `LLAMA_API_KEY` exported in the shell that started it — put it in **Model server API key**.
+
 With an embedding model chosen too (**Use … for embeddings** in `kb model`), `↩` on *Embed N new books* in `kb model`, `kb stats` or `kb like` embeds the library in the background, and then:
 
 ```
@@ -237,6 +246,7 @@ Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index:
 | *Nothing to fix* | the library is clean |
 | *Model not reachable at …* | start `llama-server`, or fix **Model server**; `kb model` shows whether it answers |
 | every request skipped, `oracle.log` says *401* | the server wants a key: set **Model server API key** (`--api-key` or `LLAMA_API_KEY` on the server side) |
+| `kobolib embed` skips every book | the embedding server answers 501: it was started without `--embeddings`, or with a chat model; see the walkthrough |
 | *No embedding model* in `kb like` | ↩ on a model in `kb model`, then **Use … for embeddings** |
 | *No embeddings yet* | ↩ on that row embeds the library in the background |
 
