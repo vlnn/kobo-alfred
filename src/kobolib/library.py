@@ -22,12 +22,16 @@ from kobolib.config import (
 )
 from kobolib.genres import GenreStore, folder_slug, genre_from_folder
 from kobolib.index import Index, IndexBusy, build_index, build_sources_index
-from kobolib.lint import lint
+from kobolib.lint import all_folders, lint
 from kobolib.metadata import is_sound, read_book
 from kobolib.model import Finding, GenreEntry, Operation, Row
+from kobolib.naming import canonical_name, known_authors
 from kobolib.paths import relative_path
 from kobolib.plan import TRASH, aside, plan, relocations
 from kobolib.scan import probe_root
+from kobolib.suggestions import SuggestionStore
+
+SUGGESTED = "suggested"
 
 
 def all_rows(index: Index) -> list[Row]:
@@ -136,6 +140,32 @@ def current_plan() -> list[Operation]:
     return diagnosis()[1]
 
 
+def confident_names(store: SuggestionStore) -> dict[str, dict]:
+    return {fp: a for fp, a in store.answers("name").items() if a.get("confident") and a.get("title")}
+
+
+def renamed(row: Row, answer: dict, known: frozenset[str]) -> Operation | None:
+    proposed = replace(row, title=answer["title"], authors="; ".join(answer["authors"]))
+    name = canonical_name(proposed, known)
+    if name == Path(row.rel_path).name:
+        return None
+    return Operation("move", row.rel_path, str(Path(row.rel_path).with_name(name)), f"{SUGGESTED} title and author")
+
+
+def suggested_renames(rows: list[Row], store: SuggestionStore) -> list[Operation]:
+    names, known = confident_names(store), frozenset(known_authors(all_folders(rows)))
+    proposals = (renamed(r, names[r.fingerprint], known) for r in rows if r.fingerprint in names and not r.partial)
+    return [op for op in proposals if op is not None]
+
+
+def suggested_operations(rows: list[Row], settled: set[str]) -> list[Operation]:
+    return [op for op in suggested_renames(rows, suggestion_store()) if op.src not in settled]
+
+
+def is_suggested(op: Operation) -> bool:
+    return op.reason.startswith(SUGGESTED)
+
+
 def concerning(words: list[str]) -> Callable[[str], bool]:
     if not words:
         return lambda rel_path: True
@@ -150,7 +180,30 @@ def targeted(targets: list[str]) -> Callable[[str], bool]:
 
 def fix_operations(targets: list[str]) -> list[Operation]:
     wanted = targeted(targets)
-    return [o for o in current_plan() if o.kind in EXECUTABLE and wanted(o.src)]
+    certain = [o for o in current_plan() if o.kind in EXECUTABLE and wanted(o.src)]
+    if not targets:
+        return certain
+    suggested = suggested_operations(all_rows(library_index()), {o.src for o in certain})
+    return certain + [o for o in suggested if wanted(o.src)]
+
+
+def apply_fixes(ops: list[Operation]) -> Applied:
+    index = library_index()
+    acted = [index.by_rel_path(o.src) for o in ops if is_suggested(o)]
+    result = apply(ops, library_root(), journal_path())
+    forget_suggestions([r.fingerprint for r in acted if r and r.rel_path in result.moved], "name")
+    refresh_index(result)
+    return result
+
+
+def dismiss_book(reference: str) -> str:
+    row = row_by_reference(reference, library_index())
+    if row is None:
+        return ""
+    store = suggestion_store()
+    store.dismiss(row.fingerprint)
+    store.save()
+    return row.title
 
 
 def pending_operations() -> list[Operation]:

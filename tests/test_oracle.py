@@ -130,3 +130,27 @@ def test_genre_of_accepts_only_known_genres_or_none(server, mocker):
     assert oracle.genre_of("evidence", ["fiction/spy"]) is None, "a genre outside the list is no answer"
     assert oracle.genre_of("evidence", ["fiction/spy"]) is None, "no reply is no answer"
     assert ask.call_args.args[2]["properties"]["genre"]["enum"] == ["fiction/spy", "none"], "the schema offers the known genres and none"
+
+
+@pytest.mark.parametrize(
+    "reply, expected",
+    [
+        (
+            {"title": "Nova", "authors": ["Delany, Samuel R."], "confident": True},
+            {"title": "Nova", "authors": ["Delany, Samuel R."], "confident": True},
+        ),
+        ({"title": "Nova", "authors": [], "confident": False}, {"title": "Nova", "authors": [], "confident": False}),
+        ({"title": "", "authors": ["x"], "confident": True}, None),
+        ({"title": "Nova", "authors": "Delany", "confident": True}, None),
+        ({"title": "Nova", "authors": [1], "confident": True}, None),
+        ({"title": "Nova", "authors": []}, None),
+        (None, None),
+    ],
+)
+def test_name_of_accepts_only_a_well_formed_answer(server, mocker, reply, expected):
+    ask = mocker.patch("kobolib.oracle.ask", return_value=reply)
+
+    assert oracle.name_of("evidence") == expected, f"{reply!r} should give {expected!r}"
+    assert set(ask.call_args.args[2]["properties"]) == {"title", "authors", "confident"}, (
+        "the schema asks for title, authors and confidence only"
+    )

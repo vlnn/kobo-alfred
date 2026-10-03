@@ -15,6 +15,18 @@ NONE = "none"
 PROMPTS = {
     "genre": "You file ebooks in a personal library. Given what is known about one book, choose the genre it belongs under "
     "from the list of known genres. Answer none when you are not reasonably sure. Answer with JSON only.",
+    "name": "You catalogue ebooks whose file names carry no usable information. Given what is known about one book, state "
+    "its real title and its authors as a library catalogue would write them, each author as Surname, Given. Never invent: "
+    "when the evidence does not say, answer confident false. Answer with JSON only.",
+}
+NAME_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "authors": {"type": "array", "items": {"type": "string"}},
+        "confident": {"type": "boolean"},
+    },
+    "required": ["title", "authors", "confident"],
 }
 
 
@@ -96,3 +108,16 @@ def genre_of(evidence: str, genres: list[str]) -> str | None:
     reply = ask("genre", evidence, genre_schema(genres))
     genre = reply.get("genre") if reply else None
     return genre if genre in (*genres, NONE) else None
+
+
+def well_formed_name(reply: dict | None) -> bool:
+    if not reply or set(reply) != set(NAME_SCHEMA["properties"]):
+        return False
+    title, authors, confident = reply["title"], reply["authors"], reply["confident"]
+    well_typed = isinstance(title, str) and isinstance(confident, bool) and isinstance(authors, list)
+    return well_typed and bool(title) and all(isinstance(a, str) for a in authors)
+
+
+def name_of(evidence: str) -> dict | None:
+    reply = ask("name", evidence, NAME_SCHEMA)
+    return reply if well_formed_name(reply) else None

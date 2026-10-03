@@ -170,6 +170,7 @@ case "$action" in
   import) run import "$1"; echo "Importing… a notification follows";;
   genre) run genre "$book" "$1"; echo "Setting the genre… a notification follows";;
   ask) run ask; echo "Asking the model… a notification follows";;
+  dismiss) run dismiss "$book"; echo "Dismissing… a notification follows";;
 esac</string>
 			</dict>
 		</dict>
@@ -382,6 +383,20 @@ esac</string>
 						<key>uid</key>
 						<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C1</string>
 					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>dismiss</string>
+						<key>outputlabel</key>
+						<string>dismiss</string>
+						<key>uid</key>
+						<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C2</string>
+					</dict>
 				</array>
 				<key>elselabel</key>
 				<string>open</string>
@@ -495,6 +510,18 @@ esac</string>
 				<false/>
 				<key>sourceoutputuid</key>
 				<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C1</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C2</string>
 			</dict>
 			<dict>
 				<key>destinationuid</key>

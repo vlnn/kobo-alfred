@@ -559,7 +559,7 @@ def oracle_on(indexed, monkeypatch):
 def test_ask_the_model_row_appears_when_books_are_unasked(oracle_on, query):
     (ask,) = [i for i in command_rows(query) if i.get("uid") == "oracle:ask"]
 
-    assert ask["title"] == "Ask the model about 2 inbox books" and ask["valid"] is True, "the row counts what has not been asked yet"
+    assert ask["title"] == "Ask the model about 2 inbox books and 1 unnamed file" and ask["valid"] is True, "the row counts what is unasked"
     assert ask["subtitle"] == "↩ runs in the background, then notifies" and action_of(ask) == "ask", "↩ runs kobolib ask in the background"
 
 
@@ -570,7 +570,9 @@ def test_ask_the_model_row_is_absent_without_a_server(indexed, monkeypatch, quer
     assert not any(i.get("uid") == "oracle:ask" for i in command_rows(query)), "nothing mentions the oracle until it is configured"
 
 
-def test_ask_the_model_row_is_absent_when_everything_is_asked(oracle_on, suggested_napkin):
+def test_ask_the_model_row_is_absent_when_everything_is_asked(oracle_on, suggested_napkin, tmp_path):
+    suggest(tmp_path, suggested_napkin, "name", {"title": "Napkin", "authors": [], "confident": False})
+
     assert not any(i.get("uid") == "oracle:ask" for i in command_rows("classify")), "answered books, none included, are not offered again"
 
 
@@ -581,3 +583,63 @@ def test_unreachable_model_is_reported(oracle_on, tmp_path, query):
     (row,) = [i for i in command_rows(query) if i.get("uid") == "oracle:unreachable"]
 
     assert row["title"] == "Model not reachable at http://127.0.0.1:8080" and row["valid"] is False, "the last failed connection is shown"
+
+
+NAPKIN_NAME = {"title": "Table Napkin Folding", "authors": ["Ivor Penhale"], "confident": True}
+
+
+@pytest.fixture
+def napkin_named(oracle_on, tmp_path) -> str:
+    napkin = fingerprint_of("napkin")
+    suggest(tmp_path, napkin, "name", NAPKIN_NAME)
+    return napkin
+
+
+def test_fix_lists_a_suggested_rename_below_the_automatic_operations(napkin_named, library):
+    items = command_rows("fix")
+
+    uids = [i["uid"] for i in items]
+    assert uids == ["fix:all", "oracle:ask", "reminder:inbox", "reminder:partials", f"fix:{DEEP}", "fix:00_Inbox/Napkin.pdf"], (
+        "the suggested rename comes after the certain operations and replaces the opaque-name problem"
+    )
+    head, rename = items[0], items[-1]
+    assert (head["title"], head["subtitle"]) == ("Fix all 1", "1 move"), "Fix all counts only what is certain"
+    assert rename["title"] == "Penhale, Ivor - Table Napkin Folding.pdf", "the row shows the canonical name built from the suggestion"
+    assert rename["subtitle"] == "move · suggested title and author · 00_Inbox/Napkin.pdf → 00_Inbox/", "and says it is a suggestion"
+    assert rename["arg"] == str(library / "00_Inbox" / "Napkin.pdf") and rename["valid"] is True, "↩ applies that one move"
+    assert action_of(search_items("fix")[-1]) == "fix", "through the fix action"
+
+
+def test_fix_all_with_words_carries_only_certain_paths(napkin_named, library):
+    (head, *_) = command_rows("fix inbox")
+
+    assert str(library / "00_Inbox" / "Napkin.pdf") not in head["arg"], "Fix all never applies a suggestion"
+
+
+def test_an_unconfident_or_unchanged_name_is_not_offered(oracle_on, tmp_path):
+    suggest(tmp_path, fingerprint_of("napkin"), "name", {**NAPKIN_NAME, "confident": False})
+    suggest(tmp_path, fingerprint_of("deep"), "name", {"title": "Deep Work", "authors": ["Cal Newport", "Someone Else"], "confident": True})
+
+    assert not any(i["subtitle"].startswith("move · suggested") for i in command_rows("fix")), (
+        "neither an unsure answer nor one that changes nothing becomes a row"
+    )
+
+
+def test_fix_narrowed_to_one_book_offers_to_dismiss_its_suggestions(napkin_named):
+    rows = command_rows("fix napkin")
+
+    (dismiss,) = [i for i in rows if i["uid"] == "oracle:dismiss"]
+    assert dismiss["title"] == "Dismiss suggestions for this book" and action_of(dismiss) == "dismiss", "↩ dismisses in the background"
+    assert dismiss["variables"]["book"] == napkin_named, "the row carries the book"
+    assert rows.index(dismiss) < rows.index(next(i for i in rows if i["uid"].startswith("fix:00_Inbox"))), "it is a head row"
+
+
+@pytest.mark.parametrize("query", ["fix", "fix inbox", "fix deep"])
+def test_dismiss_row_needs_exactly_one_book_with_suggestions(napkin_named, query):
+    assert not any(i.get("uid") == "oracle:dismiss" for i in command_rows(query)), f"kb {query} is not narrowed to the suggested book"
+
+
+def test_ask_the_model_row_counts_unnamed_files(oracle_on):
+    (ask,) = [i for i in command_rows("fix") if i.get("uid") == "oracle:ask"]
+
+    assert ask["title"] == "Ask the model about 2 inbox books and 1 unnamed file", "books whose name is a guess are counted too"

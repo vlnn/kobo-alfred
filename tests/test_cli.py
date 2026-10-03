@@ -522,3 +522,89 @@ def test_setting_a_genre_drops_the_models_suggestion(indexed, library, tmp_path,
     main(["genre", napkin, "fiction/spy"])
 
     assert oracle_store(tmp_path).get(napkin, "genre") is None, "a suggestion acted on, or overruled, is forgotten"
+
+
+NAPKIN_NAME = {"title": "Table Napkin Folding", "authors": ["Ivor Penhale"], "confident": True}
+
+
+def test_ask_name_asks_about_books_described_from_their_filename(oracle_env, tmp_path, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value=NAPKIN_NAME)
+
+    main(["ask", "name"])
+
+    assert ask.call_count == 1 and "Path: 00_Inbox/Napkin.pdf" in ask.call_args.args[1], (
+        "only the pdf's name is a guess from an opaque filename"
+    )
+    assert "Genres:" not in ask.call_args.args[1], "a name question does not list the genres"
+    assert capsys.readouterr().out.strip() == "Asked about 1 book: 1 name suggested", "the summary counts names"
+    assert oracle_store(tmp_path).get(fingerprint_of_napkin(capsys), "name").answer == NAPKIN_NAME, "the answer is stored as given"
+
+
+def fingerprint_of_napkin(capsys) -> str:
+    return run(["search", "napkin"], capsys)["items"][0]["variables"]["book"]
+
+
+def test_an_unconfident_name_is_stored_but_not_counted(oracle_env, tmp_path, capsys, mocker):
+    mocker.patch("kobolib.oracle.ask", return_value={**NAPKIN_NAME, "confident": False})
+
+    main(["ask", "name"])
+
+    assert capsys.readouterr().out.strip() == "The model had no suggestions", "an unsure answer is no suggestion"
+    assert oracle_store(tmp_path).get(fingerprint_of_napkin(capsys), "name") is not None, "but it is kept so the book is not asked again"
+
+
+def test_ask_without_a_question_asks_names_before_genres(oracle_env, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", side_effect=[NAPKIN_NAME, {"genre": "none"}, {"genre": "none"}])
+
+    main(["ask"])
+
+    assert [c.args[0] for c in ask.call_args_list] == ["name", "genre", "genre"], "a book that gets a title is classified under it"
+
+
+def test_dismiss_silences_a_book(oracle_env, tmp_path, capsys):
+    napkin = fingerprint_of_napkin(capsys)
+    store = oracle_store(tmp_path)
+    store.set(napkin, "name", NAPKIN_NAME, "h")
+    store.save()
+
+    assert main(["dismiss", napkin]) == 0, "dismissing should succeed"
+
+    assert capsys.readouterr().out.strip() == "Suggestions for Napkin dismissed", "the book is named"
+    assert oracle_store(tmp_path).get(napkin, "name").answer == {}, "the suggestion is gone"
+
+
+def test_dismiss_names_an_unknown_book(indexed, capsys):
+    assert main(["dismiss", "nope"]) == 1 and capsys.readouterr().out == "Not indexed: nope\n", "an unknown reference is a failure"
+
+
+@pytest.fixture
+def napkin_named(oracle_env, tmp_path, capsys) -> str:
+    napkin = fingerprint_of_napkin(capsys)
+    store = oracle_store(tmp_path)
+    store.set(napkin, "name", NAPKIN_NAME, "h")
+    store.save()
+    return napkin
+
+
+SUGGESTED_NAME = "00_Inbox/Penhale, Ivor - Table Napkin Folding.pdf"
+
+
+def test_bare_fix_leaves_suggested_renames_alone(napkin_named, library, capsys):
+    main(["fix"])
+
+    assert (library / "00_Inbox" / "Napkin.pdf").exists(), "what the model suggested is not applied without being asked for"
+
+
+def test_fix_dry_run_lists_only_what_is_certain(napkin_named, capsys):
+    main(["fix", "--dry-run"])
+
+    assert "suggested" not in capsys.readouterr().out, "a bare dry run is the certain plan"
+
+
+def test_fix_with_the_path_applies_the_suggested_rename_and_forgets_it(napkin_named, library, tmp_path, capsys):
+    assert main(["fix", str(library / "00_Inbox" / "Napkin.pdf")]) == 0, "↩ on a suggested row applies that one move"
+    capsys.readouterr()
+
+    assert (library / SUGGESTED_NAME).exists(), "the book is renamed from the suggested title and author"
+    assert oracle_store(tmp_path).get(napkin_named, "name") is None, "a suggestion acted on is forgotten"
+    assert run(["search", "penhale"], capsys)["items"][0]["subtitle"].endswith(SUGGESTED_NAME), "the index follows the rename"

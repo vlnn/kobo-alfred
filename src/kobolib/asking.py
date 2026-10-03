@@ -7,6 +7,8 @@ from kobolib import oracle
 from kobolib.alfred import counted
 from kobolib.evidence import evidence_for, evidence_hash
 from kobolib.index import Index
+from kobolib.lint import is_noisy, looks_opaque
+from kobolib.metadata import READERS
 from kobolib.model import Row
 from kobolib.suggestions import SuggestionStore
 
@@ -27,6 +29,7 @@ class Question:
     candidates: Callable[[Index, list[str]], list[Row]]
     answer: Callable[[str], dict | None]
     evidence: Callable[[Row], str]
+    is_empty: Callable[[dict], bool]
 
 
 def genre_rows(index: Index, words: list[str]) -> list[Row]:
@@ -38,11 +41,19 @@ def genre_question(genres: list[str]) -> Question:
         genre = oracle.genre_of(evidence, genres)
         return None if genre is None else {"genre": genre}
 
-    return Question("genre", "genre", genre_rows, answer, lambda row: evidence_for(row, genres))
+    return Question("genre", "genre", genre_rows, answer, lambda row: evidence_for(row, genres), lambda a: a["genre"] == oracle.NONE)
 
 
-def is_none(answer: dict) -> bool:
-    return all(value in (oracle.NONE, False, [], "") for value in answer.values())
+def name_is_a_guess(row: Row) -> bool:
+    return row.guessed and not row.partial and (row.format not in READERS or looks_opaque(row) or is_noisy(row))
+
+
+def name_rows(index: Index, words: list[str]) -> list[Row]:
+    return [row for row in index.search(words, limit=100_000) if name_is_a_guess(row)]
+
+
+def name_question() -> Question:
+    return Question("name", "name", name_rows, oracle.name_of, evidence_for, lambda a: not a["confident"])
 
 
 def ask_one(question: Question, row: Row, store: SuggestionStore, force: bool, asked: Asked) -> None:
@@ -56,7 +67,7 @@ def ask_one(question: Question, row: Row, store: SuggestionStore, force: bool, a
         asked.skipped += 1
         return
     store.set(row.fingerprint, question.name, answer, digest)
-    if is_none(answer):
+    if question.is_empty(answer):
         asked.none += 1
     else:
         asked.suggested += 1

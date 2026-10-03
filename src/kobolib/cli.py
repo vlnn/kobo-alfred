@@ -7,7 +7,7 @@ from pathlib import Path
 from kobolib import alfred, oracle
 from kobolib.alfred import counted
 from kobolib.apply import Applied, apply, undo
-from kobolib.asking import Question, ask_all, collect_evidence, genre_question, summary
+from kobolib.asking import Question, ask_all, collect_evidence, genre_question, name_question, summary
 from kobolib.commands import (
     genre_picker_items,
     index_problem,
@@ -27,7 +27,9 @@ from kobolib.config import (
 )
 from kobolib.index import add_book, fill_thumbnails, index_busy
 from kobolib.library import (
+    apply_fixes,
     apply_summary,
+    dismiss_book,
     fix_operations,
     genre_text,
     import_blocked,
@@ -110,10 +112,9 @@ def cmd_fix(args) -> int:
     if args.dry_run:
         print("".join(f"{operation_line(o)}\n" for o in ops), end="")
         return 0
-    result = apply(ops, library_root(), journal_path())
+    result = apply_fixes(ops)
     if not targets:
         return finish_with_reindex(apply_summary(result), args.notify)
-    refresh_index(result)
     report(apply_summary(result), args.notify)
     return 0
 
@@ -216,8 +217,18 @@ def cmd_import(args) -> int:
 
 def questions(name: str) -> list[Question]:
     index, store = library_index(), genre_store()
-    all_questions = {"genre": lambda: genre_question(known_genres(index, store))}
+    all_questions = {"name": name_question, "genre": lambda: genre_question(known_genres(index, store))}
     return [make() for key, make in all_questions.items() if name in ("", key)]
+
+
+def cmd_dismiss(args) -> int:
+    if problem := index_problem():
+        return refuse(f"{problem}: run kb update", args.notify)
+    title = dismiss_book(args.book)
+    if not title:
+        return refuse(f"Not indexed: {args.book}", args.notify)
+    report(f"Suggestions for {title} dismissed", args.notify)
+    return 0
 
 
 def dry_run_report(asked_blocks: list[str]) -> str:
@@ -276,9 +287,12 @@ def build_parser() -> argparse.ArgumentParser:
     import_cmd.add_argument("book")
     import_cmd.set_defaults(func=cmd_import)
     ask_cmd = sub.add_parser("ask", parents=[notify, flag("--force"), flag("--dry-run")])
-    ask_cmd.add_argument("question", nargs="?", default="", choices=["", "genre"])
+    ask_cmd.add_argument("question", nargs="?", default="", choices=["", "genre", "name"])
     ask_cmd.add_argument("words", nargs="*")
     ask_cmd.set_defaults(func=cmd_ask)
+    dismiss_cmd = sub.add_parser("dismiss", parents=[notify])
+    dismiss_cmd.add_argument("book")
+    dismiss_cmd.set_defaults(func=cmd_dismiss)
     return parser
 
 

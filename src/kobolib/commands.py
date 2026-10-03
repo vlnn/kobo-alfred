@@ -10,6 +10,7 @@ from pathlib import Path
 from kobolib import alfred, oracle
 from kobolib.alfred import counted
 from kobolib.apply import EXECUTABLE, last_batch, read_journal
+from kobolib.asking import name_rows
 from kobolib.config import (
     db_path,
     genre_store,
@@ -23,7 +24,15 @@ from kobolib.config import (
 )
 from kobolib.genres import GenreStore
 from kobolib.index import Index, index_busy, is_current
-from kobolib.library import concerning, diagnosis, known_genres, not_in_library, pending_operations, unclassified_rows
+from kobolib.library import (
+    concerning,
+    diagnosis,
+    known_genres,
+    not_in_library,
+    pending_operations,
+    suggested_operations,
+    unclassified_rows,
+)
 from kobolib.model import Finding, Operation, Row
 from kobolib.query import query_words
 from kobolib.suggestions import SuggestionStore
@@ -162,8 +171,8 @@ def oracle_rows(index: Index, store: SuggestionStore) -> list[dict]:
     if not oracle.configured():
         return []
     down = [alfred.unreachable_item(url)] if (url := oracle.unreachable()) else []
-    inbox = len(unasked(index.unclassified([]), "genre", store))
-    return down + ([alfred.ask_item(ask_title(inbox, 0))] if inbox else [])
+    inbox, unnamed = len(unasked(index.unclassified([]), "genre", store)), len(unasked(name_rows(index, []), "name", store))
+    return down + ([alfred.ask_item(ask_title(inbox, unnamed))] if inbox or unnamed else [])
 
 
 def classify_rows(words: list[str]) -> list[Row]:
@@ -350,6 +359,15 @@ def fix_reminders(words: list[str]) -> list[dict]:
     return [item for item, count in ((inbox, waiting), (downloads, partial)) if count]
 
 
+def dismiss_items(words: list[str], store: SuggestionStore) -> list[dict]:
+    if not words:
+        return []
+    rows = library_index().search(words, limit=2)
+    if len(rows) != 1 or not any(store.answers(q).get(rows[0].fingerprint) for q in ("genre", "name")):
+        return []
+    return [alfred.dismiss_item(rows[0].fingerprint)]
+
+
 def nothing_to_fix(words: list[str]) -> dict:
     title = f"Nothing to fix for ‘{' '.join(words)}’" if words else "Nothing to fix"
     return alfred.message_item(title, "The library is clean")
@@ -357,16 +375,19 @@ def nothing_to_fix(words: list[str]) -> dict:
 
 def fix_items(words: list[str]) -> list[dict]:
     found, ops = diagnosis()
-    concerns, root = concerning(words), str(library_root())
+    index, store, concerns, root = library_index(), suggestion_store(), concerning(words), str(library_root())
     todo = [o for o in ops if o.kind in EXECUTABLE and concerns(o.src)]
+    suggested = [o for o in suggested_operations(index.everything(), {o.src for o in ops}) if concerns(o.src)]
     conflicts = [o for o in ops if o.kind == "skip" and concerns(o.src)]
-    manual = [f for f in by_hand(found, ops) if concerns(f.rel_paths[0])]
+    manual = [f for f in by_hand(found, ops + suggested) if concerns(f.rel_paths[0])]
     rows = [
         *fix_all_items(todo, words),
         *undo_items(),
-        *oracle_rows(library_index(), suggestion_store()),
+        *dismiss_items(words, store),
+        *oracle_rows(index, store),
         *fix_reminders(words),
         *(alfred.plan_item(o, root) for o in todo),
+        *(alfred.plan_item(o, root) for o in suggested),
         *(alfred.conflict_item(o, root) for o in conflicts),
         *(alfred.problem_item(f, root) for f in manual),
     ]

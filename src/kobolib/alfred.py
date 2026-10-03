@@ -193,6 +193,11 @@ def ask_item(title: str) -> dict:
     return {"uid": "oracle:ask", **action_item(title, "↩ runs in the background, then notifies", "ask")}
 
 
+def dismiss_item(book: str) -> dict:
+    subtitle = "↩ forgets the model's answers for it · kobolib ask --force asks again"
+    return head_row("oracle:dismiss", "Dismiss suggestions for this book", subtitle, variables={"book": book, "action": "dismiss"})
+
+
 def unreachable_item(url: str) -> dict:
     return {"uid": "oracle:unreachable", **message_item(f"Model not reachable at {url}", "start llama-server, or change KOBO_ORACLE_URL")}
 
