@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from kobold.genres import GenreStore, genre_from_folder
+from kobold.genres import GenreStore, genre_from_folder, without_author
 from kobold.model import GenreEntry
 from tests.test_alfred import row
 
@@ -21,10 +21,39 @@ from tests.test_alfred import row
         ("99_Archives/LIBRARY/CODING", ""),
         ("99_Archives/System_Files", ""),
         (".", ""),
+        ("programming/Dietrich, Erik", "programming"),
+        ("reference/amini, kamran/Amini, Kamran", "reference"),
+        ("fiction/Ві Кіланд, Пенелопа Ворд", "fiction"),
+        ("music/Monteiro, Marcus", "music"),
+        ("01_Fiction/Rowan Teague", "fiction"),
+        ("games/go/Kato, Masao", "games/go"),
     ],
 )
 def test_genre_from_folder(folder, genre):
     assert genre_from_folder(folder) == genre, f"{folder!r} should map to genre {genre!r}"
+
+
+@pytest.mark.parametrize(
+    "stored, healed",
+    [
+        ("programming/dietrich, erik", "programming"),
+        ("nonfiction/shea, ammon", "nonfiction"),
+        ("fiction/sci-fi_fantasy", "fiction/sci-fi_fantasy"),
+        ("games/go", "games/go"),
+        ("", ""),
+    ],
+)
+def test_without_author_drops_an_author_segment(stored, healed):
+    assert without_author(stored) == healed, f"{stored!r} should heal to {healed!r}"
+
+
+def test_bootstrap_heals_a_genre_that_swallowed_the_author(tmp_path: Path):
+    store = GenreStore(tmp_path / "genres.tsv")
+    store.set("fp1", GenreEntry(genre="programming/dietrich, erik", rel_path="x"))
+
+    store.bootstrap([row(fingerprint="fp1", folder="programming/dietrich, erik/Dietrich, Erik")])
+
+    assert store.genre_of(row(fingerprint="fp1")) == "programming", "a stored genre ending in an author name loses that segment"
 
 
 def test_store_roundtrips(tmp_path: Path):

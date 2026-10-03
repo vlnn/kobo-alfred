@@ -22,7 +22,7 @@ from kobold.config import (
     suggestion_store,
     vector_store,
 )
-from kobold.genres import GenreStore, folder_slug, genre_from_folder
+from kobold.genres import GenreStore, folder_slug, genre_from_folder, without_author
 from kobold.index import Index, IndexBusy, build_index, build_sources_index
 from kobold.lint import all_folders, lint
 from kobold.metadata import is_sound, read_book
@@ -69,7 +69,7 @@ def row_by_reference(reference: str, index: Index) -> Row | None:
 
 
 def genre_text(raw: str) -> str:
-    return raw.strip().lower()
+    return without_author(raw.strip().lower())
 
 
 Outcome = tuple[bool, str]

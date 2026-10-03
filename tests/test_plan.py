@@ -203,3 +203,29 @@ def test_relocation_is_none_for_books_that_stay(tmp_path):
     store = store_with(tmp_path, a="fiction", b="fiction")
 
     assert [relocation(r, rows, store) for r in rows] == [None, None], "no author or a partial download never moves"
+
+
+def test_a_genre_that_swallowed_the_author_unnests_the_book(tmp_path):
+    rows = [
+        named(
+            "Amini, Kamran - Extreme C (2019).epub",
+            folder="reference/amini, kamran/Amini, Kamran",
+            title="Extreme C",
+            authors="Kamran Amini",
+            series="",
+            year="2019",
+            fingerprint="f",
+        )
+    ]
+    store = store_with(tmp_path, f="reference/amini, kamran")
+    store.bootstrap(rows)
+
+    result = plan(rows, [], store)
+
+    assert ops(result) == [
+        (
+            "move",
+            "reference/amini, kamran/Amini, Kamran/Amini, Kamran - Extreme C (2019).epub",
+            "reference/Amini, Kamran/Amini, Kamran - Extreme C (2019).epub",
+        )
+    ], "the author folder sits directly under the genre, not under a lowercase copy of itself"

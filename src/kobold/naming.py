@@ -5,8 +5,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from kobold.filenames import EDITOR, STOPWORDS
-from kobold.genres import genre_from_folder
+from kobold.filenames import EDITOR
+from kobold.genres import genre_from_folder, looks_like_person
 from kobold.model import Row
 from kobold.scan import PARTIAL_SUFFIX
 
@@ -95,11 +95,6 @@ def fat_safe(name: str) -> str:
 
 def canonical_name(row: Row, known: frozenset[str] = frozenset()) -> str:
     return fat_safe(stem_for(row, known) + extension(row))
-
-
-def looks_like_person(name: str) -> bool:
-    tokens = name.split()
-    return 2 <= len(tokens) <= 3 and all(t[0].isupper() for t in tokens) and not any(t.lower() in STOPWORDS for t in tokens)
 
 
 def known_authors(folders: set[str]) -> set[str]:

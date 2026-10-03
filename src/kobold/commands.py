@@ -30,15 +30,15 @@ from kobold.genres import GenreStore
 from kobold.history import last_opened
 from kobold.index import EVERYTHING, PAGE, Index, index_busy, is_current
 from kobold.library import (
+    SourceCount,
     concerning,
     diagnosis,
     is_merge,
     known_genres,
     merge_target,
     not_in_library,
-    SourceCount,
-    source_counts,
     pending_operations,
+    source_counts,
     suggested_operations,
     unclassified_rows,
 )

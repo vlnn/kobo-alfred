@@ -4,6 +4,7 @@ import re
 from dataclasses import replace
 from pathlib import Path
 
+from kobold.filenames import STOPWORDS
 from kobold.model import GenreEntry, Row
 from kobold.store import TsvStore
 
@@ -16,11 +17,34 @@ def folder_slug(name: str) -> str:
     return ORDER_PREFIX.sub("", name).lower()
 
 
+def looks_like_person(name: str) -> bool:
+    tokens = name.split()
+    return 2 <= len(tokens) <= 3 and all(t[0].isupper() for t in tokens) and not any(t.lower() in STOPWORDS for t in tokens)
+
+
+def is_author_folder(name: str) -> bool:
+    return ", " in name or looks_like_person(name)
+
+
+def genre_segments(parts: list[str]) -> list[str]:
+    segments = []
+    for part in parts[:GENRE_DEPTH]:
+        if is_author_folder(part):
+            break
+        segments.append(folder_slug(part))
+    return segments
+
+
 def genre_from_folder(folder: str) -> str:
-    parts = [folder_slug(p) for p in Path(folder).parts if p not in (".", "")]
-    if not parts or parts[0] in UNCLASSIFIED_FOLDERS:
+    parts = [p for p in Path(folder).parts if p not in (".", "")]
+    if not parts or folder_slug(parts[0]) in UNCLASSIFIED_FOLDERS:
         return ""
-    return "/".join(parts[:GENRE_DEPTH])
+    return "/".join(genre_segments(parts))
+
+
+def without_author(genre: str) -> str:
+    parent, _, leaf = genre.rpartition("/")
+    return parent if parent and ", " in leaf else genre
 
 
 class GenreStore(TsvStore):
@@ -49,7 +73,7 @@ class GenreStore(TsvStore):
         added = 0
         for row in rows:
             current = self.get(row.fingerprint) or GenreEntry()
-            genre = current.genre or genre_from_folder(row.folder)
+            genre = without_author(current.genre) or genre_from_folder(row.folder)
             added += int(not current.genre and bool(genre))
             self.set(row.fingerprint, replace(current, genre=genre, rel_path=row.rel_path))
         return added
