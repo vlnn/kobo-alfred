@@ -218,7 +218,7 @@ def test_case_only_folder_rename_renames_the_folder_in_place(tmp_path: Path):
         "the book is under the respelled folder, intact"
     )
     assert (root / "Wolfe, Gene" / "Book of the New Sun" / "Wolfe, Gene - Claw.sdr").is_dir(), "the sidecar stays beside it"
-    assert not old.exists(), "the old spelling of the folder is gone"
+    assert sorted(e.name for e in (root / "Wolfe, Gene").iterdir()) == ["Book of the New Sun"], "the old spelling of the folder is gone"
 
 
 def test_case_only_file_rename_keeps_the_file(tmp_path: Path):
