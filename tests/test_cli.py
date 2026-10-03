@@ -670,13 +670,54 @@ def delany_merge(delany_folders, tmp_path) -> None:
     store.save()
 
 
+BABEL_HOME = "01_Fiction/02_Sci-Fi/Delany, Samuel Ray/Delany, Samuel Ray - Babel-17 (2016).epub"
+
+
 def test_fix_with_the_paths_applies_a_suggested_merge(delany_merge, library, capsys):
     assert main(["fix", str(library / BABEL_ALIAS)]) == 0, "↩ on the merge row passes the group's paths"
 
-    assert (library / "01_Fiction" / "02_Sci-Fi" / "Delany, Samuel Ray" / "Delany, Samuel - Babel-17 (2016).epub").exists(), (
-        "the book joins the canonical folder"
-    )
+    assert (library / BABEL_HOME).exists(), "the book joins the canonical folder under the canonical name"
     assert not (library / "01_Fiction" / "02_Sci-Fi" / "Delany, Samuel").exists(), "the emptied alias folder is pruned"
+
+
+def test_a_merged_book_stays_home_afterwards(delany_merge, library, tmp_path, capsys):
+    main(["fix", str(library / BABEL_ALIAS)])
+    capsys.readouterr()
+
+    main(["fix", "--dry-run"])
+
+    assert "Babel-17" not in capsys.readouterr().out, "the alias is remembered, so the planner no longer wants the book back"
+    assert "Delany, Samuel\tDelany, Samuel Ray" in (tmp_path / "alfred-data" / "authors.tsv").read_text(), (
+        "the accepted merge is written down as an alias"
+    )
+
+
+def test_undoing_a_merge_forgets_the_alias(delany_merge, library, tmp_path, capsys):
+    main(["fix", str(library / BABEL_ALIAS)])
+
+    assert main(["undo"]) == 0, "undo should succeed"
+
+    assert (library / BABEL_ALIAS).exists(), "the book is back in its own folder"
+    assert "Delany, Samuel\t" not in (tmp_path / "alfred-data" / "authors.tsv").read_text(), "an undone merge is no longer an alias"
+    capsys.readouterr()
+    main(["fix", "--dry-run"])
+    assert "Babel-17" not in capsys.readouterr().out, "and the planner does not try the move again on its own"
+
+
+def test_obvious_aliases_merge_without_a_model(delany_folders, library, monkeypatch, capsys):
+    monkeypatch.delenv("KOBOLD_ORACLE_URL")
+
+    assert main(["fix", str(library / BABEL_ALIAS)]) == 0, "a folder that only lacks a middle name is an obvious alias"
+
+    assert (library / BABEL_HOME).exists(), "the book joins the fuller spelling"
+
+
+def test_bare_fix_leaves_obvious_merges_alone(delany_folders, library, monkeypatch):
+    monkeypatch.delenv("KOBOLD_ORACLE_URL")
+
+    main(["fix"])
+
+    assert (library / BABEL_ALIAS).exists(), "an obvious merge still waits for ↩ on its row"
 
 
 def test_bare_fix_leaves_merges_alone(delany_merge, library, capsys):

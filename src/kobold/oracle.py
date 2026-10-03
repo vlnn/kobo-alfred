@@ -21,8 +21,9 @@ PROMPTS = {
     "its real title and its authors as a library catalogue would write them, each author as Surname, Given. Never invent: "
     "when the evidence does not say, answer confident false. Answer with JSON only.",
     "authors": "These are the author folders of a personal ebook library, named Surname, Given. Find folders that denote one "
-    "and the same person spelled differently, transliterated or with and without initials. For each such group give the "
-    "canonical spelling, Surname, Given, and the other folders as aliases. Leave out anyone who appears once. Answer with JSON only.",
+    "and the same person spelled differently, transliterated, inverted to Given, Surname, or with and without initials. For "
+    "each such group give one canonical spelling, Surname, Given, the fullest and best-known form in the script most of the "
+    "group uses, and every other folder as an alias. Leave out anyone who appears once. Answer with JSON only.",
 }
 AUTHORS_SCHEMA = {
     "type": "object",

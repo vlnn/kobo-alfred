@@ -133,7 +133,7 @@ kb src heinlein             books in the sources that are NOT already in the lib
    ↩ on Import all          every row shown
 ```
 
-Books already in the library (by content fingerprint, not by name) are hidden, so `kb src` is always "what am I missing". Import *copies*; the source keeps its file. The destination is your existing inbox folder (any top-level folder whose name is `inbox` after the `NN_` prefix, e.g. `00_Inbox`), or `_inbox/` if there is none. Unreadable and `.part` files are refused.
+Books already in the library (by content fingerprint, not by name) are hidden, so `kb src` is always "what am I missing"; when every match is a library copy the row says so instead of "no books match", and `kb stats` shows one row per source with how many of its books are new. Import *copies*; the source keeps its file. The destination is your existing inbox folder (any top-level folder whose name is `inbox` after the `NN_` prefix, e.g. `00_Inbox`), or `_inbox/` if there is none. Unreadable and `.part` files are refused.
 
 ## Walkthrough 4: let a local model do the reading
 
@@ -156,7 +156,7 @@ kb fix 7_815203                               Dismiss suggestions for this book
 
 What the model sees is the book's metadata, its `dc:subject`/`dc:description` (fb2: `genre`/`annotation`), the first two thousand characters of its text and, for a genre question, the list of known genres; `kobold ask --dry-run` prints exactly that. Every answer is constrained by a JSON schema (a genre is one of the known genres or `none`), stored in `oracle.tsv` keyed by content fingerprint and the hash of the evidence, and kept until the evidence changes, so re-indexing, renaming or moving a book costs nothing. Setting a genre, applying a suggested rename, or dismissing a book forgets its answers. `oracle.log` keeps the last 500 exchanges for *why did it say that*.
 
-Suggested operations in `kb fix` apply only when you ↩ on their row (or name the file on the command line): **Fix all**, a bare `kobold fix` and `--dry-run` stay certain-only. A merge moves books from the alias folders into the canonical one; if a book's embedded author still reads the alias spelling, the planner may later offer to move it back, because folders are derived from metadata — give it a genre with ⇧↩ and look at the row before accepting.
+Suggested operations in `kb fix` apply only when you ↩ on their row (or name the file on the command line): **Fix all**, a bare `kobold fix` and `--dry-run` stay certain-only. A merge moves books from the alias folders into the canonical one and renames them to the canonical spelling, and the alias is written down in `authors.tsv`, so a book whose embedded author still reads the alias spelling stays home from then on; undoing the merge forgets the alias again. Folders that are plainly one person — the same surname with and without a middle name or initial (`Delany, Samuel` / `Delany, Samuel R`), a lifespan suffix (`Illich, Ivan, 1926-2002`), or an inverted twin that holds fewer books (`Ann, Leckie` / `Leckie, Ann`) — are offered as merges even with no model; the model adds the cases a rule can't see, such as `Азімов` and `Азимов`.
 
 Embeddings need a model made for them, served with `--embeddings`; the chat model that answers the questions cannot do it (the server answers 501 if asked), and a chat server started with `--embeddings` would pool its hidden states into poor vectors. The usual setup is a second server on its own port, pointed at by **Embedding server**:
 
@@ -224,15 +224,15 @@ Moves and renames also carry each book's `.sdr` sidecar along and rewrite the pa
 
 The folder tree is what the Kobo shows, so the tool keeps it meaning exactly one thing: **genre → author → series**.
 
-- Genre is the first two folder levels with their order prefixes stripped: `01_Fiction/02_Sci-Fi_Fantasy/…` → `fiction/sci-fi_fantasy`. Books under `inbox`, `archives`, `_inbox`, `_dups`, `_trash` or `_broken` have no genre and show up in `kb inbox`.
-- Author folders are `Surname, Given`. Existing folders win: if you already have `Le Guin, Ursula K.`, that spelling is reused.
+- Genre is the first two folder levels with their order prefixes stripped: `01_Fiction/02_Sci-Fi_Fantasy/…` → `fiction/sci-fi_fantasy`. A folder that looks like an author (`Surname, Given` or `Given Surname`) ends the genre early, so `programming/Dietrich, Erik/…` is genre `programming` with the author straight under it. Books under `inbox`, `archives`, `_inbox`, `_dups`, `_trash` or `_broken` have no genre and show up in `kb inbox`.
+- Author folders are `Surname, Given`. Existing folders win: if you already have `Le Guin, Ursula K.`, that spelling is reused. Aliases you have accepted through a merge (`authors.tsv`) win over the metadata: once `Delany, Samuel` is an alias of `Delany, Samuel R`, every book that names the shorter form files under the longer one.
 - A series gets its own folder only when the library holds more than one book of it.
 - Canonical file name: `Surname, Given - Title (Series 03) (Year).epub`, FAT-safe, ≤ 255 bytes.
 - Genres live in `genres.tsv` keyed by a content fingerprint, so they survive renames and moves. `kb update` bootstraps a genre for every book from its folder, never overwriting one you set.
 
 ## Where things are
 
-Index (`library.db`, `sources.db`), `covers/`, `genres.tsv`, the model's answers (`oracle.tsv`, `oracle.log`), `vectors.db` and the undo journal (`journal.jsonl`) live in Alfred's workflow data folder, `~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobold`, which survives workflow updates and cache clears. Override with **Index folder**.
+Index (`library.db`, `sources.db`), `covers/`, `genres.tsv`, `authors.tsv`, the model's answers (`oracle.tsv`, `oracle.log`), `vectors.db` and the undo journal (`journal.jsonl`) live in Alfred's workflow data folder, `~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobold`, which survives workflow updates and cache clears. Override with **Index folder**.
 
 **Upgrading from kobo-alfred:** the workflow was called Kobo Library and its data lived under `com.anokhin.kobolib`. The first run of Kobold renames that folder to `com.anokhin.kobold`, so the index, covers and genres carry over. Workflow settings don't: Alfred keys them by bundle id, so set **Library root** (and any model settings) again. Terminal variables moved from `KOBO_*` to `KOBOLD_*`.
 

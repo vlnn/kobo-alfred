@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,7 +9,7 @@ from kobold.genres import GenreStore, genre_from_folder
 from kobold.index import series_key
 from kobold.lint import all_folders
 from kobold.model import Finding, Operation, Row
-from kobold.naming import Shelves, destination, shelves
+from kobold.naming import NO_ALIASES, Shelves, destination, shelves
 
 FORMAT_RANK = ("epub", "fb2", "mobi", "azw3", "azw", "pdf", "djvu")
 TRASH = "_trash"
@@ -72,9 +73,9 @@ class Shape:
     series_counts: Counter
 
 
-def shape_of(rows: list[Row]) -> Shape:
+def shape_of(rows: list[Row], aliases: Mapping[str, str] = NO_ALIASES) -> Shape:
     counts = Counter(series_key(r.series) for r in rows if r.series and not r.partial)
-    return Shape(shelves(all_folders(rows)), counts)
+    return Shape(shelves(all_folders(rows), aliases), counts)
 
 
 def wants_home(row: Row, store: GenreStore) -> bool:
@@ -85,15 +86,15 @@ def home_of(row: Row, store: GenreStore, shape: Shape) -> str:
     return destination(row, store.genre_of(row), shape.layout, shape.series_counts[series_key(row.series)])
 
 
-def desired(rows: list[Row], store: GenreStore) -> dict[str, str]:
-    shape = shape_of(rows)
+def desired(rows: list[Row], store: GenreStore, aliases: Mapping[str, str] = NO_ALIASES) -> dict[str, str]:
+    shape = shape_of(rows, aliases)
     return {r.rel_path: home_of(r, store, shape) for r in rows if wants_home(r, store)}
 
 
-def relocation(row: Row, rows: list[Row], store: GenreStore) -> Operation | None:
+def relocation(row: Row, rows: list[Row], store: GenreStore, aliases: Mapping[str, str] = NO_ALIASES) -> Operation | None:
     if not wants_home(row, store):
         return None
-    dst = home_of(row, store, shape_of(rows))
+    dst = home_of(row, store, shape_of(rows, aliases))
     if dst == row.rel_path:
         return None
     if any(r.rel_path == dst for r in rows):
@@ -101,8 +102,8 @@ def relocation(row: Row, rows: list[Row], store: GenreStore) -> Operation | None
     return Operation("move", row.rel_path, dst, move_reason(row.rel_path, dst))
 
 
-def relocations(rows: list[Row], store: GenreStore, settled: set[str]) -> list[Operation]:
-    wanted = {src: dst for src, dst in desired(rows, store).items() if src not in settled}
+def relocations(rows: list[Row], store: GenreStore, settled: set[str], aliases: Mapping[str, str] = NO_ALIASES) -> list[Operation]:
+    wanted = {src: dst for src, dst in desired(rows, store, aliases).items() if src not in settled}
     moving = {src for src, dst in wanted.items() if src != dst}
     occupied = {r.rel_path: r.rel_path for r in rows if r.rel_path not in moving}
     ops = []
@@ -116,8 +117,8 @@ def relocations(rows: list[Row], store: GenreStore, settled: set[str]) -> list[O
     return ops
 
 
-def plan(rows: list[Row], findings: list[Finding], store: GenreStore) -> list[Operation]:
+def plan(rows: list[Row], findings: list[Finding], store: GenreStore, aliases: Mapping[str, str] = NO_ALIASES) -> list[Operation]:
     by_path = {r.rel_path: r for r in rows}
     ops = trash_junk(findings) + set_aside_duplicates(findings, by_path)
     settled = {o.src for o in ops}
-    return ops + relocations(rows, store, settled)
+    return ops + relocations(rows, store, settled, aliases)

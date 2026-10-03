@@ -8,7 +8,7 @@ from pathlib import Path
 
 from kobold import alfred, oracle
 from kobold.alfred import counted
-from kobold.apply import Applied, apply, undo
+from kobold.apply import Applied, apply
 from kobold.asking import (
     Question,
     ask_all,
@@ -63,6 +63,7 @@ from kobold.library import (
     set_genres,
     transfer,
     trash_operations,
+    undo_fixes,
 )
 from kobold.model import Book, Row
 
@@ -167,7 +168,7 @@ def finish_with_reindex(message: str, should_notify: bool) -> int:
 def cmd_undo(args) -> int:
     if index_busy(db_path()):
         return refuse("Indexing is running, try again later", args.notify)
-    undone = undo(library_root(), journal_path())
+    undone = undo_fixes()
     return finish_with_reindex(f"Undid {undone}", args.notify)
 
 

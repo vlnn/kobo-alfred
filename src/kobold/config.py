@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from kobold.authors import AuthorStore
 from kobold.genres import GenreStore
 from kobold.index import Index
 from kobold.suggestions import SuggestionStore
@@ -67,6 +68,10 @@ def journal_path() -> Path:
 
 def genre_store() -> GenreStore:
     return GenreStore(data_dir() / "genres.tsv").load()
+
+
+def author_store() -> AuthorStore:
+    return AuthorStore(data_dir() / "authors.tsv").load()
 
 
 def oracle_url() -> str:

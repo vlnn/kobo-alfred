@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import shutil
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import astuple, dataclass, replace
 from pathlib import Path
 
 from kobold.alfred import counted
-from kobold.apply import EXECUTABLE, Applied, apply
+from kobold.apply import EXECUTABLE, Applied, Entry, apply, last_batch, read_journal, undo
+from kobold.authors import obvious_groups
 from kobold.config import (
+    author_store,
     covers_dir,
     data_dir,
     db_path,
@@ -24,7 +26,7 @@ from kobold.config import (
 )
 from kobold.genres import GenreStore, folder_slug, genre_from_folder, without_author
 from kobold.index import Index, IndexBusy, build_index, build_sources_index
-from kobold.lint import all_folders, lint
+from kobold.lint import all_folders, author_folders, lint
 from kobold.metadata import is_sound, read_book
 from kobold.model import Finding, GenreEntry, Operation, Row
 from kobold.naming import canonical_name, fat_safe, known_authors
@@ -139,7 +141,7 @@ def unclassified_rows(words: list[str]) -> list[Row]:
 def diagnosis() -> tuple[list[Finding], list[Operation]]:
     rows, store = all_rows(library_index()), genre_store()
     found = lint(rows, library_root(), exclude=(data_dir(),))
-    return found, plan(rows, found, store)
+    return found, plan(rows, found, store, author_store().aliases)
 
 
 def current_plan() -> list[Operation]:
@@ -152,7 +154,7 @@ def confident_names(store: SuggestionStore) -> dict[str, dict]:
 
 def renamed(row: Row, answer: dict, known: frozenset[str]) -> Operation | None:
     proposed = replace(row, title=answer["title"], authors="; ".join(answer["authors"]))
-    name = canonical_name(proposed, known)
+    name = canonical_name(proposed, known, author_store().aliases)
     if name == Path(row.rel_path).name:
         return None
     return Operation("move", row.rel_path, str(Path(row.rel_path).with_name(name)), f"{SUGGESTED} title and author")
@@ -164,22 +166,46 @@ def suggested_renames(rows: list[Row], store: SuggestionStore) -> list[Operation
     return [op for op in proposals if op is not None]
 
 
-def author_groups(store: SuggestionStore) -> list[dict]:
+def model_groups(store: SuggestionStore) -> list[dict]:
     return store.answers("authors").get(LIBRARY, {}).get("groups", [])
 
 
-def merged(row: Row, canonical: str) -> Operation:
-    dst = Path(row.folder).parent / fat_safe(canonical) / Path(row.rel_path).name
+def folder_counts(rows: list[Row]) -> Counter:
+    counts: Counter = Counter()
+    for folder, books in author_folders(rows).items():
+        counts[Path(folder).name] += books
+    return counts
+
+
+def claimed_by(groups: list[dict]) -> set[str]:
+    return {name for g in groups for name in (g["canonical"], *g["aliases"])}
+
+
+def unclaimed(group: dict, claimed: set[str]) -> dict:
+    return {"canonical": group["canonical"], "aliases": [a for a in group["aliases"] if a not in claimed]}
+
+
+def author_groups(rows: list[Row], store: SuggestionStore) -> list[dict]:
+    groups = model_groups(store)
+    claimed = claimed_by(groups)
+    obvious = (unclaimed(g, claimed) for g in obvious_groups(folder_counts(rows)) if g["canonical"] not in claimed)
+    return groups + [g for g in obvious if g["aliases"]]
+
+
+def merged(row: Row, canonical: str, known: frozenset[str]) -> Operation:
+    name = canonical_name(row, known, {Path(row.folder).name: canonical})
+    dst = Path(row.folder).parent / fat_safe(canonical) / name
     return Operation("move", row.rel_path, dst.as_posix(), f"{MERGE}{canonical}")
 
 
-def group_merges(rows: list[Row], group: dict) -> list[Operation]:
+def group_merges(rows: list[Row], group: dict, known: frozenset[str]) -> list[Operation]:
     aliases = set(group["aliases"]) - {group["canonical"]}
-    return [merged(r, group["canonical"]) for r in rows if Path(r.folder).name in aliases and not r.partial]
+    return [merged(r, group["canonical"], known) for r in rows if Path(r.folder).name in aliases and not r.partial]
 
 
 def suggested_merges(rows: list[Row], store: SuggestionStore) -> list[Operation]:
-    return [op for group in author_groups(store) for op in group_merges(rows, group)]
+    known = frozenset(known_authors(all_folders(rows)))
+    return [op for group in author_groups(rows, store) for op in group_merges(rows, group, known)]
 
 
 def suggested_operations(rows: list[Row], settled: set[str]) -> list[Operation]:
@@ -220,11 +246,39 @@ def fix_operations(targets: list[str]) -> list[Operation]:
     return certain + [o for o in suggested if wanted(o.src)]
 
 
+def learn_aliases(ops: list[Operation], moved: dict[str, str]) -> None:
+    learned = {Path(o.src).parent.name: merge_target(o) for o in ops if is_merge(o) and o.src in moved}
+    if not learned:
+        return
+    store = author_store()
+    store.learn(learned)
+    store.save()
+
+
+def undone_alias(entry: Entry, aliases: Mapping[str, str]) -> str:
+    alias, canonical = Path(entry.src).parent.name, Path(entry.dst).parent.name
+    return alias if aliases.get(alias) == canonical else ""
+
+
+def unlearn_aliases(batch: list[Entry]) -> None:
+    store = author_store()
+    forgotten = [alias for e in batch if (alias := undone_alias(e, store.aliases))]
+    if forgotten:
+        store.forget(forgotten)
+        store.save()
+
+
+def undo_fixes() -> int:
+    unlearn_aliases(last_batch(read_journal(journal_path())))
+    return undo(library_root(), journal_path())
+
+
 def apply_fixes(ops: list[Operation]) -> Applied:
     index = library_index()
     acted = [index.by_rel_path(o.src) for o in ops if is_suggested(o)]
     result = apply(ops, library_root(), journal_path())
     forget_suggestions([r.fingerprint for r in acted if r and r.rel_path in result.moved], "name")
+    learn_aliases(ops, result.moved)
     refresh_index(result)
     return result
 
@@ -287,7 +341,7 @@ def outcome(row: Row, ops: dict[str, Operation], result: Applied) -> Outcome:
 def rehome(rows: list[Row], index: Index, store: GenreStore) -> list[Outcome]:
     everything = all_rows(index)
     settled = {r.rel_path for r in everything} - {r.rel_path for r in rows}
-    ops = {op.src: op for op in relocations(everything, store, settled)}
+    ops = {op.src: op for op in relocations(everything, store, settled, author_store().aliases)}
     result = apply(list(ops.values()), library_root(), journal_path())
     refresh_index(result)
     return [outcome(row, ops, result) for row in rows]
