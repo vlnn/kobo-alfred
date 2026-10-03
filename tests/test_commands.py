@@ -267,8 +267,9 @@ def test_stats_rows_count_and_complete_to_their_command(indexed):
         "0 duplicate titles",
         "1 pending fix",
         "1 unfinished download",
-    ], "stats should count books, inbox, duplicate titles, pending fixes and unfinished downloads"
-    assert [r["autocomplete"] for r in rows] == ["", "inbox ", "dups ", "fix ", "trash "], "↩ on a row completes to its command"
+        "0 books embedded",
+    ], "stats should count books, inbox, duplicate titles, pending fixes, unfinished downloads and embedded books"
+    assert [r["autocomplete"] for r in rows] == ["", "inbox ", "dups ", "fix ", "trash ", "model "], "↩ on a row completes to its command"
     assert all(r["valid"] is False for r in rows), "stats rows navigate rather than act"
 
 
@@ -726,7 +727,7 @@ def test_model_asks_both_servers_when_embeddings_live_elsewhere(served, monkeypa
     rows = command_rows("model")
 
     assert titles(rows[2:]) == ["qwen2.5-7b-instruct", "bge-m3"], "the rows are what both servers list"
-    assert rows[1]["subtitle"].startswith("http://127.0.0.1:8081"), "the embeddings header names its own server"
+    assert served.call_count == 2, "each server is asked once"
 
 
 def test_model_with_the_server_down_says_so(served):
@@ -793,3 +794,37 @@ def test_chooser_without_a_model_explains():
     (row,) = chooser_items("", "")
 
     assert row["title"] == "No model selected" and row["valid"] is False, "the chooser needs a model from kb model"
+
+
+def test_stats_counts_embedded_books(indexed, tmp_path, monkeypatch):
+    from kobolib.vectors import VectorStore
+
+    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+    VectorStore(tmp_path / "alfred-data" / "vectors.db").put("bge-m3", fingerprint_of("napkin"), [1.0, 0.0])
+
+    (row,) = [r for r in command_rows("stats") if "embedded" in r["title"]]
+
+    assert row["title"] == "1 book embedded" and row["autocomplete"] == "model ", "the count is for the current model; ↩ goes to kb model"
+
+
+def test_model_header_offers_to_embed_the_rest(served, tmp_path):
+    from kobolib.vectors import VectorStore
+
+    VectorStore(tmp_path / "alfred-data" / "vectors.db").put("bge-m3", fingerprint_of("napkin"), [1.0, 0.0])
+
+    embed_row = command_rows("model")[1]
+
+    assert embed_row["subtitle"] == "1 of 3 books embedded · ↩ embeds the rest" and action_of(embed_row) == "embed", "↩ runs kobolib embed"
+    assert embed_row["valid"] is True, "the header is actionable while books are missing"
+
+
+def test_model_header_is_quiet_when_everything_is_embedded(served, tmp_path):
+    from kobolib.vectors import VectorStore
+
+    store = VectorStore(tmp_path / "alfred-data" / "vectors.db")
+    for word in ("napkin", "deep", "оперантное"):
+        store.put("bge-m3", fingerprint_of(word), [1.0, 0.0])
+
+    embed_row = command_rows("model")[1]
+
+    assert embed_row["subtitle"] == "3 books embedded" and embed_row["valid"] is False, "nothing left to embed"

@@ -742,3 +742,58 @@ def test_chooser_renders_rows_for_the_selected_model(env, capsys, monkeypatch):
     items = run(["chooser", ""], capsys)["items"]
 
     assert [i["title"] for i in items] == ["Use bge-m3 for the oracle", "Use bge-m3 for embeddings"], "the chooser reads the model variable"
+
+
+@pytest.fixture
+def embed_env(oracle_env, monkeypatch):
+    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+
+
+def vector_store(tmp_path: Path):
+    from kobolib.vectors import VectorStore
+
+    return VectorStore(tmp_path / "alfred-data" / "vectors.db")
+
+
+def test_embed_is_refused_without_an_embedding_model(oracle_env, capsys):
+    assert main(["embed"]) == 1 and "KOBO_EMBED_MODEL" in capsys.readouterr().out, "the setting to fill is named"
+
+
+def test_embed_stores_a_vector_per_complete_book(embed_env, tmp_path, capsys, mocker):
+    embed = mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+
+    assert main(["embed"]) == 0, "embedding should succeed"
+
+    assert capsys.readouterr().out.strip() == "Embedded 3 books", "every complete book, the unfinished download left out"
+    assert vector_store(tmp_path).count("bge-m3") == 3, "the vectors are stored under the model"
+    assert all(len(c.args[0]) <= 1500 and "Genres:" not in c.args[0] for c in embed.call_args_list), (
+        "the text is the evidence without the genre list, cut to fit an embedding window"
+    )
+
+
+def test_embed_skips_embedded_books_unless_forced(embed_env, capsys, mocker):
+    embed = mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+    main(["embed"])
+    capsys.readouterr()
+
+    main(["embed"])
+    assert embed.call_count == 3 and capsys.readouterr().out.strip() == "Every book is embedded", "nothing new is said plainly"
+
+    main(["embed", "--force"])
+    assert embed.call_count == 6, "--force re-embeds everything"
+
+
+def test_embed_counts_skipped_requests(embed_env, capsys, mocker):
+    mocker.patch("kobolib.embedder.embed", side_effect=[[1.0, 0.0], None, [0.0, 1.0]])
+
+    main(["embed"])
+
+    assert capsys.readouterr().out.strip() == "Embedded 2 books, skipped 1", "a failed request is counted, not fatal"
+
+
+def test_embed_words_narrow_the_books(embed_env, tmp_path, capsys, mocker):
+    mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+
+    main(["embed", "napkin"])
+
+    assert vector_store(tmp_path).count("bge-m3") == 1, "only books matching the words are embedded"

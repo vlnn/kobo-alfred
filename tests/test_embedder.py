@@ -39,3 +39,35 @@ def test_models_is_none_for_a_malformed_list(mocker, body):
     mocker.patch("kobolib.embedder.urlopen", return_value=Responding(body))
 
     assert embedder.models("http://127.0.0.1:8080") is None, f"{body!r} is not a model list"
+
+
+@pytest.fixture
+def embedding_server(monkeypatch):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBO_EMBED_URL", "http://127.0.0.1:8081/")
+    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+
+
+def test_embed_posts_the_text_to_the_embedding_server(embedding_server, mocker):
+    urlopen = mocker.patch("kobolib.embedder.urlopen", return_value=Responding({"data": [{"embedding": [0.1, 0.2, 0.3]}]}))
+
+    assert embedder.embed("Title: Nova") == [0.1, 0.2, 0.3], "the embedding comes back as a list of floats"
+
+    request = urlopen.call_args.args[0]
+    assert request.full_url == "http://127.0.0.1:8081/v1/embeddings", "the embedding server has its own URL"
+    assert json.loads(request.data) == {"model": "bge-m3", "input": "Title: Nova"}, "the configured model embeds the text"
+    assert urlopen.call_args.kwargs["timeout"] == embedder.EMBED_TIMEOUT, "an embedding request has the design's timeout"
+
+
+@pytest.mark.parametrize("body", [{"data": []}, {"data": [{"embedding": "x"}]}, {"data": [{"embedding": [1, "a"]}]}, {}])
+def test_embed_is_none_for_a_malformed_reply(embedding_server, mocker, body):
+    mocker.patch("kobolib.embedder.urlopen", return_value=Responding(body))
+
+    assert embedder.embed("x") is None, f"{body!r} is not an embedding"
+
+
+def test_embed_is_none_without_an_embedding_model(embedding_server, monkeypatch, mocker):
+    monkeypatch.delenv("KOBO_EMBED_MODEL")
+    urlopen = mocker.patch("kobolib.embedder.urlopen")
+
+    assert embedder.embed("x") is None and not urlopen.called, "no model, no request"

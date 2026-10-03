@@ -14,7 +14,7 @@ OBJECT_VERSIONS = {
     "alfred.workflow.utility.conditional": 1,
 }
 OBJECTS = {"KB", "PICKER", "DISPATCH", "OPEN", "REVEAL", "RUN", "NOTIFY", "CHOOSER", "CHOOSE"}
-RUNNER_ACTIONS = ("update", "fix", "trash", "undo", "import", "genre", "ask", "dismiss")
+RUNNER_ACTIONS = ("update", "fix", "trash", "undo", "import", "genre", "ask", "dismiss", "embed")
 ROUTES = {
     "update": "RUN",
     "fix": "RUN",

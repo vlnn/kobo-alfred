@@ -6,6 +6,7 @@ from pathlib import Path
 from kobolib.genres import GenreStore
 from kobolib.index import Index
 from kobolib.suggestions import SuggestionStore
+from kobolib.vectors import VectorStore
 
 
 def library_root() -> Path:
@@ -84,6 +85,10 @@ def oracle_status_path() -> Path:
 
 def suggestion_store() -> SuggestionStore:
     return SuggestionStore(data_dir() / "oracle.tsv").load()
+
+
+def vector_store() -> VectorStore:
+    return VectorStore(data_dir() / "vectors.db")
 
 
 def selected_books() -> list[str]:

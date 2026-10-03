@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from kobolib import oracle
+from kobolib import embedder, oracle
 from kobolib.alfred import counted
 from kobolib.evidence import evidence_for, evidence_hash
 from kobolib.index import Index
@@ -12,6 +12,9 @@ from kobolib.lint import is_noisy, looks_opaque
 from kobolib.metadata import READERS
 from kobolib.model import Row
 from kobolib.suggestions import LIBRARY, SuggestionStore
+from kobolib.vectors import VectorStore
+
+EMBED_CHARS = 1500
 
 
 @dataclass
@@ -130,3 +133,32 @@ def summary(noun: str, asked: Asked) -> str:
     if asked.skipped:
         parts.append(f"{asked.skipped} skipped")
     return f"Asked about {asked.about}: {', '.join(parts)}"
+
+
+@dataclass
+class Embedded:
+    done: int = 0
+    skipped: int = 0
+
+
+def embed_text(row: Row) -> str:
+    return evidence_for(row)[:EMBED_CHARS]
+
+
+def embed_all(rows: list[Row], model: str, store: VectorStore) -> Embedded:
+    embedded = Embedded()
+    for row in rows:
+        vector = embedder.embed(embed_text(row))
+        if vector is None:
+            embedded.skipped += 1
+            continue
+        store.put(model, row.fingerprint, vector)
+        embedded.done += 1
+    return embedded
+
+
+def embed_summary(embedded: Embedded, nothing_to_do: bool) -> str:
+    if nothing_to_do:
+        return "Every book is embedded"
+    skipped = f", skipped {embedded.skipped}" if embedded.skipped else ""
+    return f"Embedded {counted(embedded.done, 'book')}{skipped}"

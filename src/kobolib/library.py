@@ -19,6 +19,7 @@ from kobolib.config import (
     sources,
     sources_db_path,
     suggestion_store,
+    vector_store,
 )
 from kobolib.genres import GenreStore, folder_slug, genre_from_folder
 from kobolib.index import Index, IndexBusy, build_index, build_sources_index
@@ -48,9 +49,12 @@ def bootstrap_genres() -> int:
 
 
 def prune_suggestions(index: Index) -> None:
+    present = {row.fingerprint for row in all_rows(index)}
     store = suggestion_store()
-    if store.prune({row.fingerprint for row in all_rows(index)}):
+    if store.prune(present):
         store.save()
+    if vector_store().path.exists():
+        vector_store().prune(present)
 
 
 def is_path(reference: str) -> bool:

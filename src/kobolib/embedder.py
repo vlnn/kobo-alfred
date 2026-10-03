@@ -4,7 +4,10 @@ import json
 from http.client import HTTPException
 from urllib.request import Request, urlopen
 
+from kobolib.config import embed_model, embed_url
+
 LIST_TIMEOUT = 0.5
+EMBED_TIMEOUT = 60
 
 
 def fetch(url: str, timeout: float, body: dict | None = None) -> dict | None:
@@ -26,3 +29,17 @@ def model_ids(listing: dict | None) -> list[str] | None:
 
 def models(url: str) -> list[str] | None:
     return model_ids(fetch(f"{url}/v1/models", LIST_TIMEOUT))
+
+
+def embedding_of(reply: dict | None) -> list[float] | None:
+    try:
+        values = reply["data"][0]["embedding"]
+    except (KeyError, IndexError, TypeError):
+        return None
+    return values if isinstance(values, list) and all(isinstance(v, (int, float)) for v in values) else None
+
+
+def embed(text: str) -> list[float] | None:
+    if not embed_model():
+        return None
+    return embedding_of(fetch(f"{embed_url()}/v1/embeddings", EMBED_TIMEOUT, {"model": embed_model(), "input": text}))

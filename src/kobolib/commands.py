@@ -25,6 +25,7 @@ from kobolib.config import (
     sources_db_path,
     sources_index,
     suggestion_store,
+    vector_store,
 )
 from kobolib.genres import GenreStore
 from kobolib.index import Index, index_busy, is_current
@@ -270,6 +271,7 @@ def stats_items() -> list[dict]:
         alfred.navigation_item(counted(len(index.duplicates()), "duplicate title"), "↩ lists every copy", "dups "),
         alfred.navigation_item(counted(len(pending_operations()), "pending fix", "pending fixes"), "↩ lists them", "fix "),
         alfred.navigation_item(counted(len(index.partials([])), "unfinished download"), "↩ lists them", "trash "),
+        alfred.navigation_item(f"{counted(embedded_count(), 'book')} embedded", "↩ kb model", "model "),
     ]
 
 
@@ -313,17 +315,27 @@ def model_rows(served: dict[str, list[str] | None]) -> list[dict]:
     return rows
 
 
-def embeddings_state() -> str:
-    return "↩ on a model below chooses it" if not embed_model() else embed_url()
+def embedded_count() -> int:
+    return vector_store().count(embed_model()) if embed_model() else 0
+
+
+def missing_embeddings() -> int:
+    return len(vector_store().missing(embed_model(), library_index().search([], limit=100_000))) if not index_problem() else 0
+
+
+def embeddings_item() -> dict:
+    title = f"Embeddings: {embed_model() or 'none'}"
+    if not embed_model():
+        return alfred.message_item(title, "↩ on a model below chooses it")
+    done, missing = embedded_count(), missing_embeddings()
+    if not missing:
+        return alfred.message_item(title, f"{counted(done, 'book')} embedded")
+    return alfred.action_item(title, f"{done} of {done + missing} books embedded · ↩ embeds the rest", "embed")
 
 
 def model_headers(served: dict[str, list[str] | None]) -> list[dict]:
     oracle_state = alfred.SEPARATOR.join([oracle_url(), reachability(served[oracle_url()])])
-    embeddings = alfred.SEPARATOR.join([embed_url(), reachability(served[embed_url()])]) if embed_model() else embeddings_state()
-    return [
-        alfred.message_item(f"Oracle: {oracle_model() or 'server default'}", oracle_state),
-        alfred.message_item(f"Embeddings: {embed_model() or 'none'}", embeddings),
-    ]
+    return [alfred.message_item(f"Oracle: {oracle_model() or 'server default'}", oracle_state), embeddings_item()]
 
 
 def model_items(words: list[str]) -> list[dict]:

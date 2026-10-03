@@ -8,7 +8,18 @@ from pathlib import Path
 from kobolib import alfred, oracle
 from kobolib.alfred import counted
 from kobolib.apply import Applied, apply, undo
-from kobolib.asking import Question, ask_all, ask_authors, author_folder_names, collect_evidence, genre_question, name_question, summary
+from kobolib.asking import (
+    Question,
+    ask_all,
+    ask_authors,
+    author_folder_names,
+    collect_evidence,
+    embed_all,
+    embed_summary,
+    genre_question,
+    name_question,
+    summary,
+)
 from kobolib.commands import (
     chooser_items,
     genre_picker_items,
@@ -21,6 +32,7 @@ from kobolib.commands import (
 from kobolib.config import (
     covers_dir,
     db_path,
+    embed_model,
     genre_store,
     journal_path,
     library_index,
@@ -28,6 +40,7 @@ from kobolib.config import (
     selected_books,
     sources,
     suggestion_store,
+    vector_store,
 )
 from kobolib.index import add_book, fill_thumbnails, index_busy
 from kobolib.library import (
@@ -286,6 +299,18 @@ def cmd_ask(args) -> int:
     return 0
 
 
+def cmd_embed(args) -> int:
+    if not embed_model():
+        return refuse("No embedding model: set KOBO_EMBED_MODEL, or ↩ on a model in kb model", args.notify)
+    if problem := index_problem():
+        return refuse(f"{problem}: run kb update", args.notify)
+    rows, store = library_index().search(args.words, limit=100_000), vector_store()
+    wanted = rows if args.force else store.missing(embed_model(), rows)
+    embedded = embed_all(wanted, embed_model(), store)
+    report(embed_summary(embedded, not wanted), args.notify)
+    return 0
+
+
 def cmd_choose(args) -> int:
     variable, label = ROLE_VARIABLES[args.role]
     configure(variable, args.model)
@@ -355,6 +380,9 @@ def build_parser() -> argparse.ArgumentParser:
     choose_cmd.add_argument("model")
     choose_cmd.set_defaults(func=cmd_choose)
     sub.add_parser("models").set_defaults(func=cmd_models)
+    embed_cmd = sub.add_parser("embed", parents=[notify, flag("--force")])
+    embed_cmd.add_argument("words", nargs="*")
+    embed_cmd.set_defaults(func=cmd_embed)
     sub.add_parser("chooser", parents=[query]).set_defaults(func=cmd_chooser)
     return parser
 
