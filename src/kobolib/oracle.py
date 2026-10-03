@@ -7,7 +7,8 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from kobolib.config import oracle_key, oracle_log_path, oracle_model, oracle_status_path, oracle_url
+from kobolib.config import oracle_key, oracle_lock_base, oracle_log_path, oracle_model, oracle_status_path, oracle_url
+from kobolib.index import acquire_lock, index_busy
 
 TIMEOUT = 60
 LOG_ENTRIES = 500
@@ -84,9 +85,25 @@ def reply_of(response: dict) -> dict | None:
 
 def write_log(path: Path, entry: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    kept = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    lines = [*kept, json.dumps(entry, ensure_ascii=False)][-LOG_ENTRIES:]
-    path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def trim_log(path: Path) -> None:
+    if not path.exists():
+        return
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if len(lines) > LOG_ENTRIES:
+        path.write_text("".join(f"{line}\n" for line in lines[-LOG_ENTRIES:]), encoding="utf-8")
+
+
+def busy() -> bool:
+    return index_busy(oracle_lock_base())
+
+
+def lock() -> Path:
+    trim_log(oracle_log_path())
+    return acquire_lock(oracle_lock_base())
 
 
 def note_reachability(reachable: bool) -> None:

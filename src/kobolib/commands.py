@@ -180,6 +180,8 @@ def ask_title(inbox: int, unnamed: int, words: list[str]) -> str:
 def oracle_rows(index: Index, store: SuggestionStore, words: list[str]) -> list[dict]:
     if not oracle.configured():
         return []
+    if oracle.busy():
+        return [alfred.busy_item("Asking the model… a notification follows")]
     down = [alfred.unreachable_item(url)] if (url := oracle.unreachable()) else []
     inbox, unnamed = len(unasked(index.unclassified(words), "genre", store)), len(unasked(name_rows(index, words), "name", store))
     return down + ([alfred.ask_item(ask_title(inbox, unnamed, words), " ".join(words))] if inbox or unnamed else [])
@@ -302,6 +304,8 @@ def neighbour_rows(seed: Row, index: Index, store: VectorStore) -> list[dict]:
 
 
 def embed_rows(store: VectorStore) -> list[dict]:
+    if oracle.busy():
+        return [alfred.busy_item("Embedding… a notification follows")]
     missing = missing_embeddings()
     return (
         [alfred.action_item(f"Embed {counted(missing, 'new book')}", "↩ runs in the background, then notifies", "embed")] if missing else []

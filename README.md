@@ -244,6 +244,7 @@ Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index:
 | *No source is mounted* | plug in the drive named in **Other sources** |
 | *No book selected* in the genre picker | it was opened directly; use ⇧↩ on a book or ↩ in `kb classify` |
 | *Nothing to fix* | the library is clean |
+| *Asking the model… a notification follows* / *The model is already being asked* | one pass runs at a time; wait for its notification. A pass that died leaves `oracle.lock` behind for an hour; delete it to go on |
 | *Model not reachable at …* | start `llama-server`, or fix **Model server**; `kb model` shows whether it answers |
 | every request skipped, `oracle.log` says *401* | the server wants a key: set **Model server API key** (`--api-key` or `LLAMA_API_KEY` on the server side) |
 | `oracle.log` full of *timed out* | the oracle is a thinking model spending the minute on reasoning; choose a plain instruct model in `kb model` |

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from kobolib import alfred, oracle
@@ -43,7 +44,7 @@ from kobolib.config import (
     suggestion_store,
     vector_store,
 )
-from kobolib.index import add_book, fill_thumbnails, index_busy
+from kobolib.index import IndexBusy, add_book, fill_thumbnails, index_busy
 from kobolib.library import (
     apply_fixes,
     apply_summary,
@@ -109,11 +110,34 @@ def cmd_update(args) -> int:
     return 0
 
 
+BUSY = "The model is already being asked, try again later"
+
+
 def consult_models(should_notify: bool) -> None:
-    if oracle.configured():
-        ask_questions("", [], force=False, should_notify=should_notify, quiet=True)
-    if embed_model():
-        embed_books([], force=False, should_notify=should_notify, quiet=True)
+    try:
+        lock = oracle.lock()
+    except IndexBusy:
+        report(BUSY, should_notify)
+        return
+    try:
+        if oracle.configured():
+            ask_questions("", [], force=False, should_notify=should_notify, quiet=True)
+        if embed_model():
+            embed_books([], force=False, should_notify=should_notify, quiet=True)
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def locked(run: Callable[[], None], should_notify: bool) -> int:
+    try:
+        lock = oracle.lock()
+    except IndexBusy:
+        return refuse(BUSY, should_notify)
+    try:
+        run()
+    finally:
+        lock.unlink(missing_ok=True)
+    return 0
 
 
 def cmd_search(args) -> int:
@@ -310,8 +334,7 @@ def cmd_ask(args) -> int:
     if args.dry_run:
         print(evidence_report(args.question, words), end="")
         return 0
-    ask_questions(args.question, words, args.force, args.notify)
-    return 0
+    return locked(lambda: ask_questions(args.question, words, args.force, args.notify), args.notify)
 
 
 def embed_books(words: list[str], force: bool, should_notify: bool, quiet: bool = False) -> None:
@@ -326,8 +349,7 @@ def cmd_embed(args) -> int:
         return refuse("No embedding model: set KOBO_EMBED_MODEL, or ↩ on a model in kb model", args.notify)
     if problem := index_problem():
         return refuse(f"{problem}: run kb update", args.notify)
-    embed_books(args.words, args.force, args.notify)
-    return 0
+    return locked(lambda: embed_books(args.words, args.force, args.notify), args.notify)
 
 
 def cmd_choose(args) -> int:

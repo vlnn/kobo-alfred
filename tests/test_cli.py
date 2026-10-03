@@ -866,3 +866,29 @@ def test_ask_takes_the_words_as_one_argument_from_alfred(oracle_env, capsys, moc
     assert all("Title: Napkin" in c.args[1] for c in ask.call_args_list), (
         "the Alfred row passes the words as one argument; each must match, as in a search"
     )
+
+
+def test_only_one_model_pass_runs_at_a_time(oracle_env, tmp_path, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    (tmp_path / "alfred-data" / "oracle.lock").write_text("1")
+
+    assert main(["ask", "genre"]) == 1 and main(["embed"]) == 1, "a second pass is refused while one runs"
+    assert "already" in capsys.readouterr().out and not ask.called, "and says so"
+
+
+def test_a_pass_releases_its_lock_and_trims_the_log(oracle_env, tmp_path, capsys, mocker):
+    mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+
+    main(["ask", "genre"])
+
+    assert not (tmp_path / "alfred-data" / "oracle.lock").exists(), "the lock goes with the pass"
+
+
+def test_update_skips_the_model_steps_while_a_pass_runs(both_models, monkeypatch, tmp_path, capsys):
+    ask, embed = both_models
+    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "1")
+    (tmp_path / "alfred-data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "alfred-data" / "oracle.lock").write_text("1")
+
+    assert main(["update", "--no-thumbnails"]) == 0, "indexing still succeeds"
+    assert not ask.called and not embed.called and "already" in capsys.readouterr().out, "the model steps wait for the next update"

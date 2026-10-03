@@ -218,6 +218,10 @@ def dismiss_item(book: str) -> dict:
     return head_row("oracle:dismiss", "Dismiss suggestions for this book", subtitle, variables={"book": book, "action": "dismiss"})
 
 
+def busy_item(title: str) -> dict:
+    return {"uid": "oracle:busy", **message_item(title, "one pass at a time; kb stats and kb classify show the result")}
+
+
 def unreachable_item(url: str) -> dict:
     return {"uid": "oracle:unreachable", **message_item(f"Model not reachable at {url}", "start llama-server, or change KOBO_ORACLE_URL")}
 

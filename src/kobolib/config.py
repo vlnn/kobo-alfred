@@ -91,6 +91,10 @@ def oracle_log_path() -> Path:
     return data_dir() / "oracle.log"
 
 
+def oracle_lock_base() -> Path:
+    return data_dir() / "oracle"
+
+
 def oracle_status_path() -> Path:
     return data_dir() / "oracle.status"
 

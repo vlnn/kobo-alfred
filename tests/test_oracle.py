@@ -99,17 +99,6 @@ def test_ask_logs_prompt_reply_and_duration(answering, tmp_path: Path):
     assert entry["reply"] == {"genre": "fiction/spy"} and entry["seconds"] >= 0, "and what came back, and how long it took"
 
 
-def test_log_keeps_the_last_entries_only(answering, tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(oracle, "LOG_ENTRIES", 3)
-    for i in range(5):
-        oracle.ask("genre", f"prompt {i}", {})
-
-    lines = (tmp_path / "data" / "oracle.log").read_text(encoding="utf-8").splitlines()
-    assert [json.loads(line)["prompt"] for line in lines] == ["prompt 2", "prompt 3", "prompt 4"], (
-        "the log is truncated to the newest entries"
-    )
-
-
 def test_connection_failure_is_remembered_until_the_next_answer(server, mocker, tmp_path: Path):
     mocker.patch("kobolib.oracle.urlopen", side_effect=URLError("connection refused"))
     oracle.ask("genre", "x", {})
@@ -209,3 +198,26 @@ def test_ask_caps_the_answer_and_turns_thinking_off(answering, question, budget)
     assert body["chat_template_kwargs"] == {"enable_thinking": False} and body["reasoning_effort"] == "low", (
         "a thinking model is asked to answer, not to reason first"
     )
+
+
+def test_log_is_appended_not_rewritten(answering, tmp_path: Path, mocker):
+    log = tmp_path / "data" / "oracle.log"
+    log.parent.mkdir()
+    log.write_text('{"prompt": "older"}\n', encoding="utf-8")
+    write_text = mocker.spy(Path, "write_text")
+
+    oracle.ask("genre", "newer", {})
+
+    assert [json.loads(line)["prompt"] for line in log.read_text(encoding="utf-8").splitlines()] == ["older", "newer"], "one line appended"
+    assert not any(c.args[0] == log for c in write_text.call_args_list), "concurrent passes must not rewrite each other's lines"
+
+
+def test_trim_log_keeps_the_newest_entries(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(oracle, "LOG_ENTRIES", 2)
+    log = tmp_path / "oracle.log"
+    log.write_text("".join(f'{{"prompt": "{i}"}}\n' for i in range(5)), encoding="utf-8")
+
+    oracle.trim_log(log)
+
+    assert [json.loads(line)["prompt"] for line in log.read_text(encoding="utf-8").splitlines()] == ["3", "4"], "trimmed to the newest"
+    oracle.trim_log(tmp_path / "missing.log")

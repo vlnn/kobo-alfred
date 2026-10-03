@@ -934,3 +934,23 @@ def test_ask_the_model_row_follows_the_words(oracle_on, query):
 
 def test_ask_the_model_row_is_absent_when_no_matching_book_is_unasked(oracle_on):
     assert not any(i.get("uid") == "oracle:ask" for i in command_rows("classify deep")), "a classified, named book leaves nothing to ask"
+
+
+@pytest.mark.parametrize("query", ["classify", "fix"])
+def test_a_running_pass_replaces_the_ask_row(oracle_on, tmp_path, query):
+    (tmp_path / "alfred-data" / "oracle.lock").write_text("1")
+
+    rows = [i for i in command_rows(query) if i.get("uid", "").startswith("oracle:")]
+
+    assert [(r["title"], r["valid"]) for r in rows] == [("Asking the model… a notification follows", False)], (
+        "while a pass runs the row reports it instead of starting another"
+    )
+
+
+def test_a_running_pass_replaces_the_embed_row(embeddings, library, tmp_path, capsys):
+    (library / "00_Inbox" / "Fresh.pdf").write_bytes(b"%PDF-1.4 fresh")
+    main(["update"])
+    capsys.readouterr()
+    (tmp_path / "alfred-data" / "oracle.lock").write_text("1")
+
+    assert command_rows("like deep")[-1]["title"] == "Embedding… a notification follows", "kb like says a pass is running"
