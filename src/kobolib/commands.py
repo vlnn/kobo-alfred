@@ -77,10 +77,8 @@ def search_items(raw: str) -> list[dict]:
 
 
 def with_action(item: dict, action: str) -> dict:
-    if "action" in item.get("variables", {}):
-        return item
-    mods = {key: {**mod, "variables": {"action": action, **mod.get("variables", {})}} for key, mod in item.get("mods", {}).items()}
-    return {**item, "variables": {**item.get("variables", {}), "action": action}, "mods": mods}
+    variables = item.get("variables", {})
+    return item if "action" in variables else {**item, "variables": {**variables, "action": action}}
 
 
 def command_items(command: Command, words: list[str]) -> list[dict]:
