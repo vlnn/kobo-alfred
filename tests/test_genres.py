@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.genres import GenreStore, genre_from_folder
-from kobolib.model import GenreEntry
+from kobold.genres import GenreStore, genre_from_folder
+from kobold.model import GenreEntry
 from tests.test_alfred import row
 
 

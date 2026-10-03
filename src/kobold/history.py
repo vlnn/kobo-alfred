@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from kobolib.koreader import settings_dir
-from kobolib.paths import nfc
+from kobold.koreader import settings_dir
+from kobold.paths import nfc
 
 ENTRY = re.compile(r"\{[^{}]*\}")
 FILE = re.compile(r'\["file"\]\s*=\s*"((?:[^"\\]|\\.)*)"')

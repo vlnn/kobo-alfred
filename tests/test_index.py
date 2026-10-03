@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.index import Index, build_index
-from kobolib.query import query_words
+from kobold.index import Index, build_index
+from kobold.query import query_words
 
 
 @pytest.fixture
@@ -138,7 +138,7 @@ def test_rebuild_replaces_old_rows(index: Index, library: Path):
 
 
 def test_rebuild_swaps_atomically_and_keeps_old_index_readable(index: Index, library: Path, mocker):
-    import kobolib.index as mod
+    import kobold.index as mod
 
     seen = []
     original = mod.records
@@ -147,7 +147,7 @@ def test_rebuild_swaps_atomically_and_keeps_old_index_readable(index: Index, lib
         seen.append(index.count())
         yield from original(root, cache, exclude)
 
-    mocker.patch("kobolib.index.records", side_effect=spying_records)
+    mocker.patch("kobold.index.records", side_effect=spying_records)
     build_index(library, index.db_path, cover_cache=library / "c")
 
     assert seen == [4], "old index should stay readable while the new one is being built"
@@ -155,7 +155,7 @@ def test_rebuild_swaps_atomically_and_keeps_old_index_readable(index: Index, lib
 
 
 def test_concurrent_build_is_refused(index: Index, library: Path):
-    from kobolib.index import IndexBusy, lock_path
+    from kobold.index import IndexBusy, lock_path
 
     lock_path(index.db_path).touch()
     with pytest.raises(IndexBusy):
@@ -166,7 +166,7 @@ def test_stale_lock_is_ignored(index: Index, library: Path):
     import os
     import time
 
-    from kobolib.index import lock_path
+    from kobold.index import lock_path
 
     lock = lock_path(index.db_path)
     lock.touch()
@@ -177,7 +177,7 @@ def test_stale_lock_is_ignored(index: Index, library: Path):
 
 
 def test_fill_thumbnails_updates_pdf_rows(index: Index, library: Path, mocker):
-    from kobolib.index import fill_thumbnails
+    from kobold.index import fill_thumbnails
     from tests.conftest import PNG_1X1
 
     def fake_qlmanage(cmd, **kwargs):
@@ -185,8 +185,8 @@ def test_fill_thumbnails_updates_pdf_rows(index: Index, library: Path, mocker):
         (out_dir / "thumb.png").write_bytes(PNG_1X1)
         return mocker.Mock(returncode=0)
 
-    mocker.patch("kobolib.covers.shutil.which", return_value="/usr/bin/qlmanage")
-    mocker.patch("kobolib.covers.subprocess.run", side_effect=fake_qlmanage)
+    mocker.patch("kobold.covers.shutil.which", return_value="/usr/bin/qlmanage")
+    mocker.patch("kobold.covers.subprocess.run", side_effect=fake_qlmanage)
 
     made = fill_thumbnails(index, library / "c")
 
@@ -282,8 +282,8 @@ def test_write_genres_touches_only_the_named_book(index: Index):
 def test_columns_follow_the_row_dataclass():
     from dataclasses import fields
 
-    from kobolib.index import COLUMNS, SCHEMA
-    from kobolib.model import Row
+    from kobold.index import COLUMNS, SCHEMA
+    from kobold.model import Row
 
     assert tuple(f.name for f in fields(Row)) == COLUMNS, "the insert order and the Row field order are one and the same"
     assert all(column in SCHEMA for column in COLUMNS), "every Row field is a column of the books table"
@@ -299,7 +299,7 @@ def test_every_connection_is_closed_after_use(index: Index, mocker):
         opened.append(conn := real_connect(*args, **kwargs))
         return conn
 
-    mocker.patch("kobolib.index.sqlite3.connect", side_effect=tracked)
+    mocker.patch("kobold.index.sqlite3.connect", side_effect=tracked)
     index.count()
     index.search(query_words("deep"))
     index.write_genres({"nope": "x"})
@@ -322,7 +322,7 @@ def test_words_fold_case_beyond_ascii(index: Index, library: Path, raw):
 
 
 def test_relocate_carries_the_cover_to_the_new_key(index: Index, library: Path):
-    from kobolib.covers import cover_key
+    from kobold.covers import cover_key
 
     src = "02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
     dst = "02_NonFiction/Shelved/Newport, Cal - Deep Work (2016).epub"
@@ -340,11 +340,11 @@ def test_relocate_carries_the_cover_to_the_new_key(index: Index, library: Path):
 
 @pytest.fixture
 def indexed(library: Path, tmp_path: Path, monkeypatch) -> Path:
-    from kobolib.cli import main
+    from kobold.cli import main
 
-    monkeypatch.setenv("KOBO_ROOT", str(library))
+    monkeypatch.setenv("KOBOLD_ROOT", str(library))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
-    monkeypatch.delenv("KOBO_DATA", raising=False)
+    monkeypatch.delenv("KOBOLD_DATA", raising=False)
     main(["update"])
     return tmp_path / "alfred-data" / "library.db"
 
@@ -364,7 +364,7 @@ def first_title(capsys) -> str:
 
 @pytest.mark.parametrize("command", [["search", w] for w in ("deep", "inbox", "dups", "stats", "rnd", "fix", "trash")])
 def test_index_from_an_older_version_asks_for_a_rebuild(indexed: Path, capsys, command):
-    from kobolib.cli import main
+    from kobold.cli import main
 
     age(indexed)
     main(command)
@@ -373,7 +373,7 @@ def test_index_from_an_older_version_asks_for_a_rebuild(indexed: Path, capsys, c
 
 
 def test_old_index_refuses_writes(indexed: Path, library: Path, capsys):
-    from kobolib.cli import main
+    from kobold.cli import main
 
     age(indexed)
 
@@ -383,7 +383,7 @@ def test_old_index_refuses_writes(indexed: Path, library: Path, capsys):
 
 
 def test_reindex_brings_an_old_index_up_to_date(indexed: Path, capsys):
-    from kobolib.cli import main
+    from kobold.cli import main
 
     age(indexed)
     main(["update"])

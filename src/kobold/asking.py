@@ -4,15 +4,15 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from kobolib import embedder, oracle
-from kobolib.alfred import counted
-from kobolib.evidence import evidence_for, evidence_hash
-from kobolib.index import EVERYTHING, Index
-from kobolib.lint import is_noisy, looks_opaque
-from kobolib.metadata import READERS
-from kobolib.model import Row
-from kobolib.suggestions import LIBRARY, SuggestionStore
-from kobolib.vectors import VectorStore
+from kobold import embedder, oracle
+from kobold.alfred import counted
+from kobold.evidence import evidence_for, evidence_hash
+from kobold.index import EVERYTHING, Index
+from kobold.lint import is_noisy, looks_opaque
+from kobold.metadata import READERS
+from kobold.model import Row
+from kobold.suggestions import LIBRARY, SuggestionStore
+from kobold.vectors import VectorStore
 
 EMBED_CHARS = 1500
 

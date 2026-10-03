@@ -1,6 +1,8 @@
-# kobo-alfred
+# kobold
 
-Type `kb` in Alfred, see your Kobo library with covers, press ↩ to read. Then let it tidy the library for you: file every book under `genre / Author, Name / Series / Author - Title (Year).epub`, set duplicates and junk aside, and undo if you don't like the result. Nothing is deleted except a file that is byte-for-byte already at its destination.
+*kobo + alfred.* A small creature that hoards books on an SD card.
+
+Type `kb` in Alfred, see your library with covers, press ↩ to read. Then let it tidy the library for you: file every book under `genre / Author, Name / Series / Author - Title (Year).epub`, set duplicates and junk aside, and undo if you don't like the result. Nothing is deleted except a file that is byte-for-byte already at its destination.
 
 The library is a folder on your Mac. Everything the workflow writes stays inside that folder (plus its own index next to Alfred's data); it doesn't talk to the Kobo. Keep the folder in sync with the device however you like (Syncthing, a mounted SD card, rsync) and point the workflow at the Mac side.
 
@@ -13,11 +15,11 @@ kb src heinlein           →  import from Calibre / Downloads into the inbox
 
 ## Install (three minutes)
 
-1. Grab `Kobo Library.alfredworkflow` from [Releases](https://github.com/vlnn/kobo-alfred/releases) (every push to `main` publishes a `latest` build) or build it yourself with `./build.sh`. Double-click it.
+1. Grab `Kobold.alfredworkflow` from [Releases](https://github.com/vlnn/kobold/releases) (every push to `main` publishes a `latest` build) or build it yourself with `./build.sh`. Double-click it.
 2. In the workflow's configuration set **Library root** to the folder that holds your books, e.g. `~/Books/kobo` (a Syncthing folder) or `/Volumes/Transcend/kobo` (the card itself).
 3. Type `kb update` ↩. A notification arrives when the index is built.
 
-Nothing to install: the workflow bundles `kobolib` and runs on macOS's own `/usr/bin/python3` (3.9+), no dependencies.
+Nothing to install: the workflow bundles `kobold` and runs on macOS's own `/usr/bin/python3` (3.9+), no dependencies.
 
 If your library root is on a removable volume and `kb` shows *Index is empty — is the card mounted?* while it is mounted, give Alfred access to **Removable Volumes** (System Settings → Privacy & Security → Files and Folders), then `kb update` again.
 
@@ -119,7 +121,7 @@ Every batch is journaled, whether it came from `kb fix`, from setting a genre or
 
 The one deletion: when a move finds a byte-identical file already at the destination, the redundant source is removed instead of moved. That is journaled too, and undo restores it from the kept copy. Folders left empty are pruned; case-only and accent-only renames happen in place.
 
-Dry run from a terminal: `kobolib fix --dry-run` prints `kind	src	dst	reason`, one per line.
+Dry run from a terminal: `kobold fix --dry-run` prints `kind	src	dst	reason`, one per line.
 
 ## Walkthrough 3: pull books in from Calibre or Downloads
 
@@ -152,9 +154,9 @@ kb fix                                        Penhale, Ivor - Table Napkin Foldi
 kb fix 7_815203                               Dismiss suggestions for this book
 ```
 
-What the model sees is the book's metadata, its `dc:subject`/`dc:description` (fb2: `genre`/`annotation`), the first two thousand characters of its text and, for a genre question, the list of known genres; `kobolib ask --dry-run` prints exactly that. Every answer is constrained by a JSON schema (a genre is one of the known genres or `none`), stored in `oracle.tsv` keyed by content fingerprint and the hash of the evidence, and kept until the evidence changes, so re-indexing, renaming or moving a book costs nothing. Setting a genre, applying a suggested rename, or dismissing a book forgets its answers. `oracle.log` keeps the last 500 exchanges for *why did it say that*.
+What the model sees is the book's metadata, its `dc:subject`/`dc:description` (fb2: `genre`/`annotation`), the first two thousand characters of its text and, for a genre question, the list of known genres; `kobold ask --dry-run` prints exactly that. Every answer is constrained by a JSON schema (a genre is one of the known genres or `none`), stored in `oracle.tsv` keyed by content fingerprint and the hash of the evidence, and kept until the evidence changes, so re-indexing, renaming or moving a book costs nothing. Setting a genre, applying a suggested rename, or dismissing a book forgets its answers. `oracle.log` keeps the last 500 exchanges for *why did it say that*.
 
-Suggested operations in `kb fix` apply only when you ↩ on their row (or name the file on the command line): **Fix all**, a bare `kobolib fix` and `--dry-run` stay certain-only. A merge moves books from the alias folders into the canonical one; if a book's embedded author still reads the alias spelling, the planner may later offer to move it back, because folders are derived from metadata — give it a genre with ⇧↩ and look at the row before accepting.
+Suggested operations in `kb fix` apply only when you ↩ on their row (or name the file on the command line): **Fix all**, a bare `kobold fix` and `--dry-run` stay certain-only. A merge moves books from the alias folders into the canonical one; if a book's embedded author still reads the alias spelling, the planner may later offer to move it back, because folders are derived from metadata — give it a genre with ⇧↩ and look at the row before accepting.
 
 Embeddings need a model made for them, served with `--embeddings`; the chat model that answers the questions cannot do it (the server answers 501 if asked), and a chat server started with `--embeddings` would pool its hidden states into poor vectors. The usual setup is a second server on its own port, pointed at by **Embedding server**:
 
@@ -230,7 +232,9 @@ The folder tree is what the Kobo shows, so the tool keeps it meaning exactly one
 
 ## Where things are
 
-Index (`library.db`, `sources.db`), `covers/`, `genres.tsv`, the model's answers (`oracle.tsv`, `oracle.log`), `vectors.db` and the undo journal (`journal.jsonl`) live in Alfred's workflow data folder, `~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib`, which survives workflow updates and cache clears. Override with **Index folder**.
+Index (`library.db`, `sources.db`), `covers/`, `genres.tsv`, the model's answers (`oracle.tsv`, `oracle.log`), `vectors.db` and the undo journal (`journal.jsonl`) live in Alfred's workflow data folder, `~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobold`, which survives workflow updates and cache clears. Override with **Index folder**.
+
+**Upgrading from kobo-alfred:** the workflow was called Kobo Library and its data lived under `com.anokhin.kobolib`. The first run of Kobold renames that folder to `com.anokhin.kobold`, so the index, covers and genres carry over. Workflow settings don't: Alfred keys them by bundle id, so set **Library root** (and any model settings) again. Terminal variables moved from `KOBO_*` to `KOBOLD_*`.
 
 The index stores paths relative to the library root, so if the same tree exists in two places (the card and a synced folder, say) you can switch **Library root** between them without rebuilding.
 
@@ -241,28 +245,28 @@ Format support: epub and fb2 are read for metadata and cover; mobi, azw, azw3, p
 The same commands, same data:
 
 ```
-export KOBO_ROOT=/Volumes/Transcend/kobo
-export KOBO_DATA="$HOME/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib"
-uv run kobolib update
-uv run kobolib search delany | jq '.items[].title'
-uv run kobolib fix --dry-run
-uv run kobolib fix delany
-uv run kobolib trash "$KOBO_ROOT/00_Inbox/broken.epub.part"
-uv run kobolib genre "$KOBO_ROOT/00_Inbox/nova.epub" fiction/sci-fi
-uv run kobolib import ~/Downloads/babel-17.epub
-uv run kobolib undo
-uv run kobolib ask [genre|name|authors] [<words>]   # --force re-asks, --dry-run prints the evidence
-uv run kobolib dismiss <fingerprint-or-path>
-uv run kobolib embed [<words>]                      # --force re-embeds
-uv run kobolib models
-uv run kobolib choose oracle|embed <model>
+export KOBOLD_ROOT=/Volumes/Transcend/kobo
+export KOBOLD_DATA="$HOME/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobold"
+uv run kobold update
+uv run kobold search delany | jq '.items[].title'
+uv run kobold fix --dry-run
+uv run kobold fix delany
+uv run kobold trash "$KOBOLD_ROOT/00_Inbox/broken.epub.part"
+uv run kobold genre "$KOBOLD_ROOT/00_Inbox/nova.epub" fiction/sci-fi
+uv run kobold import ~/Downloads/babel-17.epub
+uv run kobold undo
+uv run kobold ask [genre|name|authors] [<words>]   # --force re-asks, --dry-run prints the evidence
+uv run kobold dismiss <fingerprint-or-path>
+uv run kobold embed [<words>]                      # --force re-embeds
+uv run kobold models
+uv run kobold choose oracle|embed <model>
 ```
 
-`KOBO_ORACLE_URL`, `KOBO_ORACLE_MODEL`, `KOBO_EMBED_URL` and `KOBO_EMBED_MODEL` configure the model from the terminal the way the workflow panel does; `KOBO_ORACLE_KEY` (and `KOBO_EMBED_KEY` when the embedding server has its own) is sent as a bearer token to a server started with `--api-key`.
+`KOBOLD_ORACLE_URL`, `KOBOLD_ORACLE_MODEL`, `KOBOLD_EMBED_URL` and `KOBOLD_EMBED_MODEL` configure the model from the terminal the way the workflow panel does; `KOBOLD_ORACLE_KEY` (and `KOBOLD_EMBED_KEY` when the embedding server has its own) is sent as a bearer token to a server started with `--api-key`.
 
-`KOBO_SOURCES` takes the other sources. `search` and `genres` print Alfred's JSON; everything else prints one line and, with `--notify`, posts it as a macOS notification.
+`KOBOLD_SOURCES` takes the other sources. `search` and `genres` print Alfred's JSON; everything else prints one line and, with `--notify`, posts it as a macOS notification.
 
-Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index: without it the CLI defaults to `~/Library/Application Support/kobolib`, a separate copy.
+Set `KOBOLD_DATA` as above if you want the terminal and Alfred to share one index: without it the CLI defaults to `~/Library/Application Support/kobold`, a separate copy.
 
 ## When something looks off
 
@@ -274,7 +278,7 @@ Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index:
 | *Library root not mounted: …* (after `kb update`) | the **Library root** path doesn't exist right now |
 | *No books found: …* (after `kb update`) | the root exists but holds no epub/fb2/mobi/azw/azw3/pdf/djvu; the message says why if it's a permissions problem |
 | *Indexing is running, try again later* | wait for the notification; a stale lock expires after an hour |
-| *Set KOBO_SOURCES, then kb update* | **Other sources** is empty |
+| *Set KOBOLD_SOURCES, then kb update* | **Other sources** is empty |
 | *No source is mounted* | plug in the drive named in **Other sources** |
 | *No book selected* in the genre picker | it was opened directly; use ⇧↩ on a book or ↩ in `kb classify` |
 | *Nothing to fix* | the library is clean |
@@ -282,9 +286,9 @@ Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index:
 | *Model not reachable at …* | start `llama-server`, or fix **Model server**; `kb model` shows whether it answers |
 | every request skipped, `oracle.log` says *401* | the server wants a key: set **Model server API key** (`--api-key` or `LLAMA_API_KEY` on the server side) |
 | `oracle.log` full of *timed out*, `seconds` = 60 | the model is not answering within a minute: it is still downloading or loading (router mode loads on the first request, `sleep-idle-seconds` unloads it again — see *Running llama-server*), **Model server** points at the embedding server, or the oracle is a thinking model spending the minute on reasoning; choose a plain instruct model in `kb model` |
-| `oracle.log` full of *400 Bad Request* | the request names a model the server does not know (router mode: no `model` at all); pick one in `kb model`, or set `KOBO_ORACLE_MODEL` in the terminal |
-| the terminal and Alfred disagree about what was asked | they use different data folders unless `KOBO_DATA` is set; each has its own `oracle.log` and `oracle.tsv` |
-| `kobolib embed` skips every book | the embedding server answers 501: it was started without `--embeddings`, or with a chat model; see the walkthrough |
+| `oracle.log` full of *400 Bad Request* | the request names a model the server does not know (router mode: no `model` at all); pick one in `kb model`, or set `KOBOLD_ORACLE_MODEL` in the terminal |
+| the terminal and Alfred disagree about what was asked | they use different data folders unless `KOBOLD_DATA` is set; each has its own `oracle.log` and `oracle.tsv` |
+| `kobold embed` skips every book | the embedding server answers 501: it was started without `--embeddings`, or with a chat model; see the walkthrough |
 | *No embedding model* in `kb like` | ↩ on a model in `kb model`, then **Use … for embeddings** |
 | *No embeddings yet* | ↩ on that row embeds the library in the background |
 
@@ -293,7 +297,7 @@ Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index:
 ```
 uv run pytest
 uv run ruff check && uv run ruff format --check
-./build.sh                      → dist/Kobo Library.alfredworkflow
+./build.sh                      → dist/Kobold.alfredworkflow
 ```
 
 CI runs the tests on Python 3.9 and 3.13, builds the workflow and publishes it as the `latest` pre-release; a `v*` tag makes a proper release.

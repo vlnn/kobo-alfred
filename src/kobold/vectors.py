@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from operator import mul
 from pathlib import Path
 
-from kobolib.model import Row
+from kobold.model import Row
 
 NEIGHBOURS = 20
 SCHEMA = """

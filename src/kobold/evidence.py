@@ -9,8 +9,8 @@ from collections.abc import Callable
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from kobolib.identity import is_text_member, local_name
-from kobolib.model import Row
+from kobold.identity import is_text_member, local_name
+from kobold.model import Row
 
 SAMPLE_CHARS = 2000
 TAG = re.compile(r"<[^>]*>")

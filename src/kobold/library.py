@@ -5,9 +5,9 @@ from collections.abc import Callable
 from dataclasses import astuple, replace
 from pathlib import Path
 
-from kobolib.alfred import counted
-from kobolib.apply import EXECUTABLE, Applied, apply
-from kobolib.config import (
+from kobold.alfred import counted
+from kobold.apply import EXECUTABLE, Applied, apply
+from kobold.config import (
     covers_dir,
     data_dir,
     db_path,
@@ -21,16 +21,16 @@ from kobolib.config import (
     suggestion_store,
     vector_store,
 )
-from kobolib.genres import GenreStore, folder_slug, genre_from_folder
-from kobolib.index import Index, IndexBusy, build_index, build_sources_index
-from kobolib.lint import all_folders, lint
-from kobolib.metadata import is_sound, read_book
-from kobolib.model import Finding, GenreEntry, Operation, Row
-from kobolib.naming import canonical_name, fat_safe, known_authors
-from kobolib.paths import relative_path
-from kobolib.plan import TRASH, aside, plan, relocations
-from kobolib.scan import probe_root
-from kobolib.suggestions import LIBRARY, SuggestionStore
+from kobold.genres import GenreStore, folder_slug, genre_from_folder
+from kobold.index import Index, IndexBusy, build_index, build_sources_index
+from kobold.lint import all_folders, lint
+from kobold.metadata import is_sound, read_book
+from kobold.model import Finding, GenreEntry, Operation, Row
+from kobold.naming import canonical_name, fat_safe, known_authors
+from kobold.paths import relative_path
+from kobold.plan import TRASH, aside, plan, relocations
+from kobold.scan import probe_root
+from kobold.suggestions import LIBRARY, SuggestionStore
 
 SUGGESTED = "suggested"
 MERGE = f"{SUGGESTED} merge into "
@@ -119,7 +119,7 @@ def run_index() -> tuple[int, str]:
 
 def run_index_sources() -> tuple[int, str]:
     if not sources():
-        return 1, "No sources configured: set KOBO_SOURCES (paths separated by ':')"
+        return 1, "No sources configured: set KOBOLD_SOURCES (paths separated by ':')"
     found, missing = mounted_sources()
     if not found:
         return 1, f"No source is mounted: {', '.join(map(str, missing))}"

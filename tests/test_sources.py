@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.cli import main
+from kobold.cli import main
 from tests.conftest import CONTAINER, OPF, PNG_1X1
 
 
@@ -45,10 +45,10 @@ def downloads(elsewhere: Path, library: Path) -> Path:
 
 @pytest.fixture
 def env(library: Path, calibre: Path, downloads: Path, tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("KOBO_ROOT", str(library))
-    monkeypatch.setenv("KOBO_SOURCES", f"{calibre}:{downloads}")
+    monkeypatch.setenv("KOBOLD_ROOT", str(library))
+    monkeypatch.setenv("KOBOLD_SOURCES", f"{calibre}:{downloads}")
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
-    monkeypatch.delenv("KOBO_DATA", raising=False)
+    monkeypatch.delenv("KOBOLD_DATA", raising=False)
     main(["update"])
 
 
@@ -130,7 +130,7 @@ def test_update_also_rebuilds_the_sources_index(env, tmp_path, capsys):
 
 
 def test_update_without_sources_stays_quiet_about_them(env, capsys, monkeypatch):
-    monkeypatch.setenv("KOBO_SOURCES", "")
+    monkeypatch.setenv("KOBOLD_SOURCES", "")
     capsys.readouterr()
 
     assert main(["update"]) == 0, "no sources is not an error for index"
@@ -141,7 +141,7 @@ def test_update_without_sources_stays_quiet_about_them(env, capsys, monkeypatch)
 
 
 def test_update_reports_unmounted_sources_without_failing(env, capsys, monkeypatch, tmp_path, calibre):
-    monkeypatch.setenv("KOBO_SOURCES", f"{calibre}:{tmp_path / 'absent'}")
+    monkeypatch.setenv("KOBOLD_SOURCES", f"{calibre}:{tmp_path / 'absent'}")
     capsys.readouterr()
 
     assert main(["update"]) == 0, "an unmounted source should not fail the library index"

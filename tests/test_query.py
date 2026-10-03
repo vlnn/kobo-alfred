@@ -1,6 +1,6 @@
 import pytest
 
-from kobolib.query import fts_match, query_words
+from kobold.query import fts_match, query_words
 
 
 @pytest.mark.parametrize(
@@ -31,7 +31,7 @@ def test_fts_match_prefixes_every_word(words, match):
 
 
 def test_query_module_has_no_filters():
-    import kobolib.query as query
+    import kobold.query as query
 
     leftovers = {"FILTER_KEYS", "SQL_CLAUSES", "STATE_CLAUSES", "FTS_COLUMNS"} & set(vars(query))
     assert not leftovers, f"filters are gone from the query grammar, found {leftovers}"

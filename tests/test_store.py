@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.store import TsvStore
+from kobold.store import TsvStore
 
 
 @dataclass

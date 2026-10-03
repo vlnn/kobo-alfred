@@ -32,8 +32,8 @@ jobs:
       - run: ./build.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: Kobo-Library.alfredworkflow
-          path: dist/Kobo Library.alfredworkflow
+          name: Kobold.alfredworkflow
+          path: dist/Kobold.alfredworkflow
           if-no-files-found: error
 
   release:
@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: Kobo-Library.alfredworkflow
+          name: Kobold.alfredworkflow
           path: dist
       - if: env.TAG == 'latest'
         env:
@@ -59,4 +59,4 @@ jobs:
           name: ${{ env.TAG == 'latest' && 'Latest build' || env.TAG }}
           prerelease: ${{ env.TAG == 'latest' }}
           generate_release_notes: ${{ env.TAG != 'latest' }}
-          files: dist/Kobo Library.alfredworkflow
+          files: dist/Kobold.alfredworkflow

@@ -76,7 +76,7 @@ def test_kb_is_the_only_keyword(workflow):
 
 @pytest.mark.parametrize("uid, subcommand", [("KB", 'search "$1"'), ("PICKER", 'genres "$1"'), ("CHOOSER", 'chooser "$1"')])
 def test_script_filters_call_their_subcommand(workflow, uid, subcommand):
-    assert f"-m kobolib {subcommand}" in obj(workflow, uid)["config"]["script"], f"{uid} should run kobolib {subcommand}"
+    assert f"-m kobold {subcommand}" in obj(workflow, uid)["config"]["script"], f"{uid} should run kobold {subcommand}"
 
 
 def dispatch(workflow) -> tuple[dict, list[dict]]:
@@ -140,8 +140,8 @@ def runner_branch(workflow: dict, action: str) -> str:
 
 @pytest.mark.parametrize("action", RUNNER_ACTIONS)
 def test_runner_runs_each_action_in_the_background(workflow, action):
-    assert re.search(rf"run {action}\b", runner_branch(workflow, action)), f"the {action} branch should run kobolib {action}"
-    assert 'nohup /usr/bin/python3 -m kobolib "$@" --notify' in obj(workflow, "RUN")["config"]["script"], (
+    assert re.search(rf"run {action}\b", runner_branch(workflow, action)), f"the {action} branch should run kobold {action}"
+    assert 'nohup /usr/bin/python3 -m kobold "$@" --notify' in obj(workflow, "RUN")["config"]["script"], (
         "every action should run detached and notify when done"
     )
 
@@ -171,11 +171,11 @@ def test_workflow_metadata_is_release_ready(workflow):
 
 @pytest.fixture
 def indexed(library: Path, tmp_path: Path, monkeypatch):
-    from kobolib.cli import main
+    from kobold.cli import main
 
-    monkeypatch.setenv("KOBO_ROOT", str(library))
+    monkeypatch.setenv("KOBOLD_ROOT", str(library))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
-    monkeypatch.delenv("KOBO_DATA", raising=False)
+    monkeypatch.delenv("KOBOLD_DATA", raising=False)
     main(["update"])
 
 
@@ -192,7 +192,7 @@ def indexed(library: Path, tmp_path: Path, monkeypatch):
     ],
 )
 def test_enter_on_a_kb_row_reaches_its_action(workflow, indexed, query, destination, arg):
-    from kobolib.commands import search_items
+    from kobold.commands import search_items
 
     first = next(i for i in search_items(query) if i.get("valid", True))
 
@@ -201,7 +201,7 @@ def test_enter_on_a_kb_row_reaches_its_action(workflow, indexed, query, destinat
 
 
 def test_enter_on_a_problem_row_reveals_it(workflow, indexed):
-    from kobolib.commands import search_items
+    from kobold.commands import search_items
 
     problem = next(i for i in search_items("fix") if i.get("uid", "").startswith("problem:"))
 
@@ -210,22 +210,22 @@ def test_enter_on_a_problem_row_reveals_it(workflow, indexed):
 
 @pytest.fixture
 def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkeypatch):
-    from kobolib.cli import main
+    from kobold.cli import main
     from tests.test_sources import write_epub
 
     elsewhere = tmp_path_factory.mktemp("elsewhere")
     write_epub(elsewhere / "Slow Productivity.epub", "Slow Productivity")
     write_epub(elsewhere / "A World Without Email.epub", "A World Without Email")
-    monkeypatch.setenv("KOBO_ROOT", str(library))
-    monkeypatch.setenv("KOBO_SOURCES", str(elsewhere))
+    monkeypatch.setenv("KOBOLD_ROOT", str(library))
+    monkeypatch.setenv("KOBOLD_SOURCES", str(elsewhere))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
-    monkeypatch.delenv("KOBO_DATA", raising=False)
+    monkeypatch.delenv("KOBOLD_DATA", raising=False)
     main(["update"])
 
 
 @pytest.mark.parametrize("query", ["", "src slow", "fix", "inbox", "classify", "trash inbox", "dups", "rnd"])
 def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_sources, query):
-    from kobolib.commands import search_items
+    from kobold.commands import search_items
 
     keys = targets(workflow, "KB")
     for item in search_items(query):
@@ -236,8 +236,8 @@ def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_s
 
 
 def test_accept_suggested_genres_head_row_reaches_the_runner_from_kb(workflow, indexed, tmp_path, mocker):
-    from kobolib.commands import search_items
-    from kobolib.suggestions import SuggestionStore
+    from kobold.commands import search_items
+    from kobold.suggestions import SuggestionStore
 
     store = SuggestionStore(tmp_path / "alfred-data" / "oracle.tsv").load()
     store.set(next(i for i in search_items("napkin") if "quicklookurl" in i)["variables"]["book"], "genre", {"genre": "reference"}, "h")
@@ -248,7 +248,7 @@ def test_accept_suggested_genres_head_row_reaches_the_runner_from_kb(workflow, i
 
 
 def test_import_all_head_row_reaches_the_runner_from_kb(workflow, indexed_with_sources):
-    from kobolib.commands import search_items
+    from kobold.commands import search_items
 
     head = next(i for i in search_items("src ") if i.get("valid", True))
 
@@ -256,7 +256,14 @@ def test_import_all_head_row_reaches_the_runner_from_kb(workflow, indexed_with_s
     assert route(workflow, head) == "RUN", "↩ on it must run the import in the background"
 
 
-ORACLE_VARIABLES = ("KOBO_ORACLE_URL", "KOBO_ORACLE_MODEL", "KOBO_ORACLE_KEY", "KOBO_EMBED_URL", "KOBO_EMBED_MODEL", "KOBO_EMBED_KEY")
+ORACLE_VARIABLES = (
+    "KOBOLD_ORACLE_URL",
+    "KOBOLD_ORACLE_MODEL",
+    "KOBOLD_ORACLE_KEY",
+    "KOBOLD_EMBED_URL",
+    "KOBOLD_EMBED_MODEL",
+    "KOBOLD_EMBED_KEY",
+)
 
 
 @pytest.mark.parametrize("variable", ORACLE_VARIABLES)
@@ -272,6 +279,6 @@ def test_the_readme_mentions_the_oracle_commands(workflow):
 
 
 def test_asking_and_embedding_on_update_is_an_optional_checkbox(workflow):
-    assert workflow["variables"].get("KOBO_MODEL_ON_UPDATE") == "0", "off by default: kb update stays as fast as it is"
-    field = next(c for c in workflow["userconfigurationconfig"] if c["variable"] == "KOBO_MODEL_ON_UPDATE")
+    assert workflow["variables"].get("KOBOLD_MODEL_ON_UPDATE") == "0", "off by default: kb update stays as fast as it is"
+    field = next(c for c in workflow["userconfigurationconfig"] if c["variable"] == "KOBOLD_MODEL_ON_UPDATE")
     assert field["type"] == "checkbox" and field["config"]["default"] is False, "a checkbox in the configuration panel"

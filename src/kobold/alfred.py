@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import PurePosixPath
 
-from kobolib.model import Finding, Operation, Row
+from kobold.model import Finding, Operation, Row
 
 SEPARATOR = " · "
 
@@ -214,7 +214,7 @@ def choose_item(model: str, role: str, title: str, subtitle: str) -> dict:
 
 
 def dismiss_item(book: str) -> dict:
-    subtitle = "↩ forgets the model's answers for it · kobolib ask --force asks again"
+    subtitle = "↩ forgets the model's answers for it · kobold ask --force asks again"
     return head_row("oracle:dismiss", "Dismiss suggestions for this book", subtitle, variables={"book": book, "action": "dismiss"})
 
 
@@ -223,7 +223,7 @@ def busy_item(title: str) -> dict:
 
 
 def unreachable_item(url: str) -> dict:
-    return {"uid": "oracle:unreachable", **message_item(f"Model not reachable at {url}", "start llama-server, or change KOBO_ORACLE_URL")}
+    return {"uid": "oracle:unreachable", **message_item(f"Model not reachable at {url}", "start llama-server, or change KOBOLD_ORACLE_URL")}
 
 
 def plan_item(op: Operation, root: str) -> dict:

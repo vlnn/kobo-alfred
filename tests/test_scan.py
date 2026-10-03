@@ -1,7 +1,7 @@
 import pytest
 
-from kobolib.paths import relative_path
-from kobolib.scan import is_junk, iter_books, probe_root
+from kobold.paths import relative_path
+from kobold.scan import is_junk, iter_books, probe_root
 
 
 @pytest.mark.parametrize(
@@ -40,7 +40,7 @@ def test_relative_path_uses_posix_and_library_root(tmp_path):
 
 def test_probe_reports_permission_error(tmp_path, mocker):
 
-    mocker.patch("kobolib.scan.os.listdir", side_effect=PermissionError("Operation not permitted"))
+    mocker.patch("kobold.scan.os.listdir", side_effect=PermissionError("Operation not permitted"))
 
     assert "permission" in probe_root(tmp_path).lower(), "permission errors on the root should be reported"
 
@@ -57,7 +57,7 @@ def test_probe_ok(tmp_path):
 
 
 def test_iter_junk_reports_non_books_and_empty_dirs(tmp_path):
-    from kobolib.scan import iter_junk
+    from kobold.scan import iter_junk
 
     (tmp_path / "a").mkdir()
     (tmp_path / "a" / "FSCK0000.000").write_bytes(b"")
@@ -75,7 +75,7 @@ def test_iter_junk_reports_non_books_and_empty_dirs(tmp_path):
 
 
 def test_scanners_skip_trash_dups_and_excluded_dirs(tmp_path):
-    from kobolib.scan import iter_books, iter_junk
+    from kobold.scan import iter_books, iter_junk
 
     for folder in ("_trash/x", "_dups/y", "data", "ok"):
         (tmp_path / folder).mkdir(parents=True)
@@ -90,7 +90,7 @@ def test_scanners_skip_trash_dups_and_excluded_dirs(tmp_path):
 
 
 def test_junk_scan_ignores_hidden_trees_and_sidecars(tmp_path):
-    from kobolib.scan import iter_books, iter_junk
+    from kobold.scan import iter_books, iter_junk
 
     (tmp_path / ".adds" / "koreader" / "settings").mkdir(parents=True)
     (tmp_path / ".adds" / "koreader" / "settings" / "collection.lua").write_text("return {}")

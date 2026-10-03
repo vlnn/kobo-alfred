@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.apply import apply, prune_empty_dirs, undo
-from kobolib.model import Operation
-from kobolib.paths import sidecar_of
+from kobold.apply import apply, prune_empty_dirs, undo
+from kobold.model import Operation
+from kobold.paths import sidecar_of
 
 
 @pytest.fixture
@@ -238,7 +238,7 @@ def test_the_same_file_is_never_treated_as_a_duplicate(tmp_path: Path, mocker):
     (root / "a").mkdir(parents=True)
     (root / "a" / "x.epub").write_bytes(b"x")
     mocker.patch(
-        "kobolib.apply.child_named",
+        "kobold.apply.child_named",
         side_effect=lambda folder, name: (
             (folder / "x.epub")
             if name.lower() == "x.epub" and (folder / "x.epub").exists()
@@ -257,7 +257,7 @@ def test_the_same_file_is_never_treated_as_a_duplicate(tmp_path: Path, mocker):
 
 def test_journal_is_written_step_by_step(library: Path, tmp_path: Path, mocker):
     journal = tmp_path / "journal.jsonl"
-    real = __import__("kobolib.apply", fromlist=["relocate"]).relocate
+    real = __import__("kobold.apply", fromlist=["relocate"]).relocate
     calls = []
 
     def flaky(*args, **kwargs):
@@ -266,7 +266,7 @@ def test_journal_is_written_step_by_step(library: Path, tmp_path: Path, mocker):
             raise OSError("card yanked")
         return real(*args, **kwargs)
 
-    mocker.patch("kobolib.apply.relocate", side_effect=flaky)
+    mocker.patch("kobold.apply.relocate", side_effect=flaky)
     ops = [
         Operation("move", "00_Inbox/a.epub", "01_Fiction/a.epub", ""),
         Operation("trash", "00_Inbox/FSCK0000.000", "_trash/00_Inbox/FSCK0000.000", "junk"),
@@ -314,6 +314,6 @@ def test_journal_kinds_are_plain_strings_on_disk(library: Path, tmp_path: Path):
     ],
 )
 def test_reverse_pairs_each_journal_kind_with_its_undo_step(journaled, action, src, dst):
-    from kobolib.apply import Action, Entry, Step, reverse
+    from kobold.apply import Action, Entry, Step, reverse
 
     assert reverse(Entry("1", journaled, "a", "b")) == Step(Action(action), src, dst), f"undoing a {journaled!r} entry is a {action!r} step"

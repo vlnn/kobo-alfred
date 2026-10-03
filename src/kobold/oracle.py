@@ -7,9 +7,9 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from kobolib.config import oracle_key, oracle_lock_base, oracle_log_path, oracle_model, oracle_status_path, oracle_url
-from kobolib.index import acquire_lock, index_busy
-from kobolib.server import headers
+from kobold.config import oracle_key, oracle_lock_base, oracle_log_path, oracle_model, oracle_status_path, oracle_url
+from kobold.index import acquire_lock, index_busy
+from kobold.server import headers
 
 TIMEOUT = 60
 LOG_ENTRIES = 500

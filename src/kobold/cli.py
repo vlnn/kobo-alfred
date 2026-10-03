@@ -6,10 +6,10 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from kobolib import alfred, oracle
-from kobolib.alfred import counted
-from kobolib.apply import Applied, apply, undo
-from kobolib.asking import (
+from kobold import alfred, oracle
+from kobold.alfred import counted
+from kobold.apply import Applied, apply, undo
+from kobold.asking import (
     Question,
     ask_all,
     ask_authors,
@@ -21,7 +21,7 @@ from kobolib.asking import (
     name_question,
     summary,
 )
-from kobolib.commands import (
+from kobold.commands import (
     chooser_items,
     genre_picker_items,
     index_problem,
@@ -30,7 +30,7 @@ from kobolib.commands import (
     served_models,
     without_index_items,
 )
-from kobolib.config import (
+from kobold.config import (
     covers_dir,
     db_path,
     embed_model,
@@ -44,8 +44,8 @@ from kobolib.config import (
     suggestion_store,
     vector_store,
 )
-from kobolib.index import EVERYTHING, IndexBusy, add_book, fill_thumbnails, index_busy
-from kobolib.library import (
+from kobold.index import EVERYTHING, IndexBusy, add_book, fill_thumbnails, index_busy
+from kobold.library import (
     apply_fixes,
     apply_summary,
     dismiss_book,
@@ -64,17 +64,17 @@ from kobolib.library import (
     transfer,
     trash_operations,
 )
-from kobolib.model import Book, Row
+from kobold.model import Book, Row
 
-NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobo Library"', "end run")
+NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobold"', "end run")
 CONFIGURE_SCRIPT = (
     "on run argv",
     'tell application id "com.runningwithcrayons.Alfred" to set configuration (item 1 of argv) '
     "to value (item 2 of argv) in workflow (item 3 of argv) exportable false",
     "end run",
 )
-BUNDLE_ID = "com.anokhin.kobolib"
-ROLE_VARIABLES = {"oracle": ("KOBO_ORACLE_MODEL", "Oracle"), "embed": ("KOBO_EMBED_MODEL", "Embeddings")}
+BUNDLE_ID = "com.anokhin.kobold"
+ROLE_VARIABLES = {"oracle": ("KOBOLD_ORACLE_MODEL", "Oracle"), "embed": ("KOBOLD_EMBED_MODEL", "Embeddings")}
 
 
 def osascript(script: tuple[str, ...], *args: str) -> None:
@@ -327,7 +327,7 @@ def ask_questions(name: str, words: list[str], force: bool, should_notify: bool,
 
 def cmd_ask(args) -> int:
     if not oracle.configured():
-        return refuse("No model server: set KOBO_ORACLE_URL in the workflow configuration", args.notify)
+        return refuse("No model server: set KOBOLD_ORACLE_URL in the workflow configuration", args.notify)
     if problem := index_problem():
         return refuse(f"{problem}: run kb update", args.notify)
     words = [word for value in args.words for word in value.split()]
@@ -346,7 +346,7 @@ def embed_books(words: list[str], force: bool, should_notify: bool, quiet: bool 
 
 def cmd_embed(args) -> int:
     if not embed_model():
-        return refuse("No embedding model: set KOBO_EMBED_MODEL, or ↩ on a model in kb model", args.notify)
+        return refuse("No embedding model: set KOBOLD_EMBED_MODEL, or ↩ on a model in kb model", args.notify)
     if problem := index_problem():
         return refuse(f"{problem}: run kb update", args.notify)
     return locked(lambda: embed_books(args.words, args.force, args.notify), args.notify)
@@ -361,7 +361,7 @@ def cmd_choose(args) -> int:
 
 def cmd_models(args) -> int:
     if not oracle.configured():
-        return refuse("No model server: set KOBO_ORACLE_URL in the workflow configuration", False)
+        return refuse("No model server: set KOBOLD_ORACLE_URL in the workflow configuration", False)
     served = served_models()
     for url, listed in served.items():
         if listed is None:
@@ -389,7 +389,7 @@ def query_argument() -> argparse.ArgumentParser:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="kobolib")
+    parser = argparse.ArgumentParser(prog="kobold")
     sub = parser.add_subparsers(dest="command", required=True)
     notify, query = flag("--notify"), query_argument()
     sub.add_parser("update", parents=[notify, flag("--no-thumbnails")]).set_defaults(func=cmd_update)

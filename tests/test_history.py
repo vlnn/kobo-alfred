@@ -1,8 +1,8 @@
 import unicodedata
 from pathlib import Path
 
-from kobolib.history import last_opened, latest_file
-from kobolib.koreader import KOREADER_DIR
+from kobold.history import last_opened, latest_file
+from kobold.koreader import KOREADER_DIR
 
 HISTORY = """return {
     {

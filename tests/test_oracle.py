@@ -5,7 +5,7 @@ from urllib.error import URLError
 
 import pytest
 
-from kobolib import oracle
+from kobold import oracle
 
 
 def reply(content) -> io.BytesIO:
@@ -26,14 +26,14 @@ class Responding:
 
 @pytest.fixture
 def server(monkeypatch, tmp_path: Path):
-    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080/")
-    monkeypatch.delenv("KOBO_ORACLE_MODEL", raising=False)
-    monkeypatch.setenv("KOBO_DATA", str(tmp_path / "data"))
+    monkeypatch.setenv("KOBOLD_ORACLE_URL", "http://127.0.0.1:8080/")
+    monkeypatch.delenv("KOBOLD_ORACLE_MODEL", raising=False)
+    monkeypatch.setenv("KOBOLD_DATA", str(tmp_path / "data"))
 
 
 @pytest.fixture
 def answering(server, mocker):
-    return mocker.patch("kobolib.oracle.urlopen", return_value=Responding(json.dumps({"genre": "fiction/spy"})))
+    return mocker.patch("kobold.oracle.urlopen", return_value=Responding(json.dumps({"genre": "fiction/spy"})))
 
 
 def sent(urlopen) -> dict:
@@ -63,7 +63,7 @@ def test_ask_posts_a_schema_constrained_request(answering):
 
 
 def test_ask_names_the_configured_model(answering, monkeypatch):
-    monkeypatch.setenv("KOBO_ORACLE_MODEL", "qwen2.5-7b-instruct")
+    monkeypatch.setenv("KOBOLD_ORACLE_MODEL", "qwen2.5-7b-instruct")
 
     oracle.ask("genre", "x", {})
 
@@ -71,22 +71,22 @@ def test_ask_names_the_configured_model(answering, monkeypatch):
 
 
 def test_ask_without_a_url_does_nothing(monkeypatch, mocker):
-    monkeypatch.delenv("KOBO_ORACLE_URL", raising=False)
-    urlopen = mocker.patch("kobolib.oracle.urlopen")
+    monkeypatch.delenv("KOBOLD_ORACLE_URL", raising=False)
+    urlopen = mocker.patch("kobold.oracle.urlopen")
 
-    assert oracle.ask("genre", "x", {}) is None and not urlopen.called, "the oracle is off until KOBO_ORACLE_URL is set"
+    assert oracle.ask("genre", "x", {}) is None and not urlopen.called, "the oracle is off until KOBOLD_ORACLE_URL is set"
 
 
 @pytest.mark.parametrize("error", [URLError("connection refused"), TimeoutError("timed out"), OSError("reset")])
 def test_connection_errors_and_timeouts_become_none(server, mocker, error):
-    mocker.patch("kobolib.oracle.urlopen", side_effect=error)
+    mocker.patch("kobold.oracle.urlopen", side_effect=error)
 
     assert oracle.ask("genre", "x", {}) is None, f"{error!r} is a skip, not a failure"
 
 
 @pytest.mark.parametrize("content", ["not json", json.dumps(["a", "list"]), json.dumps(None)])
 def test_malformed_replies_become_none(server, mocker, content):
-    mocker.patch("kobolib.oracle.urlopen", return_value=Responding(content))
+    mocker.patch("kobold.oracle.urlopen", return_value=Responding(content))
 
     assert oracle.ask("genre", "x", {}) is None, f"{content!r} is not an answer"
 
@@ -100,27 +100,27 @@ def test_ask_logs_prompt_reply_and_duration(answering, tmp_path: Path):
 
 
 def test_connection_failure_is_remembered_until_the_next_answer(server, mocker, tmp_path: Path):
-    mocker.patch("kobolib.oracle.urlopen", side_effect=URLError("connection refused"))
+    mocker.patch("kobold.oracle.urlopen", side_effect=URLError("connection refused"))
     oracle.ask("genre", "x", {})
 
     assert oracle.unreachable() == "http://127.0.0.1:8080", "a failed connection leaves a note for the script filters"
 
-    mocker.patch("kobolib.oracle.urlopen", return_value=Responding(json.dumps({"genre": "none"})))
+    mocker.patch("kobold.oracle.urlopen", return_value=Responding(json.dumps({"genre": "none"})))
     oracle.ask("genre", "x", {})
 
     assert oracle.unreachable() == "", "an answer clears the note"
 
 
 def test_a_note_about_another_server_is_not_shown(server, mocker, monkeypatch):
-    mocker.patch("kobolib.oracle.urlopen", side_effect=URLError("connection refused"))
+    mocker.patch("kobold.oracle.urlopen", side_effect=URLError("connection refused"))
     oracle.ask("genre", "x", {})
-    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:9090")
+    monkeypatch.setenv("KOBOLD_ORACLE_URL", "http://127.0.0.1:9090")
 
     assert oracle.unreachable() == "", "changing the server forgets that the old one was down"
 
 
 def test_genre_of_accepts_only_known_genres_or_none(server, mocker):
-    ask = mocker.patch("kobolib.oracle.ask", side_effect=[{"genre": "fiction/spy"}, {"genre": "none"}, {"genre": "made/up"}, None])
+    ask = mocker.patch("kobold.oracle.ask", side_effect=[{"genre": "fiction/spy"}, {"genre": "none"}, {"genre": "made/up"}, None])
 
     assert oracle.genre_of("evidence", ["fiction/spy"]) == "fiction/spy", "a listed genre is accepted"
     assert oracle.genre_of("evidence", ["fiction/spy"]) == "none", "none is an answer too"
@@ -145,7 +145,7 @@ def test_genre_of_accepts_only_known_genres_or_none(server, mocker):
     ],
 )
 def test_name_of_accepts_only_a_well_formed_answer(server, mocker, reply, expected):
-    ask = mocker.patch("kobolib.oracle.ask", return_value=reply)
+    ask = mocker.patch("kobold.oracle.ask", return_value=reply)
 
     assert oracle.name_of("evidence") == expected, f"{reply!r} should give {expected!r}"
     assert set(ask.call_args.args[2]["properties"]) == {"title", "authors", "confident"}, (
@@ -175,14 +175,14 @@ FOLDERS = ["Delany, Samuel R.", "Delany, Samuel", "Дилэни, Сэмюэл", 
     ],
 )
 def test_author_groups_keeps_only_groups_of_known_folders(server, mocker, reply, expected):
-    ask = mocker.patch("kobolib.oracle.ask", return_value=reply)
+    ask = mocker.patch("kobold.oracle.ask", return_value=reply)
 
     assert oracle.author_groups(FOLDERS) == expected, f"{reply!r} should give {expected!r}"
     assert "Delany, Samuel R." in ask.call_args.args[1] and "Дилэни, Сэмюэл" in ask.call_args.args[1], "the evidence is the folder list"
 
 
 def test_ask_sends_the_api_key_when_one_is_configured(answering, monkeypatch):
-    monkeypatch.setenv("KOBO_ORACLE_KEY", "sk-local")
+    monkeypatch.setenv("KOBOLD_ORACLE_KEY", "sk-local")
 
     oracle.ask("genre", "x", {})
 

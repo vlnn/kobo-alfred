@@ -7,11 +7,11 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from kobolib.filenames import guess_from_stem
-from kobolib.identity import fingerprint
-from kobolib.model import Book, Cover
-from kobolib.paths import relative_path
-from kobolib.scan import book_format, display_stem, is_partial
+from kobold.filenames import guess_from_stem
+from kobold.identity import fingerprint
+from kobold.model import Book, Cover
+from kobold.paths import relative_path
+from kobold.scan import book_format, display_stem, is_partial
 
 NS = {
     "opf": "http://www.idpf.org/2007/opf",

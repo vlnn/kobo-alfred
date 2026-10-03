@@ -1,5 +1,5 @@
 import sys
 
-from kobolib.cli import main
+from kobold.cli import main
 
 sys.exit(main())

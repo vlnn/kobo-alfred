@@ -4,8 +4,8 @@ import re
 from dataclasses import replace
 from pathlib import Path
 
-from kobolib.model import GenreEntry, Row
-from kobolib.store import TsvStore
+from kobold.model import GenreEntry, Row
+from kobold.store import TsvStore
 
 GENRE_DEPTH = 2
 ORDER_PREFIX = re.compile(r"^\d+_")

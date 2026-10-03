@@ -4,8 +4,8 @@ import json
 from http.client import HTTPException
 from urllib.request import Request, urlopen
 
-from kobolib.config import embed_key, embed_model, embed_url, oracle_key
-from kobolib.server import headers
+from kobold.config import embed_key, embed_model, embed_url, oracle_key
+from kobold.server import headers
 
 LIST_TIMEOUT = 0.5
 EMBED_TIMEOUT = 60

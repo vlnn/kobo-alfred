@@ -1,7 +1,7 @@
 import unicodedata
 from pathlib import Path
 
-from kobolib.koreader import KOREADER_DIR, fix_paths, rewrite_lua, settings_files
+from kobold.koreader import KOREADER_DIR, fix_paths, rewrite_lua, settings_files
 
 COLLECTION = """return {
     ["favorites"] = {
