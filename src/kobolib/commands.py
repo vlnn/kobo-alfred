@@ -158,7 +158,7 @@ def lint_items(words: list[str] = ()) -> list[dict]:
 def plan_items(ops) -> list[dict]:
     if not ops:
         return [alfred.message_item("Nothing to do", "Every classified book is where it belongs")]
-    rows = alfred.with_batch([alfred.plan_item(o, str(library_root())) for o in ops], alfred.batch_mod(f"Apply all {len(ops)} operations"))
+    rows = [alfred.plan_item(o, str(library_root())) for o in ops]
     return [alfred.apply_all_item(len(ops)), *rows]
 
 
@@ -237,8 +237,7 @@ def trash_rows(words: list[str]) -> list[Row]:
 
 def trash_all_item(rows: list[Row]) -> dict:
     paths = alfred.LINE.join(r.path for r in rows)
-    title = f"Trash all {counted(len(rows), 'book')}"
-    return {"uid": "trash:all", **alfred.action_item(title, "↩ moves every book listed below to _trash/", "trash", paths)}
+    return alfred.head_row("trash:all", f"Trash all {counted(len(rows), 'book')}", "↩ moves every book listed below to _trash/", paths)
 
 
 def trash_items(words: list[str]) -> list[dict]:
@@ -271,7 +270,7 @@ def fix_all_items(ops: list[Operation], words: list[str]) -> list[dict]:
     if not ops:
         return []
     paths = alfred.LINE.join(str(library_root() / o.src) for o in ops) if words else ""
-    return [{"uid": "fix:all", **alfred.action_item(f"Fix all {len(ops)}", kinds_summary(ops), "fix", paths)}]
+    return [alfred.head_row("fix:all", f"Fix all {len(ops)}", kinds_summary(ops), paths)]
 
 
 def undo_items() -> list[dict]:

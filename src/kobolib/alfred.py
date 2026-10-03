@@ -41,36 +41,28 @@ def icon(row: Row) -> dict:
     return {"type": "fileicon", "path": row.path}
 
 
+LINE = "\n"
+TERMINAL_ICON = {"type": "fileicon", "path": "/System/Applications/Utilities/Terminal.app"}
+
+
+def reveal(path: str) -> dict:
+    return {"arg": path, "subtitle": "Reveal in Finder"}
+
+
 def modifiers(row: Row) -> dict:
     return {
-        "alt": {"arg": row.path, "subtitle": "Reveal in Finder"},
-        "cmd": {"arg": row.rel_path, "subtitle": f"Copy relative path: {row.rel_path}"},
-        "ctrl": {"arg": row.folder, "subtitle": f"Browse folder: {row.folder}"},
+        "alt": reveal(row.path),
         "shift": {"arg": "", "subtitle": "Set genre", "variables": {"book": row.fingerprint}},
-        "fn": {"arg": row.path, "subtitle": "Move to its genre home now"},
     }
 
 
-BATCH = "alt+shift"
-LINE = "\n"
-
-
-def batch_mod(subtitle: str, arg: str = "", variables: dict | None = None) -> dict:
-    return {"arg": arg, "subtitle": subtitle, **({"variables": variables} if variables else {})}
-
-
-def with_batch(items: list[dict], mod: dict) -> list[dict]:
-    return [{**i, "mods": {**i.get("mods", {}), BATCH: mod}} if i.get("valid", True) else i for i in items]
-
-
 def book_item(row: Row) -> dict:
-    title = f"⚠︎ {row.title} (incomplete download)" if row.partial else row.title
     return {
         "uid": row.rel_path,
-        "title": title,
+        "title": row.title,
         "subtitle": subtitle(row),
         "arg": row.path,
-        "valid": not row.partial,
+        "valid": True,
         "icon": icon(row),
         "quicklookurl": row.path,
         "autocomplete": row.title,
@@ -89,7 +81,8 @@ def trash_subtitle(row: Row) -> str:
 
 
 def trash_item(row: Row) -> dict:
-    return {**book_item(row), "title": row.title, "valid": True, "subtitle": trash_subtitle(row)}
+    item = {**book_item(row), "subtitle": trash_subtitle(row)}
+    return {**item, "mods": {"alt": reveal(row.path)}} if row.partial else item
 
 
 def classify_item(row: Row) -> dict:
@@ -105,20 +98,27 @@ def edit_item(edit: str, title: str, book: str) -> dict:
     return {"uid": f"edit:{edit}", "title": title, "arg": edit, "autocomplete": edit, "variables": {"book": book}}
 
 
-def genre_item(genre: str, book: str) -> dict:
-    return {**edit_item(f"genre={genre}", genre, book), "uid": f"genre:{genre}", "autocomplete": genre}
+def new_genre_mod(typed: str) -> dict:
+    return {"arg": f"genre={typed}", "subtitle": f"Create ‘{typed}’ as a new genre", "valid": True}
+
+
+def genre_item(genre: str, book: str, typed: str = "") -> dict:
+    item = {**edit_item(f"genre={genre}", genre, book), "uid": f"genre:{genre}", "autocomplete": genre}
+    return {**item, "mods": {"shift": new_genre_mod(typed)}} if typed else item
+
+
+def new_genre_item(typed: str, book: str) -> dict:
+    return {
+        "uid": f"genre-new:{typed}",
+        "title": f"No genre ‘{typed}’ — ⇧↩ creates it",
+        "valid": False,
+        "variables": {"book": book},
+        "mods": {"shift": new_genre_mod(typed)},
+    }
 
 
 def source_item(row: Row) -> dict:
-    return {
-        **book_item(row),
-        "variables": {},
-        "mods": {
-            "alt": {"arg": row.path, "subtitle": "Reveal in Finder"},
-            "cmd": {"arg": row.path, "subtitle": f"Copy path: {row.path}"},
-            "ctrl": {"arg": row.folder, "subtitle": f"Browse folder: {row.folder}"},
-        },
-    }
+    return {**book_item(row), "variables": {}, "mods": {"alt": reveal(row.path)}}
 
 
 def inbox_subtitle(row: Row) -> str:
@@ -142,7 +142,7 @@ def finding_item(finding: Finding, root: str) -> dict:
         "icon": {"type": "fileicon", "path": path},
         "quicklookurl": path,
         "text": {"copy": "\n".join(finding.rel_paths), "largetype": "\n".join(finding.rel_paths)},
-        "mods": {"alt": {"arg": path, "subtitle": "Reveal in Finder"}},
+        "mods": {"alt": reveal(path)},
     }
 
 
@@ -155,37 +155,25 @@ def conflict_item(op: Operation, root: str) -> dict:
     return {**plan_item(op, root), "uid": f"problem:conflict:{op.src}", "valid": True, "variables": {"action": "reveal"}}
 
 
-def batch_item(uid: str, title: str, subtitle: str, arg: str = "", variables: dict | None = None) -> dict:
-    return {
-        "uid": uid,
-        "title": title,
-        "subtitle": subtitle,
-        "arg": arg,
-        "icon": {"type": "fileicon", "path": "/System/Applications/Utilities/Terminal.app"},
-        **({"variables": variables} if variables else {}),
-    }
+def head_row(uid: str, title: str, subtitle: str, arg: str = "", variables: dict | None = None) -> dict:
+    payload = {"variables": variables} if variables else {}
+    return {"uid": uid, "title": title, "subtitle": subtitle, "arg": arg, "valid": True, "icon": TERMINAL_ICON, **payload}
 
 
 def import_all_item(rows: list[Row]) -> dict:
     paths = LINE.join(r.path for r in rows)
-    return batch_item("src:import-all", f"Import all {len(rows)} books", "↩ copies every book listed below into the library inbox", paths)
+    return head_row("src:import-all", f"Import all {len(rows)} books", "↩ copies every book listed below into the library inbox", paths)
 
 
 def classify_all_item(rows: list[Row]) -> dict:
     books = LINE.join(r.fingerprint for r in rows)
-    return batch_item(
-        "classify:all", f"Set genre for all {len(rows)} books", "↩ picks one genre for every book listed below", variables={"book": books}
-    )
+    title = f"Set genre for all {len(rows)} books"
+    return head_row("classify:all", title, "↩ picks one genre for every book listed below", variables={"book": books})
 
 
 def apply_all_item(count: int) -> dict:
-    return {
-        "uid": "plan:apply-all",
-        "title": f"Apply all {count} operations",
-        "subtitle": "↩ runs the whole plan, then rebuilds the index · ↩ on a row below applies that row only",
-        "arg": "",
-        "icon": {"type": "fileicon", "path": "/System/Applications/Utilities/Terminal.app"},
-    }
+    subtitle = "↩ runs the whole plan, then rebuilds the index · ↩ on a row below applies that row only"
+    return head_row("plan:apply-all", f"Apply all {count} operations", subtitle)
 
 
 def plan_item(op: Operation, root: str) -> dict:
@@ -201,7 +189,7 @@ def plan_item(op: Operation, root: str) -> dict:
         "icon": {"type": "fileicon", "path": src},
         "quicklookurl": src,
         "text": {"copy": f"{op.src}\t{op.dst}", "largetype": f"{op.src}\n→ {op.dst}"},
-        "mods": {"alt": {"arg": src, "subtitle": "Reveal in Finder"}},
+        "mods": {"alt": reveal(src)},
     }
 
 

@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from kobolib.alfred import book_item, empty_item, render
 from kobolib.model import Finding, Operation, Row
 
@@ -49,10 +51,64 @@ def test_item_without_cover_uses_file_icon():
     assert item["icon"] == {"type": "fileicon", "path": "/lib/02_NonFiction/x.epub"}, "missing cover should fall back to file icon"
 
 
-def test_partial_item_is_marked_and_not_actionable():
-    item = book_item(row(partial=True, cover=""))
-    assert item["title"].startswith("⚠︎ "), "partial download should be flagged in the title"
-    assert item["valid"] is False, "partial download should not be opened"
+def test_book_item_offers_only_reveal_and_set_genre():
+    mods = book_item(row())["mods"]
+
+    assert set(mods) == {"alt", "shift"}, "a book row should have ⌥↩ reveal and ⇧↩ set genre, nothing else"
+    assert mods["alt"] == {"arg": "/lib/02_NonFiction/x.epub", "subtitle": "Reveal in Finder"}, "⌥↩ should reveal the book"
+    assert mods["shift"]["variables"] == {"book": "f00"} and mods["shift"]["arg"] == "", "⇧↩ should open the genre picker for the book"
+
+
+def test_source_item_offers_only_reveal():
+    from kobolib.alfred import source_item
+
+    assert set(source_item(row())["mods"]) == {"alt"}, "a source book can only be revealed; it gets a genre after import"
+
+
+@pytest.mark.parametrize("partial, mods", [(True, {"alt"}), (False, {"alt", "shift"})])
+def test_trash_item_is_actionable_and_keeps_genre_only_for_complete_books(partial, mods):
+    from kobolib.alfred import trash_item
+
+    item = trash_item(row(partial=partial))
+
+    assert item["valid"] is True and item["title"] == "Deep Work", "every trash row can be moved to _trash/"
+    assert set(item["mods"]) == mods, "an unfinished download cannot be given a genre"
+
+
+def test_head_row_carries_its_payload():
+    from kobolib.alfred import head_row
+
+    item = head_row("trash:all", "Trash all 2 books", "↩ moves them", arg="/a\n/b", variables={"book": "x\ny"})
+
+    assert (item["uid"], item["title"], item["subtitle"]) == ("trash:all", "Trash all 2 books", "↩ moves them"), "the head row is labelled"
+    assert item["arg"] == "/a\n/b" and item["variables"] == {"book": "x\ny"}, "the head row carries what ↩ acts on"
+    assert item["valid"] is True and "mods" not in item, "↩ acts on the whole list; no modifier does"
+
+
+def test_genre_item_creates_the_typed_text_on_shift():
+    from kobolib.alfred import genre_item
+
+    item = genre_item("fiction/spy", "f00", typed="spy thriller")
+
+    assert item["arg"] == "genre=fiction/spy", "↩ applies the listed genre"
+    assert item["mods"]["shift"]["arg"] == "genre=spy thriller", "⇧↩ creates the typed text as a new genre"
+    assert "new genre" in item["mods"]["shift"]["subtitle"], "the shift subtitle should say it creates a new genre"
+
+
+def test_genre_item_without_typed_text_has_no_shift():
+    from kobolib.alfred import genre_item
+
+    assert "mods" not in genre_item("fiction/spy", "f00"), "with nothing typed there is nothing to create"
+
+
+def test_new_genre_item_creates_only_on_shift():
+    from kobolib.alfred import new_genre_item
+
+    item = new_genre_item("xyz", "f00")
+
+    assert item["title"] == "No genre ‘xyz’ — ⇧↩ creates it" and item["valid"] is False, "plain ↩ should do nothing"
+    assert item["mods"]["shift"] == {"arg": "genre=xyz", "subtitle": "Create ‘xyz’ as a new genre", "valid": True}, "⇧↩ should create it"
+    assert item["variables"] == {"book": "f00"}, "the book travels on to the genre step"
 
 
 def test_item_omits_empty_parts():

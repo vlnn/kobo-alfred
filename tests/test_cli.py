@@ -466,14 +466,3 @@ def test_genres_for_many_books_says_so(indexed, capsys, monkeypatch):
 
     assert items[0]["title"] == "Genre for 2 books" and items[0]["valid"] is False, "a header should say the pick applies to all"
     assert items[1]["variables"] == {"book": "aaa\nbbb"}, "every genre item carries all the books on"
-
-
-def test_plan_rows_offer_apply_all_on_alt_shift(indexed, capsys):
-    items = run(["plan"], capsys)["items"]
-    rows = [i for i in items if i["uid"] != "plan:apply-all"]
-
-    assert rows, "the fixture library should have something to plan"
-    for row in rows:
-        assert row["mods"]["alt+shift"]["arg"] == "" and row["mods"]["alt+shift"]["subtitle"].startswith("Apply all"), (
-            "⌥⇧↩ on a plan row applies the whole plan, like the head row"
-        )

@@ -177,8 +177,7 @@ def test_sources_items_carry_import_actions(env, capsys):
     item = output(capsys)["items"][0]
     assert item["valid"] is True and item["arg"].endswith("Slow Productivity - Cal Newport.epub"), "↩ passes the absolute path to import"
     assert "reveal" in item["mods"]["alt"]["subtitle"].lower(), "⌥↩ reveals the source file, as in kb"
-    assert "copy" in item["mods"]["cmd"]["subtitle"].lower(), "⌘↩ copies the path, as in kb"
-    assert item["mods"]["alt"]["arg"] == item["mods"]["cmd"]["arg"] == item["arg"], "both modifiers act on the source file itself"
+    assert item["mods"]["alt"]["arg"] == item["arg"], "⌥↩ acts on the source file itself"
 
 
 def test_sources_rows_carry_no_bulk_modifier(env, capsys):

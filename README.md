@@ -29,8 +29,7 @@ Inside plain `kb`, a first word that names a command (`stats`, `dups`, `rnd`, `i
 `src`, `update`) runs it: `kb fix` lists what to fix and ↩ on a row applies that row;
 `kb src delany` searches the sources and ↩ imports; `kb update` shows one row that rebuilds the index on ↩. Books
 matching the whole input are listed after, once each, so a command word never hides a book (`kb stats` also finds
-"Stats for Dummies"). Only ↩ changes meaning per row; ⌥↩ (reveal), ⌘↩ (copy path) and ⌃↩ (browse folder) do the
-same thing in every list. Typing the start of a command (`kb up`, `kb cl`) shows `kb update`, `kb classify`… rows
+"Stats for Dummies"). Only ↩ changes meaning per row; ⌥↩ reveals and ⇧↩ sets the genre in every list of books. Typing the start of a command (`kb up`, `kb cl`) shows `kb update`, `kb classify`… rows
 above the books; ↩ or ⇥ completes the word. Without an index, or with one from an older version, a single row
 says so and ↩ on it rebuilds.
 
@@ -41,11 +40,8 @@ Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbn
 |--------------|------------------------------|
 | ↩            | open the book                |
 | ⌥↩           | reveal in Finder             |
-| ⌘↩           | copy library-relative path   |
-| ⌃↩           | browse the book's folder     |
 | ⇧ / ⌘Y       | Quick Look                   |
 | ⇧↩           | set the genre                |
-| fn↩          | move to its genre home now   |
 | ⌘C           | copy relative path           |
 | ⌘L           | large type: title/author/path|
 
