@@ -84,6 +84,14 @@ def copy_item(row: Row, copies: int) -> dict:
     return {**book_item(row), "subtitle": f"×{copies}{SEPARATOR}{subtitle(row)}"}
 
 
+def trash_subtitle(row: Row) -> str:
+    return SEPARATOR.join(["unfinished download", subtitle(row)]) if row.partial else subtitle(row)
+
+
+def trash_item(row: Row) -> dict:
+    return {**book_item(row), "title": row.title, "valid": True, "subtitle": trash_subtitle(row)}
+
+
 def classify_item(row: Row) -> dict:
     return {**inbox_item(row), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row) + " · ↩ pick a genre"}
 
@@ -138,6 +146,15 @@ def finding_item(finding: Finding, root: str) -> dict:
     }
 
 
+def problem_item(finding: Finding, root: str) -> dict:
+    item = finding_item(finding, root)
+    return {**item, "uid": f"problem:{item['uid']}", "variables": {"action": "reveal"}}
+
+
+def conflict_item(op: Operation, root: str) -> dict:
+    return {**plan_item(op, root), "uid": f"problem:conflict:{op.src}", "valid": True, "variables": {"action": "reveal"}}
+
+
 def batch_item(uid: str, title: str, subtitle: str, arg: str = "", variables: dict | None = None) -> dict:
     return {
         "uid": uid,
@@ -176,7 +193,7 @@ def plan_item(op: Operation, root: str) -> dict:
     skipped = op.kind == "skip"
     name = PurePosixPath(op.dst).name
     return {
-        "uid": f"plan:{op.src}",
+        "uid": f"fix:{op.src}",
         "title": f"⚠︎ {name}" if skipped else name,
         "subtitle": SEPARATOR.join([op.kind, op.reason, f"{op.src} → {PurePosixPath(op.dst).parent}/"]),
         "arg": src,

@@ -20,7 +20,7 @@ from kobolib.config import (
 from kobolib.index import Index, IndexBusy, build_index, build_sources_index
 from kobolib.lint import lint
 from kobolib.metadata import is_sound, read_book
-from kobolib.model import Operation, Row, Tag
+from kobolib.model import Finding, Operation, Row, Tag
 from kobolib.paths import relative_path
 from kobolib.plan import plan, read_plan, relocation
 from kobolib.scan import probe_root
@@ -106,9 +106,14 @@ def unclassified_rows(words: list[str]) -> list[Row]:
     return Index(db_path()).unclassified(words)
 
 
-def current_plan():
+def diagnosis() -> tuple[list[Finding], list[Operation]]:
     rows, store = all_rows(Index(db_path())), genre_store()
-    return plan(rows, lint(rows, store, library_root(), exclude=(data_dir(),)), store)
+    found = lint(rows, store, library_root(), exclude=(data_dir(),))
+    return found, plan(rows, found, store)
+
+
+def current_plan() -> list[Operation]:
+    return diagnosis()[1]
 
 
 def pending_operations() -> list[Operation]:

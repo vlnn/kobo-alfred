@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import random
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from kobolib import alfred
-from kobolib.config import db_path, library_root, plan_path, sources, sources_db_path
+from kobolib.apply import EXECUTABLE, last_batch, read_journal
+from kobolib.config import db_path, journal_path, library_root, sources, sources_db_path
 from kobolib.index import Index, is_current
-from kobolib.library import current_plan, findings, known_genres, not_in_library, pending_operations, unclassified_rows
-from kobolib.model import DuplicateGroup, Row
-from kobolib.plan import write_plan
+from kobolib.library import diagnosis, findings, known_genres, not_in_library, pending_operations, unclassified_rows
+from kobolib.model import DuplicateGroup, Finding, Operation, Row
 from kobolib.query import query_words
 from kobolib.tags import GenreStore
 
@@ -154,12 +155,6 @@ def lint_items(words: list[str] = ()) -> list[dict]:
     ]
 
 
-def written_plan_items(words: list[str] = ()) -> list[dict]:
-    ops = current_plan()
-    write_plan(ops, plan_path())
-    return plan_items(ops)
-
-
 def plan_items(ops) -> list[dict]:
     if not ops:
         return [alfred.message_item("Nothing to do", "Every classified book is where it belongs")]
@@ -235,29 +230,112 @@ def update_items(words: list[str]) -> list[dict]:
     ]
 
 
-def apply_items(words: list[str]) -> list[dict]:
-    return [alfred.action_item("Apply the plan", "Runs what kb plan showed, then rebuilds the index", "apply")]
+def trash_rows(words: list[str]) -> list[Row]:
+    index = Index(db_path())
+    return index.partials(words) + (index.search(words, limit=LIST_LIMIT) if words else [])
 
 
-def undo_items(words: list[str]) -> list[dict]:
-    return [alfred.action_item("Undo the last apply", "Reverses the last batch of moves", "undo")]
+def trash_all_item(rows: list[Row]) -> dict:
+    paths = alfred.LINE.join(r.path for r in rows)
+    title = f"Trash all {counted(len(rows), 'book')}"
+    return {"uid": "trash:all", **alfred.action_item(title, "↩ moves every book listed below to _trash/", "trash", paths)}
+
+
+def trash_items(words: list[str]) -> list[dict]:
+    rows = trash_rows(words)
+    items = [alfred.trash_item(r) for r in rows]
+    return headed(trash_all_item(rows), items, len(rows)) or nothing(words, "Nothing to trash", "No unfinished downloads")
+
+
+def concerning(words: list[str]) -> Callable[[str], bool]:
+    if not words:
+        return lambda rel_path: True
+    return Index(db_path()).rel_paths(words).__contains__
+
+
+def by_hand(found: list[Finding], ops: list[Operation]) -> list[Finding]:
+    moving = {o.src for o in ops}
+    return [f for f in found if f.rule in MANUAL_RULES and f.rel_paths[0] not in moving]
+
+
+def kind_label(kind: str, n: int) -> str:
+    return counted(n, "move") if kind == "move" else f"{n} to _{kind}"
+
+
+def kinds_summary(ops: list[Operation]) -> str:
+    counts = Counter(o.kind for o in ops)
+    return alfred.SEPARATOR.join(kind_label(kind, counts[kind]) for kind in FIX_KINDS if counts[kind])
+
+
+def fix_all_items(ops: list[Operation], words: list[str]) -> list[dict]:
+    if not ops:
+        return []
+    paths = alfred.LINE.join(str(library_root() / o.src) for o in ops) if words else ""
+    return [{"uid": "fix:all", **alfred.action_item(f"Fix all {len(ops)}", kinds_summary(ops), "fix", paths)}]
+
+
+def undo_items() -> list[dict]:
+    batch = last_batch(read_journal(journal_path()))
+    if not batch:
+        return []
+    title = f"Undo last batch ({counted(len(batch), 'move')})"
+    return [{"uid": "undo:last", **alfred.action_item(title, "An undo is itself a batch: undoing twice re-applies", "undo")}]
+
+
+def completion(command: str, words: list[str]) -> str:
+    return " ".join([command, *words]) + " "
+
+
+def reminder_item(key: str, title: str, subtitle: str, completes: str) -> dict:
+    return {"uid": f"reminder:{key}", **alfred.navigation_item(title, subtitle, completes)}
+
+
+def fix_reminders(words: list[str]) -> list[dict]:
+    index = Index(db_path())
+    waiting, partial = len(index.unclassified(words)), len(index.partials(words))
+    inbox = reminder_item("inbox", f"{counted(waiting, 'book')} without a genre", "↩ lists them", completion("classify", words))
+    downloads = reminder_item("partials", counted(partial, "unfinished download"), "↩ lists them", completion("trash", words))
+    return [item for item, count in ((inbox, waiting), (downloads, partial)) if count]
+
+
+def nothing_to_fix(words: list[str]) -> dict:
+    title = f"Nothing to fix for ‘{' '.join(words)}’" if words else "Nothing to fix"
+    return alfred.message_item(title, "The library is clean")
+
+
+def fix_items(words: list[str]) -> list[dict]:
+    found, ops = diagnosis()
+    concerns, root = concerning(words), str(library_root())
+    todo = [o for o in ops if o.kind in EXECUTABLE and concerns(o.src)]
+    conflicts = [o for o in ops if o.kind == "skip" and concerns(o.src)]
+    manual = [f for f in by_hand(found, ops) if concerns(f.rel_paths[0])]
+    rows = [
+        *fix_all_items(todo, words),
+        *undo_items(),
+        *fix_reminders(words),
+        *(alfred.plan_item(o, root) for o in todo),
+        *(alfred.conflict_item(o, root) for o in conflicts),
+        *(alfred.problem_item(f, root) for f in manual),
+    ]
+    return rows or [nothing_to_fix(words)]
 
 
 COMMAND_LIST = [
     Command("stats", all_stats_items, "stats", "counts: books, inbox, duplicates, pending fixes, unfinished downloads, sources"),
     Command("dups", dups_items, "open", "every copy of a title that exists in several files"),
     Command("rnd", random_items, "open", "five random books, drawn from those matching the words", aliases=("random",)),
-    Command("lint", lint_items, "open", "problems: junk, partial downloads, noisy names, duplicates, misfiled series"),
     Command("inbox", inbox_items, "open", "books without a genre yet, oldest first"),
     Command("classify", classify_items, "classify", "set the genre of inbox books, or of any books matching the words"),
-    Command("plan", written_plan_items, "apply-one", "proposed moves, renames and trash · ↩ on a row applies it"),
+    Command("fix", fix_items, "fix", "what is wrong and how to fix it · ↩ applies, ⌥↩ reveals"),
+    Command("trash", trash_items, "trash", "unfinished downloads; with words, any book · ↩ moves it to _trash/"),
     Command("src", sources_items, "import", "search the other sources · ↩ imports into the inbox", needs_index=False),
     Command("update", update_items, "update", "rebuild the library and sources index", needs_index=False),
-    Command("apply", apply_items, "apply", "apply plan.tsv, then rebuild the index", needs_index=False),
-    Command("undo", undo_items, "undo", "move the last batch back", needs_index=False),
 ]
 
 COMMANDS = {name: command for command in COMMAND_LIST for name in command.names}
 
 MIN_SUGGESTION_PREFIX = 2
 CLASSIFY_LIMIT = 200
+LIST_LIMIT = 200
+FIX_KINDS = ("move", "trash", "dups")
+MANUAL_RULES = {"author_inversion", "noisy_name", "opaque", "double_extension"}

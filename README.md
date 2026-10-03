@@ -13,7 +13,9 @@ kb:rnd epub                  five random books, drawn from those matching the wo
 kb:stats                     books · inbox · duplicate titles · pending fixes · unfinished downloads · sources (↩ goes there)
 kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
 kb:inbox                     books without a genre yet, oldest first
-kb stats · kb plan · kb update…  every kb:x also works as `kb x [words]`: its rows come first, then books matching all words
+kb fix newport               what is wrong and how to fix it: fix all, undo, reminders, operations, problems by hand
+kb trash                     unfinished downloads; with words, any matching book too — ↩ moves it to _trash/
+kb stats · kb fix · kb update…  every command works as `kb x [words]`: its rows come first, then books matching all words
 kb:plan                      proposed moves/renames/trash, written to plan.tsv — ↩ on a row applies that line, ↩ on the head row applies all
 kb:apply                     apply plan.tsv, then rebuild the index
 kb:undo                      move the last batch back
@@ -23,8 +25,8 @@ kb:src eur                   two or more results start with "Import all N books"
                              "Set genre for all N books" — ↩ on that row does it for every row below
 ```
 
-Inside plain `kb`, a first word that names a command (`stats`, `dups`, `rnd`, `lint`, `inbox`, `classify`, `plan`,
-`src`, `update`, `apply`, `undo`) runs it: `kb plan` lists the plan and ↩ on a row applies that row;
+Inside plain `kb`, a first word that names a command (`stats`, `dups`, `rnd`, `inbox`, `classify`, `fix`, `trash`,
+`src`, `update`) runs it: `kb fix` lists what to fix and ↩ on a row applies that row;
 `kb src delany` searches the sources and ↩ imports; `kb update` shows one row that rebuilds the index on ↩. Books
 matching the whole input are listed after, once each, so a command word never hides a book (`kb stats` also finds
 "Stats for Dummies"). Only ↩ changes meaning per row; ⌥↩ (reveal), ⌘↩ (copy path) and ⌃↩ (browse folder) do the
@@ -47,7 +49,7 @@ Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbn
 | ⌘C           | copy relative path           |
 | ⌘L           | large type: title/author/path|
 
-`.part` files (unfinished downloads) are indexed but never listed by search; `kb:lint` reports them.
+`.part` files (unfinished downloads) are indexed but listed only by `kb trash`.
 
 ## Install
 

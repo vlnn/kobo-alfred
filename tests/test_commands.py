@@ -272,3 +272,102 @@ def test_stats_rows_count_and_complete_to_their_command(indexed):
     ], "stats should count books, inbox, duplicate titles, pending fixes and unfinished downloads"
     assert [r["autocomplete"] for r in rows] == ["", "inbox ", "dups ", "fix ", "trash "], "↩ on a row completes to its command"
     assert all(r["valid"] is False for r in rows), "stats rows navigate rather than act"
+
+
+NOVA = "00_Inbox/Delany, Samuel R - Nova - 2014.epub.part"
+DEEP = "02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+
+
+def test_trash_without_words_lists_unfinished_downloads(indexed, library):
+    (row,) = search_items("trash")
+
+    assert row["title"] == "Nova" and row["valid"] is True, "an unfinished download is actionable in kb trash"
+    assert row["subtitle"].startswith("unfinished download · "), "the subtitle should say why it is listed"
+    assert row["arg"] == str(library / NOVA) and action_of(row) == "trash", "↩ should move that file to _trash/"
+
+
+def test_trash_with_words_lists_downloads_then_library_books_under_a_head_row(indexed, library):
+    head, *rows = search_items("trash inbox")
+
+    assert titles(rows)[0] == "Nova", "unfinished downloads matching the words come first"
+    assert set(titles(rows[1:])) == {"Napkin", "Оперантное поведение"}, "then every library book matching the words"
+    assert head["title"] == "Trash all 3 books" and action_of(head) == "trash", "two or more rows start with a head row"
+    assert head["arg"] == "\n".join(r["arg"] for r in rows), "the head row carries every listed path"
+
+
+def test_trash_with_nothing_to_trash_says_so(indexed, library, capsys):
+    (library / NOVA).unlink()
+    main(["index"])
+    capsys.readouterr()
+
+    assert titles(search_items("trash")) == ["Nothing to trash"], "without unfinished downloads there is nothing to list"
+
+
+def by_uid(items: list[dict], prefix: str) -> list[dict]:
+    return [i for i in items if i.get("uid", "").startswith(prefix)]
+
+
+def test_fix_lists_head_row_reminders_operations_then_problems(indexed, library):
+    items = command_rows("fix")
+
+    assert [i["uid"].split(":")[0] for i in items] == ["fix", "reminder", "reminder", "fix", "problem"], (
+        "fix should list: fix all, reminders, operations, then problems by hand"
+    )
+    head, inbox, partial, move, napkin = items
+    assert (head["title"], head["subtitle"]) == ("Fix all 1", "1 move"), "the head row should count operations by kind"
+    assert (inbox["title"], inbox["autocomplete"]) == ("2 books without a genre", "classify "), (
+        "the inbox reminder completes to kb classify"
+    )
+    assert (partial["title"], partial["autocomplete"]) == ("1 unfinished download", "trash "), "the partial reminder completes to kb trash"
+    assert move["arg"] == str(library / DEEP) and move["subtitle"].startswith("move · "), "an operation row carries the file it moves"
+    assert napkin["arg"] == str(library / "00_Inbox" / "Napkin.pdf"), "a problem row carries the file to fix by hand"
+
+
+def test_fix_rows_carry_their_own_actions(indexed):
+    items = search_items("fix")
+
+    assert [action_of(i) for i in by_uid(items, "fix")] == ["fix", "fix"], "↩ on fix all or on an operation applies it"
+    assert [action_of(i) for i in by_uid(items, "problem")] == ["reveal"], "↩ on a problem reveals the file"
+    assert all(i["valid"] is False for i in by_uid(items, "reminder")), "reminders complete the query instead of acting"
+
+
+def test_fix_offers_undo_after_a_batch(indexed, library, capsys):
+    main(["apply", "--only", str(library / DEEP)])
+    capsys.readouterr()
+
+    (undo,) = by_uid(search_items("fix"), "undo")
+
+    assert undo["title"] == "Undo last batch (1 move)" and action_of(undo) == "undo", "a journaled batch can be undone from kb fix"
+    assert not by_uid(command_rows("fix"), "fix"), "the applied move is no longer offered"
+
+
+@pytest.mark.parametrize(
+    "words, uids",
+    [
+        ("newport", ["fix:all", f"fix:{DEEP}"]),
+        ("napkin", ["reminder:inbox", "problem:opaque:00_Inbox/Napkin.pdf"]),
+        ("delany", ["reminder:partials"]),
+    ],
+)
+def test_fix_words_narrow_every_list(indexed, words, uids):
+    assert [i["uid"] for i in command_rows(f"fix {words}")] == uids, f"kb fix {words} should only show what concerns matching books"
+
+
+def test_fix_reminders_keep_the_words(indexed):
+    (reminder,) = command_rows("fix napkin")[:1]
+
+    assert reminder["autocomplete"] == "classify napkin ", "the reminder should complete to kb classify with the same words"
+
+
+def test_fix_head_row_carries_the_listed_paths_when_narrowed(indexed, library):
+    assert command_rows("fix")[0]["arg"] == "", "unnarrowed, fix all applies everything"
+    assert command_rows("fix newport")[0]["arg"] == str(library / DEEP), "narrowed, fix all applies only what is listed"
+
+
+def test_fix_with_nothing_to_show_says_so(indexed):
+    assert titles(command_rows("fix zzz")) == ["Nothing to fix for ‘zzz’"], "an empty fix list should say so"
+
+
+@pytest.mark.parametrize("word", ["lint", "plan", "apply", "undo"])
+def test_fix_replaces_the_old_commands(indexed, word):
+    assert titles(search_items(word)) == [f"No books match ‘{word}’"], f"{word!r} is now a plain word; kb fix replaces it"

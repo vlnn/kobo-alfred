@@ -59,7 +59,7 @@ ROUTES = {
     "update": "INDEX_RUN",
     "apply": "APPLY_RUN",
     "undo": "UNDO_RUN",
-    "apply-one": "APPLY_ONE",
+    "fix": "APPLY_ONE",
     "classify": "GENRES",
     "import": "IMPORT_RUN",
 }
@@ -136,12 +136,9 @@ def route(workflow: dict, item: dict) -> str:
     "query, destination, arg",
     [
         ("update", "INDEX_RUN", ""),
-        ("apply", "APPLY_RUN", ""),
-        ("undo", "UNDO_RUN", ""),
-        ("plan", "APPLY_ONE", ""),
+        ("fix", "APPLY_ONE", ""),
         ("classify", "GENRES", ""),
         ("inbox", "OPEN", "/"),
-        ("lint", "OPEN", "/"),
         ("rnd", "OPEN", "/"),
         ("deep", "OPEN", "/"),
     ],
@@ -211,14 +208,18 @@ def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkey
     [
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("")),
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("src slow")),
-        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("lint")),
-        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("plan")),
+        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("fix")),
         ("SOURCES", lambda: __import__("kobolib.commands", fromlist=["sources_items"]).sources_items(["slow"])),
         ("INBOX", lambda: __import__("kobolib.commands", fromlist=["inbox_items"]).inbox_items([])),
         ("LINT", lambda: __import__("kobolib.commands", fromlist=["lint_items"]).lint_items()),
         ("RANDOM", lambda: __import__("kobolib.commands", fromlist=["random_items"]).random_items([])),
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("inbox")),
-        ("PLAN", lambda: __import__("kobolib.commands", fromlist=["written_plan_items"]).written_plan_items()),
+        (
+            "PLAN",
+            lambda: __import__("kobolib.commands", fromlist=["plan_items"]).plan_items(
+                __import__("kobolib.library", fromlist=["current_plan"]).current_plan()
+            ),
+        ),
     ],
 )
 def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_sources, filter_uid, items):
