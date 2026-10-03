@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import PurePosixPath
 
-from kobolib.model import DuplicateGroup, Finding, Operation, Row
+from kobolib.model import Finding, Operation, Row
 
 SEPARATOR = " · "
 
@@ -80,6 +80,10 @@ def book_item(row: Row) -> dict:
     }
 
 
+def copy_item(row: Row, copies: int) -> dict:
+    return {**book_item(row), "subtitle": f"×{copies}{SEPARATOR}{subtitle(row)}"}
+
+
 def classify_item(row: Row) -> dict:
     return {**inbox_item(row), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row) + " · ↩ pick a genre"}
 
@@ -153,7 +157,7 @@ def import_all_item(rows: list[Row]) -> dict:
 def classify_all_item(rows: list[Row]) -> dict:
     books = LINE.join(r.fingerprint for r in rows)
     return batch_item(
-        "classify:all", f"Classify all {len(rows)} books", "↩ picks one genre for every book listed below", variables={"book": books}
+        "classify:all", f"Set genre for all {len(rows)} books", "↩ picks one genre for every book listed below", variables={"book": books}
     )
 
 
@@ -181,20 +185,6 @@ def plan_item(op: Operation, root: str) -> dict:
         "quicklookurl": src,
         "text": {"copy": f"{op.src}\t{op.dst}", "largetype": f"{op.src}\n→ {op.dst}"},
         "mods": {"alt": {"arg": src, "subtitle": "Reveal in Finder"}},
-    }
-
-
-def duplicate_item(group: DuplicateGroup) -> dict:
-    paths = "\n".join(b.rel_path for b in group.books)
-    formats = ", ".join(b.format + ("(part)" if b.partial else "") for b in group.books)
-    return {
-        "uid": f"dup:{group.title}",
-        "title": f"{group.title}  ×{len(group.books)}",
-        "subtitle": f"{formats} — {group.books[0].folder}",
-        "arg": group.books[0].path,
-        "icon": icon(group.books[0]),
-        "text": {"copy": paths, "largetype": paths},
-        "mods": {"alt": {"arg": group.books[0].path, "subtitle": "Reveal first copy in Finder"}},
     }
 
 

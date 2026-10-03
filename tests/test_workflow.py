@@ -217,8 +217,6 @@ def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkey
         ("INBOX", lambda: __import__("kobolib.commands", fromlist=["inbox_items"]).inbox_items([])),
         ("LINT", lambda: __import__("kobolib.commands", fromlist=["lint_items"]).lint_items()),
         ("RANDOM", lambda: __import__("kobolib.commands", fromlist=["random_items"]).random_items([])),
-        ("CLASSIFY", lambda: __import__("kobolib.commands", fromlist=["classify_items"]).classify_items([])),
-        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("classify")),
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("inbox")),
         ("PLAN", lambda: __import__("kobolib.commands", fromlist=["written_plan_items"]).written_plan_items()),
     ],

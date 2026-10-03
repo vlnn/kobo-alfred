@@ -8,8 +8,8 @@ from pathlib import Path
 from kobolib import alfred
 from kobolib.config import db_path, library_root, plan_path, sources, sources_db_path
 from kobolib.index import Index, is_current
-from kobolib.library import current_plan, findings, known_genres, not_in_library, unclassified_rows
-from kobolib.model import Row
+from kobolib.library import current_plan, findings, known_genres, not_in_library, pending_operations, unclassified_rows
+from kobolib.model import DuplicateGroup, Row
 from kobolib.plan import write_plan
 from kobolib.query import query_words
 from kobolib.tags import GenreStore
@@ -35,8 +35,8 @@ def without_index_items() -> list[dict]:
     return [alfred.action_item(index_problem(), "↩ builds it", "update")]
 
 
-def counted(n: int, noun: str) -> str:
-    return f"{n} {noun}" + ("" if n == 1 else "s")
+def counted(n: int, noun: str, plural: str = "") -> str:
+    return f"{n} {noun if n == 1 else plural or noun + 's'}"
 
 
 def inbox_reminder(index: Index) -> list[dict]:
@@ -85,15 +85,6 @@ def with_action(item: dict, action: str) -> dict:
     return {**item, "variables": {**item.get("variables", {}), "action": action}, "mods": mods}
 
 
-def complete(rows: list[Row]) -> list[Row]:
-    return [r for r in rows if not r.partial]
-
-
-def classify_batch(rows: list[Row]) -> dict:
-    books = alfred.LINE.join(r.fingerprint for r in complete(rows))
-    return alfred.batch_mod(f"Classify all {len(complete(rows))} shown", variables={"book": books, "action": "classify"})
-
-
 def command_items(command: Command, words: list[str]) -> list[dict]:
     if command.needs_index and index_problem():
         return without_index_items()
@@ -113,9 +104,22 @@ def suggestions(raw: str) -> list[dict]:
     return [alfred.suggestion_item(name, command.help) for name, command in completions]
 
 
+def nothing(words: list[str], title: str, subtitle: str = "") -> list[dict]:
+    return [alfred.empty_item(" ".join(words))] if words else [alfred.message_item(title, subtitle)]
+
+
+def duplicate_groups(index: Index, words: list[str]) -> list[DuplicateGroup]:
+    groups = index.duplicates()
+    if not words:
+        return groups
+    wanted = index.rel_paths(words)
+    return [g for g in groups if any(b.rel_path in wanted for b in g.books)]
+
+
 def dups_items(words: list[str] = ()) -> list[dict]:
-    groups = Index(db_path()).duplicates()
-    return [alfred.duplicate_item(g) for g in groups] or [alfred.message_item("No duplicate titles")]
+    groups = duplicate_groups(Index(db_path()), list(words))
+    rows = [alfred.copy_item(book, len(g.books)) for g in groups for book in g.books]
+    return rows or [alfred.message_item("No duplicate titles")]
 
 
 def random_items(words: list[str]) -> list[dict]:
@@ -125,21 +129,23 @@ def random_items(words: list[str]) -> list[dict]:
 
 
 def inbox_items(words: list[str]) -> list[dict]:
-    rows = unclassified_rows(words)
-    items = alfred.with_batch([alfred.inbox_item(r) for r in rows], classify_batch(rows))
-    return items or [alfred.message_item("Inbox is empty", "Every book has a genre")]
+    rows = [alfred.inbox_item(r) for r in unclassified_rows(words)]
+    return rows or nothing(words, "Inbox is empty", "Every book has a genre")
 
 
 def headed(head: dict, items: list[dict], batch_size: int) -> list[dict]:
     return [head, *items] if batch_size > 1 else items
 
 
+def classify_rows(words: list[str]) -> list[Row]:
+    index = Index(db_path())
+    return index.search(words, limit=CLASSIFY_LIMIT) if words else index.unclassified([])
+
+
 def classify_items(words: list[str]) -> list[dict]:
-    rows = unclassified_rows(words)
-    items = alfred.with_batch([alfred.classify_item(r) for r in rows], classify_batch(rows))
-    return headed(alfred.classify_all_item(complete(rows)), items, len(complete(rows))) or [
-        alfred.message_item("Nothing to classify", "Every book has a genre")
-    ]
+    rows = classify_rows(words)
+    items = [alfred.classify_item(r) for r in rows]
+    return headed(alfred.classify_all_item(rows), items, len(rows)) or nothing(words, "Nothing to classify", "Every book has a genre")
 
 
 def lint_items(words: list[str] = ()) -> list[dict]:
@@ -175,8 +181,7 @@ def genre_edits(query: str, index: Index, store: GenreStore, book: str) -> list[
 
 def source_items(words: list[str]) -> list[dict]:
     rows = not_in_library(Index(sources_db_path()).search(words))
-    batch = alfred.batch_mod(f"Import all {len(rows)} shown", alfred.LINE.join(r.path for r in rows))
-    items = alfred.with_batch([alfred.source_item(r) for r in rows], batch)
+    items = [alfred.source_item(r) for r in rows]
     return headed(alfred.import_all_item(rows), items, len(rows)) or [alfred.empty_item(" ".join(words))]
 
 
@@ -190,18 +195,20 @@ def sources_items(words: list[str]) -> list[dict]:
 
 def stats_items() -> list[dict]:
     index = Index(db_path())
-    partial = len(index.partials([]))
     return [
-        alfred.message_item(f"{index.count()} books indexed", str(library_root())),
-        alfred.message_item(f"{partial} incomplete downloads", "kb lint"),
-        alfred.message_item(f"{len(index.duplicates())} duplicate titles", "kb:dups"),
+        alfred.navigation_item(counted(index.complete_count(), "book"), str(library_root()), ""),
+        alfred.navigation_item(f"{counted(len(index.unclassified([])), 'book')} without a genre", "↩ shows the inbox", "inbox "),
+        alfred.navigation_item(counted(len(index.duplicates()), "duplicate title"), "↩ lists every copy", "dups "),
+        alfred.navigation_item(counted(len(pending_operations()), "pending fix", "pending fixes"), "↩ lists them", "fix "),
+        alfred.navigation_item(counted(len(index.partials([])), "unfinished download"), "↩ lists them", "trash "),
     ]
 
 
 def sources_stats_items() -> list[dict]:
     if index_problem(sources_db_path()):
         return []
-    return [alfred.message_item(f"{Index(sources_db_path()).count()} books in {len(sources())} sources", "kb:src")]
+    count = Index(sources_db_path()).count()
+    return [alfred.navigation_item(f"{counted(count, 'book')} in {counted(len(sources()), 'source')}", "↩ searches them", "src ")]
 
 
 def all_stats_items(words: list[str] = ()) -> list[dict]:
@@ -237,12 +244,12 @@ def undo_items(words: list[str]) -> list[dict]:
 
 
 COMMAND_LIST = [
-    Command("stats", all_stats_items, "stats", "counts: books, incomplete downloads, duplicate titles"),
-    Command("dups", dups_items, "dups", "same title in several files or formats"),
+    Command("stats", all_stats_items, "stats", "counts: books, inbox, duplicates, pending fixes, unfinished downloads, sources"),
+    Command("dups", dups_items, "open", "every copy of a title that exists in several files"),
     Command("rnd", random_items, "open", "five random books, drawn from those matching the words", aliases=("random",)),
     Command("lint", lint_items, "open", "problems: junk, partial downloads, noisy names, duplicates, misfiled series"),
     Command("inbox", inbox_items, "open", "books without a genre yet, oldest first"),
-    Command("classify", classify_items, "classify", "pick an inbox book, then a genre"),
+    Command("classify", classify_items, "classify", "set the genre of inbox books, or of any books matching the words"),
     Command("plan", written_plan_items, "apply-one", "proposed moves, renames and trash · ↩ on a row applies it"),
     Command("src", sources_items, "import", "search the other sources · ↩ imports into the inbox", needs_index=False),
     Command("update", update_items, "update", "rebuild the library and sources index", needs_index=False),
@@ -253,3 +260,4 @@ COMMAND_LIST = [
 COMMANDS = {name: command for command in COMMAND_LIST for name in command.names}
 
 MIN_SUGGESTION_PREFIX = 2
+CLASSIFY_LIMIT = 200

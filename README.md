@@ -8,9 +8,9 @@ kb delany epub 1975          words match title, authors, series, folder, path, g
 kb inbox ukrainian           language matches by code or English name (uk, ukrainian)
 kb                           empty query → books without a genre (↩ completes to kb inbox), then the most recently added
 kb update                    rebuild the library index and, if sources are configured, the sources index (also kb:index)
-kb:dups                      same title in several files or formats
+kb:dups                      every copy of a title that exists in several files, side by side, subtitle ×N
 kb:rnd epub                  five random books, drawn from those matching the words
-kb:stats                     counts: books, incomplete downloads, duplicate titles
+kb:stats                     books · inbox · duplicate titles · pending fixes · unfinished downloads · sources (↩ goes there)
 kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
 kb:inbox                     books without a genre yet, oldest first
 kb stats · kb plan · kb update…  every kb:x also works as `kb x [words]`: its rows come first, then books matching all words
@@ -20,7 +20,7 @@ kb:undo                      move the last batch back
 kb:classify                  pick an inbox book, then a genre; the inbox shrinks as you go
 kb:src cal newport           search the other sources (same filters) — ↩ copies the book into the library inbox
 kb:src eur                   two or more results start with "Import all N books"; kb:classify likewise starts with
-                             "Classify all N books" — ↩ on that row does it for every row below (also ⌥⇧↩ on any row)
+                             "Set genre for all N books" — ↩ on that row does it for every row below
 ```
 
 Inside plain `kb`, a first word that names a command (`stats`, `dups`, `rnd`, `lint`, `inbox`, `classify`, `plan`,
@@ -43,7 +43,6 @@ Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbn
 | ⌃↩           | browse the book's folder     |
 | ⇧ / ⌘Y       | Quick Look                   |
 | ⇧↩           | set the genre                |
-| ⌥⇧↩          | ↩ for every row shown (`kb:src`, `kb:inbox`, `kb:classify`, `kb:plan`) |
 | fn↩          | move to its genre home now   |
 | ⌘C           | copy relative path           |
 | ⌘L           | large type: title/author/path|
@@ -130,10 +129,10 @@ a `delete`; a destination holding different content leaves the operation skipped
 batch (an undo is itself a batch, so undoing twice re-applies); a deleted copy comes back from the kept file. Nothing is ever deleted: `_trash/` and `_dups/`
 are left for you, and both are ignored by the scanner.
 
-`kb:classify` is the daily loop: type to find an inbox book, ↩, type a genre (existing ones are listed, an
-unknown one is created), ↩. Narrow the inbox to a batch instead (`kb:classify newport`) and the list starts with
-"Classify all N books": ↩ there (or ⌥⇧↩ on any row, also in `kb:inbox`) opens the same picker for every complete
-book listed, and the genre you choose applies to all of them. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy`.
+`kb:classify` is the daily loop: with no words it lists the inbox; type to find a book, ↩, type a genre (existing
+ones are listed, an unknown one is created), ↩. With words (`kb classify newport`) it lists every library book
+matching them, whatever its genre. Two or more books start with "Set genre for all N books": ↩ there opens the
+same picker for every book listed, and the genre you choose applies to all of them. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy`.
 Genres are searchable: every segment of the genre is a word (`kb fiction`, `kb sci`).
 
 Any book you have just found — in `kb`, `kb:inbox`, or after `kb term` — can be fixed in place with ⇧↩: the
@@ -164,8 +163,8 @@ also indexes them into a separate `sources.db`; an unmounted source is skipped a
 - pdf / mobi / azw / azw3 / djvu files without their signature bytes (`%PDF`, `BOOKMOBI`, `AT&TFORM`).
 
 ↩ copies the book into the library's inbox folder (the one whose name is `inbox` after the order prefix, or a
-new `_inbox/`). When the list has more than one book it starts with "Import all N books" — ↩ there (or ⌥⇧↩ on
-any row) copies every book listed (`kb:src calibre epub`, ↩). Each import adds the book to the library index
+new `_inbox/`). When the list has more than one book it starts with "Import all N books" — ↩ there copies
+every book listed (`kb:src calibre epub`, ↩). Each import adds the book to the library index
 right away — no full reindex — so it shows up in `kb`,
 `kb:inbox` and `kb:classify` immediately. The source is never touched: import only copies, and once a book is in
 the library its source copy is simply no longer offered. Nothing is overwritten: an occupied destination refuses

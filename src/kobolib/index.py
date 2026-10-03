@@ -227,6 +227,12 @@ class Index:
     def count(self) -> int:
         return self.values("SELECT count(*) FROM books")[0]
 
+    def complete_count(self) -> int:
+        return self.values("SELECT count(*) FROM books WHERE partial = 0")[0]
+
+    def rel_paths(self, words: list[str]) -> set[str]:
+        return {row.rel_path for row in self.search(words, limit=100_000)}
+
     def search(self, words: list[str], limit: int = 40) -> list[Row]:
         order = "rank, title" if words else "mtime DESC"
         return self.matching(words, "partial = 0", order, limit)
@@ -285,7 +291,7 @@ class Index:
 
     def duplicates(self) -> list[DuplicateGroup]:
         groups = defaultdict(list)
-        for row in self.rows(f"{SELECT_ROWS} WHERE norm_title != '' ORDER BY norm_title, rel_path"):
+        for row in self.rows(f"{SELECT_ROWS} WHERE partial = 0 AND norm_title != '' ORDER BY norm_title, rel_path"):
             groups[row.norm_title].append(row)
         return [DuplicateGroup(books[0].title, books) for books in groups.values() if len(books) > 1]
 

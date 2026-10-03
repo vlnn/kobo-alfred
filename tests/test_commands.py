@@ -158,3 +158,117 @@ def test_other_input_suggests_no_command(indexed, query):
 
 def test_suggestions_work_before_any_index(env):
     assert search_items("up")[0]["autocomplete"] == "update ", "completing to kb update must work before the first index exists"
+
+
+def command_rows(query: str) -> list[dict]:
+    from kobolib.commands import COMMANDS
+
+    word, *rest = query.split()
+    return COMMANDS[word].items(rest)
+
+
+def age(path: Path, seconds: int) -> None:
+    import os
+
+    os.utime(path, (seconds, seconds))
+
+
+@pytest.fixture
+def aged_inbox(library: Path, capsys) -> None:
+    age(library / "00_Inbox" / "Napkin.pdf", 2)
+    age(library / "00_Inbox" / "Скиннер - Оперантное поведение.fb2", 1)
+    main(["index"])
+    capsys.readouterr()
+
+
+def no_bulk_modifier(items: list[dict]) -> bool:
+    return not any("alt+shift" in i.get("mods", {}) for i in items)
+
+
+def test_inbox_lists_complete_books_without_a_genre_oldest_first(env, aged_inbox):
+    items = command_rows("inbox")
+
+    assert titles(items) == ["Оперантное поведение", "Napkin"], "inbox should list complete unclassified books, oldest first"
+    assert {action_of(i) for i in search_items("inbox")[:2]} == {"open"}, "↩ on an inbox book opens it"
+    assert no_bulk_modifier(items), "bulk work is a head row, never a modifier"
+
+
+def test_inbox_is_narrowed_by_words(indexed):
+    assert titles(search_items("inbox napkin")) == ["Napkin"], "the words narrow the inbox, and the book is listed once"
+
+
+def test_empty_inbox_says_so(indexed, library, capsys):
+    classify_inbox(library, capsys)
+
+    assert titles(command_rows("inbox")) == ["Inbox is empty"], "an empty inbox should be stated"
+
+
+def test_classify_without_words_lists_the_inbox_under_a_head_row(env, aged_inbox):
+    head, *rows = search_items("classify")
+
+    assert head["title"] == "Set genre for all 2 books" and head["arg"] == "", "the head row opens the picker for every listed book"
+    assert head["variables"] == {"book": "\n".join(r["variables"]["book"] for r in rows), "action": "classify"}, (
+        "the head row should carry every listed fingerprint to the genre picker"
+    )
+    assert titles(rows) == ["Оперантное поведение", "Napkin"], "without words classify lists the inbox"
+    assert all(r["arg"] == "" and action_of(r) == "classify" for r in rows), "↩ on a row picks a genre for that book"
+    assert no_bulk_modifier(rows), "bulk work is a head row, never a modifier"
+
+
+@pytest.mark.parametrize("words, expected", [("deep", ["Deep Work"]), ("nonfiction", ["Deep Work"]), ("napkin", ["Napkin"])])
+def test_classify_with_words_lists_matching_library_books_of_any_genre(indexed, words, expected):
+    rows = command_rows(f"classify {words}")
+
+    assert titles(rows) == expected, f"classify {words} should list every matching library book, classified or not"
+    assert action_of(search_items(f"classify {words}")[0]) == "classify", "↩ should open the genre picker"
+
+
+def test_classify_with_nothing_to_do_says_so(indexed, library, capsys):
+    classify_inbox(library, capsys)
+
+    assert titles(command_rows("classify")) == ["Nothing to classify"], "an empty inbox leaves nothing to classify"
+
+
+@pytest.fixture
+def second_deep_work(env, library: Path, capsys) -> None:
+    (library / "00_Inbox" / "Newport, Cal - Deep Work.pdf").write_bytes(b"%PDF-1.4")
+    main(["index"])
+    capsys.readouterr()
+
+
+def test_dups_lists_every_copy_as_a_book_row(second_deep_work):
+    rows = command_rows("dups")
+
+    assert titles(rows) == ["Deep Work", "Deep Work"], "each copy should be its own row, the copies side by side"
+    assert all(r["subtitle"].startswith("×2 · ") for r in rows), "the subtitle should start with the number of copies"
+    assert {action_of(i) for i in search_items("dups")[:2]} == {"open"}, "↩ opens the copy"
+    assert len({r["uid"] for r in rows}) == 2, "each row is a real file"
+
+
+def test_dups_ignores_unfinished_downloads(indexed, library, capsys):
+    (library / "00_Inbox" / "Newport, Cal - Deep Work.fb2.part").write_bytes(b"")
+    main(["index"])
+    capsys.readouterr()
+
+    assert titles(command_rows("dups")) == ["No duplicate titles"], "a .part file is not a copy"
+
+
+@pytest.mark.parametrize("words, count", [("newport", 2), ("pdf", 2), ("napkin", 0)])
+def test_dups_words_keep_whole_groups(second_deep_work, words, count):
+    rows = [r for r in command_rows(f"dups {words}") if "quicklookurl" in r]
+
+    assert len(rows) == count, f"dups {words} should keep every copy of a title when any copy matches"
+
+
+def test_stats_rows_count_and_complete_to_their_command(indexed):
+    rows = command_rows("stats")
+
+    assert titles(rows) == [
+        "3 books",
+        "2 books without a genre",
+        "0 duplicate titles",
+        "1 pending fix",
+        "1 unfinished download",
+    ], "stats should count books, inbox, duplicate titles, pending fixes and unfinished downloads"
+    assert [r["autocomplete"] for r in rows] == ["", "inbox ", "dups ", "fix ", "trash "], "↩ on a row completes to its command"
+    assert all(r["valid"] is False for r in rows), "stats rows navigate rather than act"

@@ -97,13 +97,20 @@ def test_rel_path_and_cover_stored(index: Index):
 
 
 def test_duplicates_group_by_normalized_title(index: Index, library: Path):
-    (library / "00_Inbox" / "Newport, Cal - Deep Work.fb2.part").write_bytes(b"")
+    (library / "00_Inbox" / "Newport, Cal - Deep Work.pdf").write_bytes(b"%PDF-1.4")
     build_index(library, index.db_path, cover_cache=library / "c")
 
     groups = index.duplicates()
 
     assert [g.title for g in groups] == ["Deep Work"], "same title in different files should be reported as duplicate"
-    assert sorted(b.format for b in groups[0].books) == ["epub", "fb2"], "duplicate group should list both formats"
+    assert sorted(b.format for b in groups[0].books) == ["epub", "pdf"], "duplicate group should list both formats"
+
+
+def test_duplicates_leave_out_unfinished_downloads(index: Index, library: Path):
+    (library / "00_Inbox" / "Newport, Cal - Deep Work.fb2.part").write_bytes(b"")
+    build_index(library, index.db_path, cover_cache=library / "c")
+
+    assert index.duplicates() == [], "a .part file is not a copy of a title"
 
 
 def test_rebuild_replaces_old_rows(index: Index, library: Path):

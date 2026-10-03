@@ -4,7 +4,7 @@ import shutil
 from dataclasses import replace
 from pathlib import Path
 
-from kobolib.apply import Applied, apply
+from kobolib.apply import EXECUTABLE, Applied, apply
 from kobolib.config import (
     covers_dir,
     data_dir,
@@ -109,6 +109,10 @@ def unclassified_rows(words: list[str]) -> list[Row]:
 def current_plan():
     rows, store = all_rows(Index(db_path())), genre_store()
     return plan(rows, lint(rows, store, library_root(), exclude=(data_dir(),)), store)
+
+
+def pending_operations() -> list[Operation]:
+    return [o for o in current_plan() if o.kind in EXECUTABLE]
 
 
 def plan_is_stale() -> bool:

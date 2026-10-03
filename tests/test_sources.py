@@ -181,16 +181,13 @@ def test_sources_items_carry_import_actions(env, capsys):
     assert item["mods"]["alt"]["arg"] == item["mods"]["cmd"]["arg"] == item["arg"], "both modifiers act on the source file itself"
 
 
-def test_sources_rows_offer_importing_the_whole_list(env, capsys):
+def test_sources_rows_carry_no_bulk_modifier(env, capsys):
     main(["index-sources"])
     capsys.readouterr()
 
-    items = [i for i in run_items(["sources", ""], capsys) if "mods" in i]
+    items = run_items(["sources", ""], capsys)
 
-    everyone = "\n".join(i["arg"] for i in items)
-    for item in items:
-        assert item["mods"]["alt+shift"]["arg"] == everyone, "⌥⇧↩ imports every listed book"
-        assert item["mods"]["alt+shift"]["subtitle"] == f"Import all {len(items)} shown", "the subtitle should count the books"
+    assert not any("alt+shift" in i.get("mods", {}) for i in items), "importing everything is the head row's job, not a modifier"
 
 
 def test_sources_list_starts_with_import_all(env, capsys):
@@ -298,4 +295,5 @@ def test_stats_counts_sources(env, capsys):
     main(["index-sources"])
     capsys.readouterr()
     main(["stats"])
-    assert any(t.startswith("3 books in 2 sources") for t in titles(capsys)), "stats should mention the sources index"
+    row = next(i for i in output(capsys)["items"] if i["title"].startswith("3 books in 2 sources"))
+    assert row["autocomplete"] == "src ", "the sources row should complete to kb src"
