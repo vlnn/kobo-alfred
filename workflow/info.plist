@@ -274,7 +274,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<integer>0</integer>
 				<key>script</key>
 				<string>export PYTHONPATH="$PWD"
-nohup /usr/bin/python3 -m kobolib index --notify &gt;/dev/null 2&gt;&amp;1 &amp;
+nohup /usr/bin/python3 -m kobolib update --notify &gt;/dev/null 2&gt;&amp;1 &amp;
 echo "Indexing started… you will get a notification when it finishes"</string>
 			</dict>
 		</dict>

@@ -49,7 +49,7 @@ def env(library: Path, calibre: Path, downloads: Path, tmp_path: Path, monkeypat
     monkeypatch.setenv("KOBO_SOURCES", f"{calibre}:{downloads}")
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
     monkeypatch.delenv("KOBO_DATA", raising=False)
-    main(["index"])
+    main(["update"])
 
 
 def output(capsys) -> dict:
@@ -60,24 +60,13 @@ def titles(capsys) -> list[str]:
     return [i["title"] for i in output(capsys)["items"] if i.get("uid") != "src:import-all"]
 
 
-def test_index_sources_builds_a_separate_index(env, tmp_path, capsys):
-    assert main(["index-sources"]) == 0, "indexing sources should succeed"
+def test_update_builds_a_separate_sources_index(env, tmp_path, capsys):
+    capsys.readouterr()
+    assert main(["update"]) == 0, "updating with sources configured should succeed"
     assert "Indexed 3 books from 2 sources" in capsys.readouterr().out, "the summary should count books and sources"
     assert (tmp_path / "alfred-data" / "sources.db").exists(), "sources get their own index file"
     main(["search", "slow"])
     assert titles(capsys)[0].startswith("No books match"), "source books must not leak into the library index"
-
-
-def test_index_sources_without_sources_explains(env, capsys, monkeypatch):
-    monkeypatch.setenv("KOBO_SOURCES", "")
-    assert main(["index-sources"]) == 1, "no sources configured should fail"
-    assert "KOBO_SOURCES" in capsys.readouterr().out, "the message should name the setting"
-
-
-def test_index_sources_skips_unmounted_source(env, tmp_path, capsys, monkeypatch, calibre):
-    monkeypatch.setenv("KOBO_SOURCES", f"{calibre}:{tmp_path / 'missing'}")
-    assert main(["index-sources"]) == 0, "one missing source should not block the others"
-    assert "skipped 1 unmounted" in capsys.readouterr().out, "missing sources should be reported"
 
 
 @pytest.mark.parametrize(
@@ -89,8 +78,6 @@ def test_index_sources_skips_unmounted_source(env, tmp_path, capsys, monkeypatch
     ],
 )
 def test_sources_search_uses_words(env, capsys, query, expected):
-    main(["index-sources"])
-    capsys.readouterr()
 
     main(["sources", query])
 
@@ -99,8 +86,6 @@ def test_sources_search_uses_words(env, capsys, query, expected):
 
 @pytest.mark.parametrize("query", ["nova", "dead", "found", "part"])
 def test_sources_skip_partial_and_broken_files(env, capsys, query):
-    main(["index-sources"])
-    capsys.readouterr()
 
     main(["sources", query])
 
@@ -119,8 +104,6 @@ def test_sources_search_before_index_explains(env, capsys, tmp_path):
 
 
 def test_sources_hides_books_already_in_library(env, capsys):
-    main(["index-sources"])
-    capsys.readouterr()
 
     main(["sources", "deep"])
 
@@ -129,48 +112,44 @@ def test_sources_hides_books_already_in_library(env, capsys):
 
 
 def test_sources_empty_query_hides_library_copies_too(env, capsys):
-    main(["index-sources"])
-    capsys.readouterr()
 
     main(["sources", ""])
 
     assert "Deep Work" not in titles(capsys), "the newest-first listing should skip what the library already holds"
 
 
-def test_index_also_rebuilds_the_sources_index(env, tmp_path, capsys):
+def test_update_also_rebuilds_the_sources_index(env, tmp_path, capsys):
     (tmp_path / "alfred-data" / "sources.db").unlink(missing_ok=True)
     capsys.readouterr()
 
-    assert main(["index"]) == 0, "index should succeed"
+    assert main(["update"]) == 0, "index should succeed"
 
     out = capsys.readouterr().out
     assert "Indexed 4 books from" in out and "Indexed 3 books from 2 sources" in out, "one command reports both indexes"
     assert (tmp_path / "alfred-data" / "sources.db").exists(), "the sources index should be rebuilt alongside the library"
 
 
-def test_index_without_sources_stays_quiet_about_them(env, capsys, monkeypatch):
+def test_update_without_sources_stays_quiet_about_them(env, capsys, monkeypatch):
     monkeypatch.setenv("KOBO_SOURCES", "")
     capsys.readouterr()
 
-    assert main(["index"]) == 0, "no sources is not an error for index"
+    assert main(["update"]) == 0, "no sources is not an error for index"
 
     assert "from 2 sources" not in capsys.readouterr().out and "No sources" not in capsys.readouterr().out, (
         "nothing to say about sources when none are configured"
     )
 
 
-def test_index_reports_unmounted_sources_without_failing(env, capsys, monkeypatch, tmp_path, calibre):
+def test_update_reports_unmounted_sources_without_failing(env, capsys, monkeypatch, tmp_path, calibre):
     monkeypatch.setenv("KOBO_SOURCES", f"{calibre}:{tmp_path / 'absent'}")
     capsys.readouterr()
 
-    assert main(["index"]) == 0, "an unmounted source should not fail the library index"
+    assert main(["update"]) == 0, "an unmounted source should not fail the library index"
 
     assert "skipped 1 unmounted" in capsys.readouterr().out, "the unmounted source should be mentioned"
 
 
 def test_sources_items_carry_import_actions(env, capsys):
-    main(["index-sources"])
-    capsys.readouterr()
 
     main(["sources", "slow"])
 
@@ -181,8 +160,6 @@ def test_sources_items_carry_import_actions(env, capsys):
 
 
 def test_sources_rows_carry_no_bulk_modifier(env, capsys):
-    main(["index-sources"])
-    capsys.readouterr()
 
     items = run_items(["sources", ""], capsys)
 
@@ -190,8 +167,6 @@ def test_sources_rows_carry_no_bulk_modifier(env, capsys):
 
 
 def test_sources_list_starts_with_import_all(env, capsys):
-    main(["index-sources"])
-    capsys.readouterr()
 
     items = run_items(["sources", ""], capsys)
 
@@ -202,8 +177,6 @@ def test_sources_list_starts_with_import_all(env, capsys):
 
 
 def test_single_source_result_has_no_head_row(env, capsys):
-    main(["index-sources"])
-    capsys.readouterr()
 
     items = run_items(["sources", "slow"], capsys)
 
@@ -238,9 +211,15 @@ def test_import_batch_reports_what_it_skipped(env, calibre, downloads, capsys):
     )
 
 
-def test_import_copies_into_inbox_and_indexes(env, library, calibre, capsys):
-    main(["index-sources"])
+def test_import_summary_ends_with_the_inbox_count(env, calibre, capsys):
     capsys.readouterr()
+
+    main(["import", str(calibre / "Misc" / "A World Without Email.epub")])
+
+    assert capsys.readouterr().out.rstrip().endswith(" · 3 books without a genre"), "the import summary should end with the inbox count"
+
+
+def test_import_copies_into_inbox_and_indexes(env, library, calibre, capsys):
     src = calibre / "Misc" / "A World Without Email.epub"
 
     assert main(["import", str(src)]) == 0, "import should succeed"
@@ -277,7 +256,7 @@ def test_import_creates_inbox_when_library_has_none(env, library, calibre, capsy
     for path in (library / "00_Inbox").iterdir():
         path.unlink()
     (library / "00_Inbox").rmdir()
-    main(["index"])
+    main(["update"])
     capsys.readouterr()
 
     main(["import", str(calibre / "Misc" / "A World Without Email.epub")])
@@ -291,8 +270,6 @@ def test_import_is_refused_while_indexing(env, tmp_path, calibre, capsys):
 
 
 def test_stats_counts_sources(env, capsys):
-    main(["index-sources"])
-    capsys.readouterr()
     main(["stats"])
     row = next(i for i in output(capsys)["items"] if i["title"].startswith("3 books in 2 sources"))
     assert row["autocomplete"] == "src ", "the sources row should complete to kb src"

@@ -8,6 +8,10 @@ from kobolib.model import Finding, Operation, Row
 SEPARATOR = " · "
 
 
+def counted(n: int, noun: str, plural: str = "") -> str:
+    return f"{n} {noun if n == 1 else plural or noun + 's'}"
+
+
 def human_size(size: int) -> str:
     if size <= 0:
         return ""

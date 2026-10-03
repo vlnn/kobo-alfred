@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kobolib import alfred
+from kobolib.alfred import counted
 from kobolib.apply import EXECUTABLE, last_batch, read_journal
 from kobolib.config import db_path, journal_path, library_root, sources, sources_db_path
 from kobolib.index import Index, is_current
@@ -34,10 +35,6 @@ EMPTY_INDEX = "Index is empty — is the card mounted? Alfred needs Removable Vo
 
 def without_index_items() -> list[dict]:
     return [alfred.action_item(index_problem(), "↩ builds it", "update")]
-
-
-def counted(n: int, noun: str, plural: str = "") -> str:
-    return f"{n} {noun if n == 1 else plural or noun + 's'}"
 
 
 def inbox_reminder(index: Index) -> list[dict]:

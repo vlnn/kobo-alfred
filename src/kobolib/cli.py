@@ -8,6 +8,7 @@ from functools import wraps
 from pathlib import Path
 
 from kobolib import alfred
+from kobolib.alfred import counted
 from kobolib.apply import apply, undo
 from kobolib.commands import (
     all_stats_items,
@@ -42,6 +43,7 @@ from kobolib.library import (
     findings,
     import_blocked,
     inbox_folder,
+    inbox_note,
     ops_for_one,
     plan_is_stale,
     refresh_index,
@@ -73,9 +75,9 @@ def report(message: str, should_notify: bool) -> None:
         notify(message)
 
 
-def cmd_index(args) -> int:
+def cmd_update(args) -> int:
     code, message = run_index()
-    report(message, args.notify)
+    report(message + (inbox_note() if code == 0 else ""), args.notify)
     if code != 0:
         return code
     if sources():
@@ -258,12 +260,6 @@ def cmd_genres(args) -> int:
     return 0
 
 
-def cmd_index_sources(args) -> int:
-    code, message = run_index_sources()
-    report(message, args.notify)
-    return code
-
-
 def cmd_sources(args) -> int:
     print(alfred.render(sources_items(query_words(args.query))))
     return 0
@@ -275,10 +271,6 @@ def import_one(path: str) -> tuple[Book | None, str]:
         return None, reason
     transfer(src, dst)
     return add_book(db_path(), dst, library_root(), covers_dir()), ""
-
-
-def counted(n: int, noun: str) -> str:
-    return f"{n} {noun}" + ("" if n == 1 else "s")
 
 
 def skipped_summary(reasons: list[str]) -> str:
@@ -299,7 +291,7 @@ def cmd_import(args) -> int:
     outcomes = [import_one(path) for path in args.book.splitlines() if path]
     books = [book for book, _ in outcomes if book]
     reasons = [reason for _, reason in outcomes if reason]
-    report(imported_summary(books, reasons), args.notify)
+    report(imported_summary(books, reasons) + inbox_note(), args.notify)
     return 0 if books else 1
 
 
@@ -325,8 +317,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="kobolib")
     sub = parser.add_subparsers(dest="command", required=True)
     notify, text, query = flag("--notify"), flag("--text"), query_argument()
-    sub.add_parser("index", parents=[notify, flag("--no-thumbnails")]).set_defaults(func=cmd_index)
-    sub.add_parser("index-sources", parents=[notify]).set_defaults(func=cmd_index_sources)
+    sub.add_parser("update", parents=[notify, flag("--no-thumbnails")]).set_defaults(func=cmd_update)
     sub.add_parser("search", parents=[query]).set_defaults(func=cmd_search)
     sub.add_parser("random", parents=[query]).set_defaults(func=cmd_random)
     sub.add_parser("inbox", parents=[query]).set_defaults(func=cmd_inbox)

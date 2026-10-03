@@ -91,5 +91,5 @@ def env(library: Path, tmp_path: Path, monkeypatch):
 
 @pytest.fixture
 def indexed(env, capsys):
-    main(["index"])
+    main(["update"])
     capsys.readouterr()

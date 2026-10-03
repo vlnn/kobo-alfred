@@ -326,7 +326,7 @@ def indexed(library: Path, tmp_path: Path, monkeypatch) -> Path:
     monkeypatch.setenv("KOBO_ROOT", str(library))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
     monkeypatch.delenv("KOBO_DATA", raising=False)
-    main(["index"])
+    main(["update"])
     return tmp_path / "alfred-data" / "library.db"
 
 
@@ -367,7 +367,7 @@ def test_reindex_brings_an_old_index_up_to_date(indexed: Path, capsys):
     from kobolib.cli import main
 
     age(indexed)
-    main(["index"])
+    main(["update"])
     capsys.readouterr()
     main(["search", "deep"])
 

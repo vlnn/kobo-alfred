@@ -41,7 +41,7 @@ def test_empty_query_has_no_reminder_when_the_inbox_is_empty(indexed, library, c
 
 def test_command_rows_come_before_books_matching_the_whole_input(env, library, capsys):
     (library / "00_Inbox" / "Stats for Dummies - Anon.pdf").write_bytes(b"%PDF-1.4")
-    main(["index"])
+    main(["update"])
     capsys.readouterr()
 
     found = titles(search_items("stats"))
@@ -51,7 +51,7 @@ def test_command_rows_come_before_books_matching_the_whole_input(env, library, c
 
 def test_a_command_word_never_hides_a_book(env, library, capsys):
     (library / "00_Inbox" / "Update Your Life - Smith, John.pdf").write_bytes(b"%PDF-1.4")
-    main(["index"])
+    main(["update"])
     capsys.readouterr()
 
     items = search_items("update")
@@ -95,7 +95,7 @@ def test_an_index_from_an_older_version_offers_a_rebuild(indexed, tmp_path):
 def test_an_empty_index_asks_whether_the_card_is_mounted(env, library, capsys):
     for book in [p for p in library.rglob("*") if p.is_file()]:
         book.unlink()
-    main(["index"])
+    main(["update"])
     capsys.readouterr()
 
     (item,) = search_items("")
@@ -177,7 +177,7 @@ def age(path: Path, seconds: int) -> None:
 def aged_inbox(library: Path, capsys) -> None:
     age(library / "00_Inbox" / "Napkin.pdf", 2)
     age(library / "00_Inbox" / "Скиннер - Оперантное поведение.fb2", 1)
-    main(["index"])
+    main(["update"])
     capsys.readouterr()
 
 
@@ -232,7 +232,7 @@ def test_classify_with_nothing_to_do_says_so(indexed, library, capsys):
 @pytest.fixture
 def second_deep_work(env, library: Path, capsys) -> None:
     (library / "00_Inbox" / "Newport, Cal - Deep Work.pdf").write_bytes(b"%PDF-1.4")
-    main(["index"])
+    main(["update"])
     capsys.readouterr()
 
 
@@ -247,7 +247,7 @@ def test_dups_lists_every_copy_as_a_book_row(second_deep_work):
 
 def test_dups_ignores_unfinished_downloads(indexed, library, capsys):
     (library / "00_Inbox" / "Newport, Cal - Deep Work.fb2.part").write_bytes(b"")
-    main(["index"])
+    main(["update"])
     capsys.readouterr()
 
     assert titles(command_rows("dups")) == ["No duplicate titles"], "a .part file is not a copy"
@@ -297,7 +297,7 @@ def test_trash_with_words_lists_downloads_then_library_books_under_a_head_row(in
 
 def test_trash_with_nothing_to_trash_says_so(indexed, library, capsys):
     (library / NOVA).unlink()
-    main(["index"])
+    main(["update"])
     capsys.readouterr()
 
     assert titles(search_items("trash")) == ["Nothing to trash"], "without unfinished downloads there is nothing to list"

@@ -4,6 +4,7 @@ import shutil
 from dataclasses import replace
 from pathlib import Path
 
+from kobolib.alfred import counted
 from kobolib.apply import EXECUTABLE, Applied, apply
 from kobolib.config import (
     covers_dir,
@@ -64,6 +65,11 @@ def known_genres(index: Index, store: GenreStore) -> list[str]:
     from_store = {t.genre for t in store.entries.values() if t.genre}
     from_folders = {g for f in index.folders() if (g := genre_from_folder(f))}
     return sorted(from_store | from_folders | set(index.genres()))
+
+
+def inbox_note() -> str:
+    waiting = len(Index(db_path()).unclassified([]))
+    return f" · {counted(waiting, 'book')} without a genre" if waiting else ""
 
 
 def run_index() -> tuple[int, str]:

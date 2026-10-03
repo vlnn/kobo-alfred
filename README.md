@@ -63,7 +63,7 @@ The index (`library.db`) and `covers/` live in Alfred's workflow data folder
 (`~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib`), which survives workflow
 updates and cache clears. Override with the optional **Index folder** setting.
 
-From a terminal: `KOBO_ROOT=… KOBO_DATA=… uv run kobolib index|search|dups|random|stats`.
+From a terminal: `KOBO_ROOT=… KOBO_DATA=… uv run kobolib update|search "words"`.
 
 ## Organizing
 
@@ -166,8 +166,8 @@ every book listed (`kb:src calibre epub`, ↩). Each import adds the book to the
 right away — no full reindex — so it shows up in `kb`,
 `kb:inbox` and `kb:classify` immediately. The source is never touched: import only copies, and once a book is in
 the library its source copy is simply no longer offered. Nothing is overwritten: an occupied destination refuses
-the import, and so does an unreadable or unfinished file. From a terminal: `kobolib index` (both),
-`kobolib index-sources` (sources only), `kobolib sources "query"`, `kobolib import <path>` (several paths,
+the import, and so does an unreadable or unfinished file. From a terminal: `kobolib update` (library and sources),
+`kobolib sources "words"`, `kobolib import <path>` (several paths,
 one per line, import as a batch; the notification counts them and names what was skipped).
 
 ## Metadata sources

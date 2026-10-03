@@ -120,7 +120,7 @@ def indexed(library: Path, tmp_path: Path, monkeypatch):
     monkeypatch.setenv("KOBO_ROOT", str(library))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
     monkeypatch.delenv("KOBO_DATA", raising=False)
-    main(["index"])
+    main(["update"])
 
 
 def route(workflow: dict, item: dict) -> str:
@@ -200,7 +200,7 @@ def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkey
     monkeypatch.setenv("KOBO_SOURCES", str(elsewhere))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
     monkeypatch.delenv("KOBO_DATA", raising=False)
-    main(["index"])
+    main(["update"])
 
 
 @pytest.mark.parametrize(

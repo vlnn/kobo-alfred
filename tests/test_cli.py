@@ -21,7 +21,7 @@ def test_search_before_index_explains(env, capsys):
 
 
 def test_index_then_search(env, capsys):
-    assert main(["index"]) == 0, "index should succeed on a mounted library"
+    assert main(["update"]) == 0, "index should succeed on a mounted library"
     capsys.readouterr()
 
     items = run(["search", "deep"], capsys)["items"]
@@ -31,10 +31,25 @@ def test_index_then_search(env, capsys):
     )
 
 
+def test_update_ends_with_the_inbox_count(env, capsys):
+    assert main(["update", "--no-thumbnails"]) == 0, "update should succeed on a mounted library"
+
+    first = capsys.readouterr().out.splitlines()[0]
+    assert first.startswith("Indexed 4 books from ") and first.endswith(" · 2 books without a genre"), (
+        "the update summary should end with the inbox count"
+    )
+
+
+@pytest.mark.parametrize("retired", ["index", "index-sources"])
+def test_index_subcommands_are_gone(env, retired):
+    with pytest.raises(SystemExit):
+        main([retired])
+
+
 def test_index_fails_when_root_missing(monkeypatch, tmp_path, capsys):
     monkeypatch.setenv("KOBO_ROOT", str(tmp_path / "missing"))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "c"))
-    assert main(["index"]) == 1, "index should fail when the volume is not mounted"
+    assert main(["update"]) == 1, "index should fail when the volume is not mounted"
 
 
 @pytest.mark.parametrize("command", ["dups", "stats", "random"])
@@ -44,7 +59,7 @@ def test_other_commands_emit_alfred_json(indexed, capsys, command):
 
 def test_kobo_data_overrides_alfred_data_dir(env, tmp_path, monkeypatch):
     monkeypatch.setenv("KOBO_DATA", str(tmp_path / "custom"))
-    main(["index"])
+    main(["update"])
     assert (tmp_path / "custom" / "library.db").exists(), "KOBO_DATA should decide where the index lives"
 
 
@@ -52,14 +67,14 @@ def test_index_reports_inaccessible_root(env, library, capsys, mocker):
     mocker.patch("kobolib.library.build_index", return_value=0)
     mocker.patch("kobolib.library.probe_root", return_value="permission denied reading root")
 
-    assert main(["index"]) == 1, "index should fail when no books were found"
+    assert main(["update"]) == 1, "index should fail when no books were found"
     assert "permission denied" in capsys.readouterr().out, "the failure message should explain why"
 
 
 def test_index_notify_posts_notification(env, capsys, mocker):
     run = mocker.patch("kobolib.cli.subprocess.run")
 
-    main(["index", "--notify"])
+    main(["update", "--notify"])
 
     scripts = [c.args[0][-1] for c in run.call_args_list if c.args[0][0] == "osascript"]
     assert "Indexed 4 books" in scripts[0], "first notification should carry the index summary"
@@ -69,13 +84,13 @@ def test_index_notify_posts_notification(env, capsys, mocker):
 def test_index_busy_is_reported(env, capsys, mocker):
     mocker.patch("kobolib.library.build_index", side_effect=IndexBusy("busy"))
 
-    assert main(["index"]) == 1, "busy index should exit non-zero"
+    assert main(["update"]) == 1, "busy index should exit non-zero"
     assert "already running" in capsys.readouterr().out, "busy index should be explained"
 
 
 def test_no_thumbnails_flag_skips_second_pass(env, capsys, mocker):
     fill = mocker.patch("kobolib.cli.fill_thumbnails")
-    main(["index", "--no-thumbnails"])
+    main(["update", "--no-thumbnails"])
     fill.assert_not_called()
 
 
