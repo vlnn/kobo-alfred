@@ -8,7 +8,6 @@ from kobolib.paths import in_sidecar, is_empty_dir, nfc
 
 BOOK_SUFFIXES = {".epub", ".fb2", ".mobi", ".azw", ".azw3", ".pdf", ".djvu"}
 PARTIAL_SUFFIX = ".part"
-JUNK_SUFFIXES = {".textclipping", ".txt", ".zip"}
 SKIP_FOLDERS = {"_trash", "_dups"}
 
 
@@ -24,8 +23,7 @@ def is_partial(path: Path) -> bool:
 
 
 def is_junk(name: str) -> bool:
-    lowered = name.lower()
-    return name.startswith((".", "FSCK")) or any(lowered.endswith(s) for s in JUNK_SUFFIXES)
+    return name.startswith((".", "FSCK"))
 
 
 def is_book(path: Path) -> bool:
