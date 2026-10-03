@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from kobolib.genres import GenreStore
 from kobolib.lint import (
     Finding,
     double_extensions,
@@ -14,8 +15,7 @@ from kobolib.lint import (
     title_duplicates,
     unclassified,
 )
-from kobolib.model import Tag
-from kobolib.tags import GenreStore
+from kobolib.model import GenreEntry
 from tests.test_alfred import row
 
 
@@ -154,7 +154,7 @@ def test_misfiled_series_matches_short_folder_names():
 
 def test_unclassified_lists_books_without_genre(tmp_path: Path):
     store = GenreStore(tmp_path / "t.tsv")
-    store.set("known", Tag(genre="fiction/sci-fi"))
+    store.set("known", GenreEntry(genre="fiction/sci-fi"))
     rows = [named("a.epub", fingerprint="known"), named("b.epub", fingerprint="unknown")]
 
     assert paths(unclassified(rows, store)) == [["00_Inbox/b.epub"]], "books with no genre should be reported"

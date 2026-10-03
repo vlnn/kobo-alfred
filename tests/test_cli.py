@@ -95,7 +95,7 @@ def test_no_thumbnails_flag_skips_second_pass(env, capsys, mocker):
     fill.assert_not_called()
 
 
-def test_index_bootstraps_tags_from_folders(indexed, tmp_path, capsys):
+def test_index_bootstraps_genres_from_folders(indexed, tmp_path, capsys):
 
     titles = [i["title"] for i in inbox_rows()]
     assert "Deep Work" not in titles, "a book in a genre folder should be classified by index"
@@ -118,7 +118,7 @@ def test_genre_command_accepts_a_fingerprint(indexed, capsys):
     assert capsys.readouterr().out.startswith("Napkin → reference"), "the result should be reported"
 
 
-@pytest.mark.parametrize("argv", [["tag", "x", "genre=y"], ["genre", "reference"], ["genre"]])
+@pytest.mark.parametrize("argv", [["genre", "reference"], ["genre"]])
 def test_genre_needs_books_then_a_genre(indexed, argv):
     with pytest.raises(SystemExit):
         main(argv)
@@ -140,7 +140,6 @@ def test_genres_renders_the_picker_for_the_selected_book(indexed, capsys, monkey
 
 def test_index_writes_the_genre_store(indexed, tmp_path):
     assert (tmp_path / "alfred-data" / "genres.tsv").exists(), "indexing should save genres to genres.tsv"
-    assert not (tmp_path / "alfred-data" / "tags.tsv").exists(), "no tags.tsv should be written any more"
 
 
 def test_classify_lists_unclassified_with_book_variable(indexed, library, capsys):
@@ -163,11 +162,11 @@ def test_genres_without_book_explains(indexed, library, capsys, monkeypatch):
     assert run(["genres", ""], capsys)["items"][0]["valid"] is False, "without a selected book the picker must not be actionable"
 
 
-def test_search_items_offer_fix_on_shift(indexed, capsys):
+def test_search_items_offer_the_genre_picker_on_shift(indexed, capsys):
 
     item = run(["search", "deep"], capsys)["items"][0]
-    assert item["mods"]["shift"]["arg"] == "", "shift+↩ should open the fix picker with an empty query"
-    assert "genre" in item["mods"]["shift"]["subtitle"].lower(), "the shift subtitle should say it fixes genre/tags"
+    assert item["mods"]["shift"]["arg"] == "", "shift+↩ should open the genre picker with an empty query"
+    assert "genre" in item["mods"]["shift"]["subtitle"].lower(), "the shift subtitle should say it sets the genre"
     assert item["variables"]["book"] == item["mods"]["shift"]["variables"]["book"], "the fingerprint must travel with the shift action"
 
 
@@ -264,12 +263,6 @@ def test_genre_skips_unknown_references_in_a_batch(indexed, library, capsys):
 DEEP_WORK = "02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
 DEEP_WORK_HOME = "02_NonFiction/Newport, Cal/Newport, Cal - Deep Work (Focus 02) (2016).epub"
 NOVA = "00_Inbox/Delany, Samuel R - Nova - 2014.epub.part"
-
-
-@pytest.mark.parametrize("retired", ["lint", "plan", "apply", "tag"])
-def test_lint_plan_and_apply_are_gone(indexed, retired):
-    with pytest.raises(SystemExit):
-        main([retired])
 
 
 def test_fix_dry_run_prints_one_operation_per_line(indexed, library, capsys):

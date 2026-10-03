@@ -18,14 +18,14 @@ from kobolib.config import (
     sources,
     sources_db_path,
 )
+from kobolib.genres import GenreStore, folder_slug, genre_from_folder
 from kobolib.index import Index, IndexBusy, build_index, build_sources_index
 from kobolib.lint import lint
 from kobolib.metadata import is_sound, read_book
-from kobolib.model import Finding, Operation, Row, Tag
+from kobolib.model import Finding, GenreEntry, Operation, Row
 from kobolib.paths import relative_path
 from kobolib.plan import TRASH, aside, plan, relocation
 from kobolib.scan import probe_root
-from kobolib.tags import GenreStore, folder_slug, genre_from_folder
 
 
 def all_rows(index: Index) -> list[Row]:
@@ -36,7 +36,7 @@ def bootstrap_genres() -> int:
     store, index = genre_store(), Index(db_path())
     added = store.bootstrap(all_rows(index))
     store.save()
-    index.write_genres({fingerprint: tag.genre for fingerprint, tag in store.entries.items()})
+    index.write_genres({fingerprint: entry.genre for fingerprint, entry in store.entries.items()})
     return added
 
 
@@ -51,14 +51,14 @@ def genre_text(raw: str) -> str:
 
 
 def set_genre(row: Row, genre: str, index: Index, store: GenreStore) -> tuple[bool, str]:
-    store.set(row.fingerprint, Tag(genre=genre, rel_path=row.rel_path))
+    store.set(row.fingerprint, GenreEntry(genre=genre, rel_path=row.rel_path))
     store.save()
     index.write_genres({row.fingerprint: genre})
     return rehome(row, index, store)
 
 
 def known_genres(index: Index, store: GenreStore) -> list[str]:
-    from_store = {t.genre for t in store.entries.values() if t.genre}
+    from_store = {e.genre for e in store.entries.values() if e.genre}
     from_folders = {g for f in index.folders() if (g := genre_from_folder(f))}
     return sorted(from_store | from_folders | set(index.genres()))
 
@@ -146,8 +146,8 @@ def operation_line(op: Operation) -> str:
 def refresh_index(result: Applied) -> None:
     index, store = Index(db_path()), genre_store()
     for src, dst in result.moved.items():
-        if (row := index.by_rel_path(src)) and (tag := store.get(row.fingerprint)):
-            store.set(row.fingerprint, replace(tag, rel_path=dst))
+        if (row := index.by_rel_path(src)) and (entry := store.get(row.fingerprint)):
+            store.set(row.fingerprint, replace(entry, rel_path=dst))
         index.relocate(src, dst, library_root())
     for src in result.removed:
         index.remove(src)

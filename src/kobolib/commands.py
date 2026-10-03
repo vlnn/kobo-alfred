@@ -10,11 +10,11 @@ from kobolib import alfred
 from kobolib.alfred import counted
 from kobolib.apply import EXECUTABLE, last_batch, read_journal
 from kobolib.config import db_path, genre_store, journal_path, library_root, sources, sources_db_path
+from kobolib.genres import GenreStore
 from kobolib.index import Index, index_busy, is_current
 from kobolib.library import concerning, diagnosis, known_genres, not_in_library, pending_operations, unclassified_rows
 from kobolib.model import DuplicateGroup, Finding, Operation, Row
 from kobolib.query import query_words
-from kobolib.tags import GenreStore
 
 
 def index_problem(path: Path | None = None, what: str = "Index") -> str:

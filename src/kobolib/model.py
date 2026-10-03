@@ -56,7 +56,7 @@ class DuplicateGroup:
 
 
 @dataclass
-class Tag:
+class GenreEntry:
     genre: str = ""
     rel_path: str = ""
 

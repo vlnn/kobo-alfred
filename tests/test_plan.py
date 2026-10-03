@@ -2,16 +2,16 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.model import Finding, Operation, Tag
+from kobolib.genres import GenreStore
+from kobolib.model import Finding, GenreEntry, Operation
 from kobolib.plan import plan, prefer
-from kobolib.tags import GenreStore
 from tests.test_lint import named
 
 
 def store_with(tmp_path: Path, **genres) -> GenreStore:
     store = GenreStore(tmp_path / "t.tsv")
     for fingerprint, genre in genres.items():
-        store.set(fingerprint, Tag(genre=genre))
+        store.set(fingerprint, GenreEntry(genre=genre))
     return store
 
 

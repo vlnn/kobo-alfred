@@ -254,12 +254,6 @@ def test_write_genres_touches_only_the_named_book(index: Index):
     assert index.genres() == ["games/go"], "no other book gained a genre"
 
 
-def test_index_has_no_tags_column():
-    from kobolib.index import COLUMNS
-
-    assert "tags" not in COLUMNS, "tags are gone from the index"
-
-
 def test_columns_follow_the_row_dataclass():
     from dataclasses import fields
 

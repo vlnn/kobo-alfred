@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from kobolib.tags import GenreStore
+from kobolib.genres import GenreStore
 
 
 def library_root() -> Path:

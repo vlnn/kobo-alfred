@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kobolib.filenames import EDITOR, STOPWORDS
+from kobolib.genres import genre_from_folder
 from kobolib.model import Row
 from kobolib.scan import PARTIAL_SUFFIX
-from kobolib.tags import genre_from_folder
 
 UNSAFE = re.compile(r'[:?*|"<>/\\]')
 SPACES = re.compile(r"\s+")

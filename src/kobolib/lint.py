@@ -6,11 +6,11 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from kobolib.filenames import BRACED_AUTHOR, strip_noise
+from kobolib.genres import GenreStore
 from kobolib.index import series_key
 from kobolib.model import Finding, Row
 from kobolib.paths import relative_path
 from kobolib.scan import BOOK_SUFFIXES, display_stem, iter_junk
-from kobolib.tags import GenreStore
 
 WORD_BREAK = re.compile(r"[\s_\-]+")
 JOINED_WORDS = re.compile(r"\w[_\-]\w")
