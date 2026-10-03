@@ -1,250 +1,198 @@
 # kobo-alfred
 
-Alfred workflow for an ebook library on a Kobo SD card: search it by metadata, with covers, give books a genre,
-keep the folders tidy and import from other sources.
+Type `kb` in Alfred, see your Kobo library with covers, press ↩ to read. Then let it tidy the library for you: file every book under `genre / Author, Name / Series / Author - Title (Year).epub`, set duplicates and junk aside, and undo if you don't like the result. Nothing is deleted except a file that is byte-for-byte already at its destination.
 
-Everything starts with one keyword, `kb`, and everything you type after it is a word.
+The library is a folder on your Mac. Everything the workflow writes stays inside that folder (plus its own index next to Alfred's data); it doesn't talk to the Kobo. Keep the folder in sync with the device however you like (Syncthing, a mounted SD card, rsync) and point the workflow at the Mac side.
 
 ```
-kb                      books without a genre (a reminder), then the most recently added
-kb <words>              search
-kb <command> <words>    the command's rows for <words>, then books matching "<command> <words>"
+kb delany epub            →  Delany, Samuel R. - Dhalgren (1975) · EPUB 1.2 MB · 01_Fiction/02_Sci-Fi/…
+kb fix                    →  Fix all 14 · 9 moves · 4 to _trash · 1 to _dups
+kb classify               →  pick a genre, the book moves home
+kb src heinlein           →  import from Calibre / Downloads into the inbox
 ```
 
-## Searching
+## Install (three minutes)
 
-Words match by prefix, ignore case and diacritics, and every word must match. They are matched against:
+1. Grab `Kobo Library.alfredworkflow` from [Releases](https://github.com/vlnn/kobo-alfred/releases) (every push to `main` publishes a `latest` build) or build it yourself with `./build.sh`. Double-click it.
+2. In the workflow's configuration set **Library root** to the folder that holds your books, e.g. `~/Books/kobo` (a Syncthing folder) or `/Volumes/Transcend/kobo` (the card itself).
+3. Type `kb update` ↩. A notification arrives when the index is built.
 
-| Field | Example word |
-|---|---|
-| title, authors, series, series number | `delany`, `dhalgren` |
-| folder and path | `inbox`, `calibre` |
-| genre (every path segment) | `fiction`, `sci` |
-| format | `epub`, `fb2` |
-| language (code and English name) | `uk`, `ukrainian` |
-| year | `1975` |
+Nothing to install: the workflow bundles `kobolib` and runs on macOS's own `/usr/bin/python3` (3.9+), no dependencies.
 
-So `kb delany epub 1975` finds Delany's epubs from 1975, and `kb fiction uk` Ukrainian fiction.
+If your library root is on a removable volume and `kb` shows *Index is empty — is the card mounted?* while it is mounted, give Alfred access to **Removable Volumes** (System Settings → Privacy & Security → Files and Folders), then `kb update` again.
 
-Each result shows: title · authors · series #n · year · FORMAT size · path relative to the library root. Covers
-are used as icons (the embedded epub/fb2 cover, otherwise a Quick Look thumbnail via `qlmanage`). Unfinished
-downloads (`.part`) are indexed but listed only by `kb trash`.
+## Search
+
+Every word you type must match, by prefix, one of: title, authors, series, series number, folder, path, genre, format, language (code or English name: `uk` and `ukrainian` both work), year. Case and diacritics are ignored.
+
+```
+kb dhalgren              one book
+kb delany                everything by Delany
+kb delany epub           …only the epubs
+kb sci-fi 1975           genre + year
+kb inbox                 whatever is still in the inbox folder
+kb                       newest books first (with a reminder if some have no genre)
+```
+
+Each row is `title` over `authors · series #n · year · FORMAT size · path`. The icon is the embedded cover for epub and fb2, a Quick Look thumbnail for pdf, and the plain file icon for everything else. Lists show the first 40 matches, so add a word if what you want isn't there.
+
+| Key | Does |
+| --- | --- |
+| ↩ | open the book |
+| ⌥↩ | reveal in Finder |
+| ⇧↩ | set the genre (opens the genre picker) |
+| ⇧ or ⌘Y | Quick Look |
+| ⌘C | copy the library-relative path |
+| ⌘L | large type: title, author, path |
 
 ## Commands
 
-A first word that names a command adds the command's rows on top. Below them come the books matching the whole
-input, as if it were a plain search, each listed once: a command word never hides a book, so `kb stats` also finds
-"Stats for Dummies". Typing two or more letters of a command (`kb cl`) shows `kb classify` above the books; ⇥ or ↩
-completes the word.
-
-| Command | Rows on top | ↩ on a row | Head row |
-|---|---|---|---|
-| *(none)* | the inbox reminder when the query is empty, then recent books | open | — |
-| `rnd`, `random` | 5 random books, drawn from the books matching the remaining words | open | — |
-| `inbox` | library books without a genre, oldest first, narrowed by the words | open | — |
-| `classify` | with no words, the inbox; with words, every library book matching them, any genre | pick a genre for that book | **Set genre for all N** |
-| `dups` | every copy of a title that exists in several files, side by side; the subtitle starts with `×N` | open | — |
-| `stats` | books · inbox · duplicate titles · pending fixes · unfinished downloads · sources | complete the query to `kb inbox`, `kb dups`, `kb fix`, `kb trash` or `kb src` | — |
-| `src` | importable books from other sources matching the words | import into the inbox | **Import all N** |
-| `fix` | see [Fix](#fix) | apply that operation | **Fix all N** |
-| `trash` | see [Trash](#trash) | move the book to `_trash/` | **Trash all N** |
-| `update` | one row: rebuild the index (library, sources, PDF thumbnails) | rebuild in the background, notify | — |
-
-Head rows appear when the list has two or more books (Fix all whenever there is something to fix) and do the
-command for every row shown.
-
-## Keys
-
-| Key | Book row | Source row | Fix row | Genre picker row |
-|---|---|---|---|---|
-| ↩ | open (`classify`: pick a genre; `trash`: move to `_trash/`) | import | apply this operation | choose this genre |
-| ⌥↩ | reveal in Finder | reveal in Finder | reveal in Finder | — |
-| ⇧↩ | set the genre of this book | — | — | create the typed text as a new genre |
-| ⇧ / ⌘Y | Quick Look | Quick Look | Quick Look | — |
-| ⌘L | large type: title, author, path | same | same | — |
-
-There are no bulk modifiers: bulk work is always a head row at the top of the list.
-
-## Genres
-
-The folder tree is the on-device browser, so it encodes exactly one thing: genre → author → series. `kb update`
-bootstraps a genre for every book from its first two folder levels (`01_Fiction/01_Sci-Fi_Fantasy/…` →
-`fiction/sci-fi_fantasy`); books under `00_Inbox` or `99_Archives` have none and wait in the inbox.
-
-`kb classify` is the daily loop: it lists the inbox; ↩ on a book opens the genre picker. With words (`kb classify
-newport`) it lists every library book matching them, whatever its genre. ⇧↩ on any book in any list opens the
-same picker.
-
-The genre picker:
-
-- **Header:** the book's title and current genre, or "N books" in bulk mode.
-- **Rows:** the current genre first ("Keep fiction/sci-fi · moves the book home if it isn't"), then the known
-  genres whose path contains the typed text, ignoring case (`spy` finds `fiction/spy`). ⇥ completes a genre.
-- **↩** applies the selected genre. **⇧↩ on any row** creates the typed text as a new genre. When nothing
-  matches there is a single row, "No genre ‘xyz’ — ⇧↩ creates it", which does nothing on plain ↩.
-- **Effect:** the book moves to `genre/author[/series]/` with a normalised filename, its index row is updated
-  and the move is journaled. A book without a recognisable author keeps its place and its new genre.
-- **Bulk:** "Set genre for all N" opens the same picker for every book listed; the notification counts the
-  books that moved and those that stayed put.
-- **Known genres** come from the genre store, from folders (the first two levels) and from the index.
-
-Genres live in `genres.tsv` next to the index, keyed by a fingerprint of the book's *text*, not its bytes: for an
-epub the set of its HTML files (whatever they are named or ordered), for an fb2 its `<body>`. A renamed, moved or
-repacked epub, a swapped cover or edited metadata is still the same book and keeps its genre; other formats,
-partial downloads and unreadable files are hashed whole. `kb update` computes the fingerprint while reading each
-book, so a full update of a big card takes a minute or two longer; if a book's fingerprint has changed, its genre
-is carried over by path.
-
-Author folders are `Last, First`. A plain `First Last` name is inverted, except Cyrillic names, which are assumed
-`Фамилия Имя [Отчество]` as in libgen/flibusta filenames; an existing author folder (either form) wins over the
-guess, so `Teague Rowan` joins `Teague, Rowan/` if that folder exists. The genre folder is the existing one
-matching the genre; a series folder is only used when you own more than one book of the series. Partial downloads
-and unclassified books are never moved. Names are made exFAT-safe.
-
-## Fix
-
-`kb fix` works out what is wrong and offers to fix it straight away. The operations are computed when the list is
-shown and computed again when you press ↩.
-
-1. **Fix all N** — the subtitle counts operations by kind (`12 moves · 3 to _trash · 2 to _dups`). ↩ applies
-   everything, then rebuilds the index.
-2. **Undo last batch (N moves)** — shown when the journal holds a batch, which can come from a fix, a genre move
-   or a trash. An undo is itself a batch, so undoing twice re-applies.
-3. **Reminders**, when non-zero: "N books without a genre" completes the query to `kb classify`, "N unfinished
-   downloads" to `kb trash`.
-4. **Operations**, one row each; ↩ applies it.
-   - `move`: rename or relocate a classified book to `<genre folder>/<Last, First>/[<Series>/]<Last, First> - <Title> (<Series> NN) (<Year>).<ext>`
-   - `trash`: junk or a byte-identical copy goes to `_trash/<original path>`
-   - `dups`: a less preferred edition goes to `_dups/<original path>` (format order: epub, kepub, fb2, mobi,
-     azw3, azw, pdf, djvu; then newer, then larger)
-5. **Problems with no automatic remedy**, one row each; ↩ reveals the file so you can fix it by hand: conflicts
-   (two books want one destination), an author folder that is the `First, Last` swap of a better-populated one,
-   and noisy, opaque or double-extension names on books that no move renames (they resolve once the book has a genre
-   and an author).
-
-Words narrow every part: `kb fix newport` shows only what concerns matching books, so it doubles as "fix this one
-book".
-
-The findings behind it:
-
-| rule | what it catches |
-|---|---|
-| `junk` | anything that is not a book: `FSCK0000.*`, `.textClipping`, `.txt`, `.zip`, empty folders |
-| `double_extension` | `Book.fb2.mobi` |
-| `noisy_name` | leading spaces, `- libgen.li`, `-- Anna's Archive`, `&amp_`, `{Author}{id}` |
-| `opaque` | `7_815203.epub`, `smp…epub`, `annas-arch-…fb2`, single-word titles without an author |
-| `exact_duplicate` | identical files in several folders |
-| `title_duplicate` | same title in several formats or editions |
-| `author_inversion` | an author folder that is the `First, Last` swap of a better-populated one |
-
-Every apply:
-
-- moves the KOReader `.sdr` sidecar with its book;
-- rewrites the paths in KOReader's `collection.lua`, `history.lua` and `bookmarks.lua` (keeping `.bak` copies)
-  and in path-mirrored `docsettings` sidecars;
-- prunes folders left empty;
-- renames in place when the destination differs only by letter case or Unicode normalisation (the card is
-  case-insensitive);
-- removes and journals a redundant source (an empty folder, or a byte-identical copy of a file already at the
-  destination), while a destination holding different content leaves the operation skipped;
-- deletes nothing else.
-
-## Trash
-
-`kb trash` is the manual way to set books aside.
-
-- **No words:** unfinished downloads (`.part`), oldest first. This is the only list they appear in.
-- **With words:** unfinished downloads matching the words first, then every library book matching them.
-- **↩** moves the book to `_trash/<original path>`. The move is journaled (undo from `kb fix`), carries the
-  KOReader sidecar, rewrites KOReader paths and removes the book from the index.
-- **Trash all N** at the top does the same for every book listed.
-- **Nothing is deleted.** Empty `_trash/` (and `_dups/`) by hand in Finder; the scanner ignores both.
-
-## Other sources
-
-Set **Other sources** (`KOBO_SOURCES`, paths separated by `:`) to folders of ebooks that are not in the library
-yet: a Calibre library, a downloads folder, an old reader's card. `kb update` indexes them together with the
-library into a separate `sources.db`; an unmounted source is skipped and named in the notification.
-
-`kb src <words>` lists only what can be imported: not already in the library by fingerprint, not a partial
-download, readable, and carrying its format's signature bytes (`%PDF`, `BOOKMOBI`, `AT&TFORM`). The source
-folder's name is part of the path, so `kb src calibre` narrows by source.
-
-↩ copies the book into the library's inbox folder (the one whose name is `inbox` after the order prefix, or a new
-`_inbox/`) and adds it to the index at once; "Import all N" imports every book listed. The source is never
-touched, nothing is overwritten, and refusals (destination taken, unreadable, already in the library) are named in
-the notification. Source books never get a genre; they get one after import, through `kb classify` or ⇧↩.
-
-## Reminders and feedback
-
-The inbox is not empty when any complete library book has no genre. Its count appears at the top of an empty
-`kb` (↩ completes to `kb inbox`), in `kb stats`, in `kb fix`, and at the end of the notifications after an import
-or an update.
-
-Every feedback row either acts on ↩ or says what to type:
-
-| Situation | Row | ↩ |
-|---|---|---|
-| no index / index from an older version | "No index yet" / "Index is from an older version" | update |
-| index empty | "Index is empty — is the card mounted? Alfred needs Removable Volumes access" | update |
-| no matches | "No books match ‘…’" | — |
-| no sources configured | a message naming `KOBO_SOURCES` | — |
-| update running | "Update is running" | — |
-| nothing to fix / inbox empty / no duplicates / nothing to trash | a message | — |
-
-## Install
-
-Download `Kobo Library.alfredworkflow` (or build it with `./build.sh`) and open it. The workflow is
-self-contained: the `kobolib` package is bundled inside and runs on macOS's `/usr/bin/python3` (3.9, the version
-the Command Line Tools ship), with no dependencies and no virtualenv. The code stays 3.9-compatible on purpose:
-`pyproject.toml` pins `requires-python = ">=3.9"` and CI runs the tests and ruff (target `py39`) on 3.9 and 3.13.
-
-In the workflow's configuration set **Library root** (`/Volumes/Transcend/kobo`), then run `kb update` once.
-Rerun it after adding books, and after updating the workflow when it says "Index is from an older version": every
-command refuses to read or write an index built by an earlier version, so an update is the only upgrade step.
-
-The index (`library.db`), `genres.tsv`, `journal.jsonl` and `covers/` live in Alfred's workflow data folder
-(`~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib`), which survives workflow updates and
-cache clears. Override it with the optional **Index folder** setting.
-
-## Terminal
-
-The terminal mirrors the words (`KOBO_ROOT=… KOBO_DATA=… uv run kobolib …`):
+A first word that names a command puts its rows above the normal search results. Type two letters and ↩ to complete it.
 
 ```
-kobolib update [--no-thumbnails]
-kobolib search "<words>"           Alfred JSON; the same input as kb
-kobolib genres "<typed>"           Alfred JSON for the genre picker; the books come from $book, one per line
-kobolib fix [--dry-run] [<words>]  --dry-run prints one operation per line (kind, src, dst, reason)
-kobolib trash <path>…
-kobolib undo
-kobolib genre <path|fingerprint>… <genre>
-kobolib import <path>
+kb stats       counts: books, no-genre, duplicates, pending fixes, unfinished downloads, sources
+kb dups        every copy of a title that exists in several files
+kb rnd         five random books (kb rnd epub → five random epubs)
+kb inbox       books without a genre, oldest first
+kb classify    give those books a genre, one by one or all at once
+kb fix         what is wrong and how to fix it · ↩ applies
+kb trash       unfinished downloads, or any book you name · ↩ moves it to _trash/
+kb src         search other sources · ↩ imports into the inbox
+kb update      rebuild the index (library, sources, PDF thumbnails) in the background
 ```
 
-`trash` and `genre` take several paths or fingerprints; every command also accepts them in one argument, one per
-line, which is how the head rows pass them (`import` takes only that form).
-The commands that change something also take `--notify`, which posts the summary as a macOS notification.
+Every command accepts search words after it: `kb fix delany` shows only fixes touching Delany, `kb trash lovecraft` lets you set aside a specific book.
 
-## Metadata sources
+## Walkthrough 1: file a book you just downloaded
 
-- **epub**: OPF (`dc:title`, `dc:creator`, `dc:language`, `dc:date`, `calibre:series`), cover from `meta[name=cover]` / `properties=cover-image`.
-- **fb2**: `title-info` (book-title, author, lang, sequence), `publish-info` year, cover from `coverpage` binary.
-- **mobi / azw / azw3 / pdf / djvu / partial / corrupt files**: parsed from the filename — libgen (`Author - Title (Year, Publisher) - libgen.li`), Anna's Archive (`Title -- Author -- …`), `[Series №N]`, `(Series N)`, `Title{Author}(Year, Publisher){id}`, `NN Title - Author`, `Title, The - Author`.
+You copied `Dhalgren.epub` to `00_Inbox/` in your library.
 
-Filename parsing is a heuristic; `Author - Title` vs `Title - Author` is decided by which side looks more like a
-person (`Last, First`, initials, no stopwords). Genuinely ambiguous two-word cases default to `Author - Title`.
+```
+kb update                                     index it
+kb classify                                   the inbox, each row ending in "↩ pick a genre"
+   ↩ on Dhalgren                              genre picker opens
+   type sci  ↩  on fiction/sci-fi             done
+```
+
+Notification: `Dhalgren → fiction/sci-fi · moved → 01_Fiction/02_Sci-Fi/Delany, Samuel R./`
+
+What happened: the genre was stored, and because the book has an author it was moved straight to its home and renamed to the canonical form `Delany, Samuel R. - Dhalgren (1975).epub`. Books without an author get a genre but stay where they are.
+
+Variations:
+
+- Many books? The list starts with **Set genre for all N books** — one genre for every row shown. `kb classify delany` lists every library book matching the words, whatever genre it has now, so you can re-file an author in one go.
+- New genre? Type it in the picker and press ⇧↩ to create it.
+- Changed your mind? ⇧↩ on a book in the search, `kb dups`, `kb rnd`, `kb inbox` or `kb trash` lists reopens the picker (not on `kb src` rows or unfinished downloads). **Keep …** at the top moves the book home without changing the genre.
+
+## Walkthrough 2: tidy the whole library
+
+```
+kb fix
+```
+
+The first rows are the plan:
+
+```
+Fix all 14                 9 moves · 4 to _trash · 1 to _dups
+Undo last batch (6 moves)  (only after you've applied something)
+3 books without a genre    ↩ lists them
+2 unfinished downloads     ↩ lists them
+Delany, Samuel R. - Nova (1968).epub       move · relocate + rename · 00_Inbox/nova.epub → 01_Fiction/02_Sci-Fi/Delany, Samuel R./
+FSCK0001.REC                               trash · FSCK0001.REC: not a book · FSCK0001.REC → _trash/
+Dhalgren.mobi                              dups · Dhalgren: epub, mobi · 01_Fiction/…/Dhalgren.mobi → _dups/01_Fiction/…/
+⚠︎ Babel-17.epub                            skip · destination taken by 01_Fiction/02_Sci-Fi/Delany, Samuel R./Delany, Samuel R. - Babel-17 (1966).epub · …
+Nova: filename carries download noise      noisy name · 1 file · 99_Archives/Nova_(1968)_--_Delany.epub
+```
+
+- ↩ on a row applies that one operation; ↩ on **Fix all** applies them all. ⌥↩ reveals the file instead.
+- `move` puts a book in its genre/author/series home with a canonical name. A noisy or opaque filename disappears here for free: the move renames it.
+- `trash` moves junk (`FSCK*`, `.zip`, `.txt`, any non-book file, empty folders, identical copies) to `_trash/`, mirroring its path. Dot-files and KOReader `.sdr` folders are never junk.
+- `dups` keeps the best copy of a title (complete, in a genre folder, epub > fb2 > mobi > azw3 > azw > pdf > djvu, newest, largest) and moves the rest to `_dups/`.
+- `⚠︎ skip` rows need you: the destination is already taken by another file.
+- Rows with no verb (`noisy name`, `opaque`, `double extension`, `author inversion`) are books that are *not* moving, usually because they have no genre or no author, so the name can't be fixed by filing them. ↩ reveals the file. Give the book a genre with ⇧↩ and the row usually turns into a `move`.
+
+"Identical" and "already in the library" mean the same text: for epubs the fingerprint is a hash of the book's text files only, so two copies with different covers or metadata still count as one book. Other formats are hashed whole.
+
+Every batch is journaled, whether it came from `kb fix`, from setting a genre or from `kb trash`; **Undo last batch** reverses the most recent one (and undo is itself a batch, so undoing twice re-applies). `_trash/` and `_dups/` are never scanned, so an `rm -r` there is your decision alone.
+
+The one deletion: when a move finds a byte-identical file already at the destination, the redundant source is removed instead of moved. That is journaled too, and undo restores it from the kept copy. Folders left empty are pruned; case-only and accent-only renames happen in place.
+
+Dry run from a terminal: `kobolib fix --dry-run` prints `kind	src	dst	reason`, one per line.
+
+## Walkthrough 3: pull books in from Calibre or Downloads
+
+Set **Other sources** in the workflow configuration to `~/Calibre Library:~/Downloads` (paths separated by `:`), run `kb update`, then:
+
+```
+kb src heinlein             books in the sources that are NOT already in the library
+   ↩ on a row               copied into the library inbox, indexed, ready for kb classify
+   ↩ on Import all          every row shown
+```
+
+Books already in the library (by content fingerprint, not by name) are hidden, so `kb src` is always "what am I missing". Import *copies*; the source keeps its file. The destination is your existing inbox folder (any top-level folder whose name is `inbox` after the `NN_` prefix, e.g. `00_Inbox`), or `_inbox/` if there is none. Unreadable and `.part` files are refused.
+
+## KOReader users
+
+Moves and renames also carry each book's `.sdr` sidecar along and rewrite the paths in `.adds/koreader/settings/{collection,history,bookmarks}.lua` (a `.bak` is written first) and under `.adds/koreader/docsettings/`, so highlights, progress and collections survive `kb fix`. This only works if `.adds/koreader` lives under your library root: either the root is the device itself, or your sync includes that folder.
+
+## How it reads your folders
+
+The folder tree is what the Kobo shows, so the tool keeps it meaning exactly one thing: **genre → author → series**.
+
+- Genre is the first two folder levels with their order prefixes stripped: `01_Fiction/02_Sci-Fi_Fantasy/…` → `fiction/sci-fi_fantasy`. Books under `inbox`, `archives`, `_inbox`, `_dups`, `_trash` or `_broken` have no genre and show up in `kb inbox`.
+- Author folders are `Surname, Given`. Existing folders win: if you already have `Le Guin, Ursula K.`, that spelling is reused.
+- A series gets its own folder only when the library holds more than one book of it.
+- Canonical file name: `Surname, Given - Title (Series 03) (Year).epub`, FAT-safe, ≤ 255 bytes.
+- Genres live in `genres.tsv` keyed by a content fingerprint, so they survive renames and moves. `kb update` bootstraps a genre for every book from its folder, never overwriting one you set.
+
+## Where things are
+
+Index (`library.db`, `sources.db`), `covers/`, `genres.tsv` and the undo journal (`journal.jsonl`) live in Alfred's workflow data folder, `~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib`, which survives workflow updates and cache clears. Override with **Index folder**.
+
+Format support: epub and fb2 are read for metadata and cover; mobi, azw, azw3, pdf and djvu are described from their filename (libgen, Anna's Archive, `[Series №N]`, `Title - Author` and friends). `.part` files are indexed, flagged as unfinished downloads, and only ever offered to `kb trash`.
+
+## From a terminal
+
+The same commands, same data:
+
+```
+export KOBO_ROOT=/Volumes/Transcend/kobo
+export KOBO_DATA="$HOME/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib"
+uv run kobolib update
+uv run kobolib search delany | jq '.items[].title'
+uv run kobolib fix --dry-run
+uv run kobolib fix delany
+uv run kobolib trash "$KOBO_ROOT/00_Inbox/broken.epub.part"
+uv run kobolib genre "$KOBO_ROOT/00_Inbox/nova.epub" fiction/sci-fi
+uv run kobolib import ~/Downloads/babel-17.epub
+uv run kobolib undo
+```
+
+`KOBO_SOURCES` takes the other sources. `search` and `genres` print Alfred's JSON; everything else prints one line and, with `--notify`, posts it as a macOS notification.
+
+Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index: without it the CLI defaults to `~/Library/Application Support/kobolib`, a separate copy.
+
+## When something looks off
+
+| You see | Do |
+| --- | --- |
+| *No index yet* | ↩ on that row, or `kb update` |
+| *Index is from an older version* | ↩ on that row: the workflow was updated and the index format changed |
+| *Index is empty — is the card mounted?* | the library root is missing or empty: check the path, mount the volume, or grant Alfred Removable Volumes access |
+| *Library root not mounted: …* (after `kb update`) | the **Library root** path doesn't exist right now |
+| *No books found: …* (after `kb update`) | the root exists but holds no epub/fb2/mobi/azw/azw3/pdf/djvu; the message says why if it's a permissions problem |
+| *Indexing is running, try again later* | wait for the notification; a stale lock expires after an hour |
+| *Set KOBO_SOURCES, then kb update* | **Other sources** is empty |
+| *No source is mounted* | plug in the drive named in **Other sources** |
+| *No book selected* in the genre picker | it was opened directly; use ⇧↩ on a book or ↩ in `kb classify` |
+| *Nothing to fix* | the library is clean |
 
 ## Development
 
-```sh
+```
 uv run pytest
 uv run ruff check && uv run ruff format --check
+./build.sh                      → dist/Kobo Library.alfredworkflow
 ```
 
-Modules, from the bottom up: `model` (the records), `paths`/`scan`/`identity`/`filenames`/`metadata` (reading the
-card), `languages` (language names), `index` (SQLite FTS5), `query` (words to FTS), `genres` (the genre store),
-`lint`, `naming`, `plan`, `apply`/`koreader` (moving files), `alfred` (JSON items), `config` (paths from the
-environment), `library` (operations), `commands` (the `kb` lists and the genre picker) and `cli`.
-
-Not built yet: `kb index` as a browsable view of the whole index (until then `index` is an ordinary search word).
+CI runs the tests on Python 3.9 and 3.13, builds the workflow and publishes it as the `latest` pre-release; a `v*` tag makes a proper release.

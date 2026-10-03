@@ -86,7 +86,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<true/>
 			</dict>
 			<key>description</key>
-			<string>Other folders of ebooks, separated by ':'. Indexed by kb:index alongside the library, searched with kb:src (books already in the library are hidden), imported into the library inbox with ↩.</string>
+			<string>Other folders of ebooks (a Calibre library, a downloads folder), separated by ':'. Indexed by kb update alongside the library, searched with kb src (books already in the library are hidden), imported into the library inbox with ↩.</string>
 			<key>label</key>
 			<string>Other sources (optional)</string>
 			<key>type</key>

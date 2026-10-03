@@ -30,7 +30,7 @@ def stale_index() -> bool:
     return db_path().exists() and not is_current(db_path())
 
 
-EMPTY_INDEX = "Index is empty — is the card mounted? Alfred needs Removable Volumes access"
+EMPTY_INDEX = "Index is empty — is the library folder there? On a removable volume Alfred needs Removable Volumes access"
 
 
 def without_index_items() -> list[dict]:

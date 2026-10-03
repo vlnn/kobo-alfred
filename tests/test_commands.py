@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from kobolib.cli import main
-from kobolib.commands import search_items
+from kobolib.commands import EMPTY_INDEX, search_items
 
 
 def titles(items: list[dict]) -> list[str]:
@@ -92,7 +92,7 @@ def test_an_index_from_an_older_version_offers_a_rebuild(indexed, tmp_path):
     assert action_of(items[0]) == "update", "↩ should rebuild it"
 
 
-def test_an_empty_index_asks_whether_the_card_is_mounted(env, library, capsys):
+def test_an_empty_index_asks_whether_the_library_folder_is_there(env, library, capsys):
     for book in [p for p in library.rglob("*") if p.is_file()]:
         book.unlink()
     main(["update"])
@@ -100,9 +100,7 @@ def test_an_empty_index_asks_whether_the_card_is_mounted(env, library, capsys):
 
     (item,) = search_items("")
 
-    assert item["title"] == "Index is empty — is the card mounted? Alfred needs Removable Volumes access", (
-        "the likely causes should be named"
-    )
+    assert item["title"] == EMPTY_INDEX, "the likely causes should be named"
     assert action_of(item) == "update", "↩ should rebuild the index"
 
 
