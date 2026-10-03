@@ -485,3 +485,40 @@ def test_ask_words_narrow_the_books(oracle_env, capsys, mocker):
     main(["ask", "genre", "napkin"])
 
     assert ask.call_count == 1 and "Title: Napkin" in ask.call_args.args[1], "only books matching the words are asked about"
+
+
+def test_genre_takes_fingerprint_and_genre_pairs_as_one_batch(indexed, library, tmp_path, capsys):
+    from kobolib.apply import last_batch, read_journal
+
+    napkin, skinner = (run(["search", w], capsys)["items"][0]["variables"]["book"] for w in ("napkin", "оперантное"))
+
+    assert main(["genre", f"{napkin}\treference\n{skinner}\tnonfiction/psychology", ""]) == 0, "pairs carry their own genre"
+
+    assert capsys.readouterr().out.startswith("2 books → 2 genres · 1 moved, 1 stayed put"), "the summary counts moved and unmoved books"
+    assert [i["title"] for i in run(["search", "psychology"], capsys)["items"]] == ["Оперантное поведение"], "each book gets its own genre"
+    assert len(last_batch(read_journal(tmp_path / "alfred-data" / "journal.jsonl"))) == 1, "the moves are one journaled batch"
+
+
+def test_genre_for_several_books_is_one_batch(indexed, library, tmp_path, capsys):
+    from kobolib.apply import last_batch, read_journal
+
+    books = "\n".join(fingerprints_of(inbox_rows()))
+    (library / "00_Inbox" / "Delany, Samuel R - Nova - 2014.epub.part").unlink()
+    main(["update"])
+    capsys.readouterr()
+
+    main(["genre", books, "reference"])
+
+    batch = last_batch(read_journal(tmp_path / "alfred-data" / "journal.jsonl"))
+    assert len(batch) == 1 and "Napkin" not in batch[0].src, "the one book that can move does, in the batch of this command"
+
+
+def test_setting_a_genre_drops_the_models_suggestion(indexed, library, tmp_path, capsys):
+    napkin = run(["search", "napkin"], capsys)["items"][0]["variables"]["book"]
+    store = oracle_store(tmp_path)
+    store.set(napkin, "genre", {"genre": "reference"}, "h")
+    store.save()
+
+    main(["genre", napkin, "fiction/spy"])
+
+    assert oracle_store(tmp_path).get(napkin, "genre") is None, "a suggestion acted on, or overruled, is forgotten"

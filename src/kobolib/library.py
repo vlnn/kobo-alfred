@@ -26,7 +26,7 @@ from kobolib.lint import lint
 from kobolib.metadata import is_sound, read_book
 from kobolib.model import Finding, GenreEntry, Operation, Row
 from kobolib.paths import relative_path
-from kobolib.plan import TRASH, aside, plan, relocation
+from kobolib.plan import TRASH, aside, plan, relocations
 from kobolib.scan import probe_root
 
 
@@ -62,11 +62,24 @@ def genre_text(raw: str) -> str:
     return raw.strip().lower()
 
 
-def set_genre(row: Row, genre: str, index: Index, store: GenreStore) -> tuple[bool, str]:
-    store.set(row.fingerprint, GenreEntry(genre=genre, rel_path=row.rel_path))
+Outcome = tuple[bool, str]
+
+
+def set_genres(assignments: list[tuple[Row, str]], index: Index, store: GenreStore) -> list[Outcome]:
+    for row, genre in assignments:
+        store.set(row.fingerprint, GenreEntry(genre=genre, rel_path=row.rel_path))
     store.save()
-    index.write_genres({row.fingerprint: genre})
-    return rehome(row, index, store)
+    index.write_genres({row.fingerprint: genre for row, genre in assignments})
+    forget_suggestions([row.fingerprint for row, _ in assignments], "genre")
+    return rehome([row for row, _ in assignments], index, store)
+
+
+def forget_suggestions(fingerprints: list[str], question: str) -> None:
+    store = suggestion_store()
+    for fingerprint in fingerprints:
+        store.drop(fingerprint, question)
+    if store.entries or store.path.exists():
+        store.save()
 
 
 def known_genres(index: Index, store: GenreStore) -> list[str]:
@@ -175,15 +188,23 @@ def apply_summary(result) -> str:
     return f"Applied {result.done}, skipped {len(result.skipped)} ({skip_reasons(result.skipped)})"
 
 
-def rehome(row: Row, index: Index, store: GenreStore) -> tuple[bool, str]:
-    op = relocation(row, all_rows(index), store)
-    if op is None or op.kind != "move":
+def outcome(row: Row, ops: dict[str, Operation], result: Applied) -> Outcome:
+    op = ops.get(row.rel_path)
+    if op is None:
         return False, "stays put (no author or already home)"
-    result = apply([op], library_root(), journal_path())
+    if row.rel_path in result.moved:
+        return True, f"moved → {Path(op.dst).parent}/"
+    reason = op.reason if op.kind == "skip" else skip_reasons([s for s in result.skipped if s.startswith(f"{row.rel_path}: ")])
+    return False, f"not moved: {reason}"
+
+
+def rehome(rows: list[Row], index: Index, store: GenreStore) -> list[Outcome]:
+    everything = all_rows(index)
+    settled = {r.rel_path for r in everything} - {r.rel_path for r in rows}
+    ops = {op.src: op for op in relocations(everything, store, settled)}
+    result = apply(list(ops.values()), library_root(), journal_path())
     refresh_index(result)
-    if result.skipped:
-        return False, f"not moved: {skip_reasons(result.skipped)}"
-    return True, f"moved → {Path(op.dst).parent}/"
+    return [outcome(row, ops, result) for row in rows]
 
 
 def inbox_folder() -> Path:

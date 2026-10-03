@@ -89,8 +89,8 @@ def trash_item(row: Row) -> dict:
     return {**item, "mods": {"alt": reveal(row.path)}} if row.partial else item
 
 
-def classify_item(row: Row) -> dict:
-    return {**inbox_item(row), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row) + " · ↩ pick a genre"}
+def classify_item(row: Row, suggested: str = "") -> dict:
+    return {**inbox_item(row), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row, suggested) + " · ↩ pick a genre"}
 
 
 def genre_header(row: Row, genre: str) -> dict:
@@ -115,6 +115,11 @@ def keep_genre_item(item: dict) -> dict:
     return {**item, "title": f"Keep {item['arg']}", "subtitle": "moves the book home if it isn't"}
 
 
+def suggested_genre_item(genre: str, book: str, typed: str = "") -> dict:
+    item = genre_item(genre, book, typed)
+    return {**item, "uid": f"genre:suggested:{genre}", "subtitle": "suggested · ↩ sets it and moves the book home"}
+
+
 def new_genre_item(typed: str, book: str) -> dict:
     return {
         "uid": f"genre-new:{typed}",
@@ -129,8 +134,12 @@ def source_item(row: Row) -> dict:
     return {**book_item(row), "variables": {}, "mods": {"alt": reveal(row.path)}}
 
 
-def inbox_subtitle(row: Row) -> str:
-    parts = [row.authors or "author ?", series_label(row), row.genre or "genre ?", format_label(row), row.rel_path]
+def genre_marker(row: Row, suggested: str) -> str:
+    return row.genre or (f"{suggested}?" if suggested else "genre ?")
+
+
+def inbox_subtitle(row: Row, suggested: str = "") -> str:
+    parts = [row.authors or "author ?", series_label(row), genre_marker(row, suggested), format_label(row), row.rel_path]
     return SEPARATOR.join(p for p in parts if p)
 
 
@@ -172,6 +181,20 @@ def classify_all_item(rows: list[Row]) -> dict:
     books = LINE.join(r.fingerprint for r in rows)
     title = f"Set genre for all {len(rows)} books"
     return head_row("classify:all", title, "↩ picks one genre for every book listed below", variables={"book": books})
+
+
+def accept_genres_item(pairs: list[tuple[str, str]]) -> dict:
+    books = LINE.join(f"{fingerprint}\t{genre}" for fingerprint, genre in pairs)
+    title = f"Accept {counted(len(pairs), 'suggested genre')}"
+    return head_row("classify:accept", title, "↩ files each book under its suggested genre", variables={"book": books, "action": "genre"})
+
+
+def ask_item(title: str) -> dict:
+    return {"uid": "oracle:ask", **action_item(title, "↩ runs in the background, then notifies", "ask")}
+
+
+def unreachable_item(url: str) -> dict:
+    return {"uid": "oracle:unreachable", **message_item(f"Model not reachable at {url}", "start llama-server, or change KOBO_ORACLE_URL")}
 
 
 def plan_item(op: Operation, root: str) -> dict:

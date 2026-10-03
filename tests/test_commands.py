@@ -478,3 +478,106 @@ def test_update_row_says_when_an_update_is_running(indexed, tmp_path):
     (row,) = command_rows("update")
 
     assert row["title"] == "Update is running" and row["valid"] is False, "a running update should be stated, not started twice"
+
+
+def test_headed_shows_every_head_row_only_for_a_batch():
+    from kobolib.commands import headed
+
+    heads, items = [{"uid": "a"}, {"uid": "b"}], [{"uid": "x"}, {"uid": "y"}]
+
+    assert headed(heads, items, 2) == [*heads, *items], "a list of several books starts with all its head rows"
+    assert headed(heads, items[:1], 1) == items[:1], "a single book needs no head rows"
+
+
+def suggest(tmp_path: Path, fingerprint: str, question: str, answer: dict) -> None:
+    from kobolib.suggestions import SuggestionStore
+
+    store = SuggestionStore(tmp_path / "alfred-data" / "oracle.tsv").load()
+    store.set(fingerprint, question, answer, "h")
+    store.save()
+
+
+def fingerprint_of(query: str) -> str:
+    return next(i for i in search_items(query) if "quicklookurl" in i)["variables"]["book"]
+
+
+@pytest.fixture
+def suggested_napkin(indexed, tmp_path) -> str:
+    napkin = fingerprint_of("napkin")
+    suggest(tmp_path, napkin, "genre", {"genre": "reference"})
+    suggest(tmp_path, fingerprint_of("оперантное"), "genre", {"genre": "none"})
+    return napkin
+
+
+def test_classify_marks_suggested_genres_with_a_question_mark(suggested_napkin):
+    rows = [r for r in command_rows("classify") if "quicklookurl" in r]
+
+    by_title = {r["title"]: r["subtitle"] for r in rows}
+    assert " · reference? · " in by_title["Napkin"], "a suggested genre shows where genre ? was, with a trailing ?"
+    assert " · genre ? · " in by_title["Оперантное поведение"], "a none answer leaves the plain marker"
+
+
+def test_classify_offers_to_accept_the_suggested_genres(suggested_napkin):
+    head, accept, *rows = command_rows("classify")
+
+    assert head["title"] == "Set genre for all 2 books", "the usual head row comes first"
+    assert accept["title"] == "Accept 1 suggested genre" and accept["arg"] == "", "then the suggestions, as one head row"
+    assert accept["variables"] == {"book": f"{suggested_napkin}\treference", "action": "genre"}, (
+        "the head row carries fingerprint and genre pairs to the genre step"
+    )
+    assert "mods" not in accept, "bulk work is a head row, never a modifier"
+
+
+def test_classify_without_suggestions_has_no_accept_row(indexed):
+    assert not any(i["title"].startswith("Accept ") for i in command_rows("classify")), "nothing to accept, nothing offered"
+
+
+def test_picker_puts_the_suggested_genre_first(suggested_napkin):
+    header, suggested, *others = picker("", suggested_napkin)
+
+    assert (suggested["title"], suggested["arg"], suggested["subtitle"]) == (
+        "reference",
+        "reference",
+        "suggested · ↩ sets it and moves the book home",
+    ), "the suggestion is the first row, marked as such"
+    assert suggested["variables"] == {"book": suggested_napkin, "action": "genre"}, "↩ on it sets the genre like any other row"
+    assert "reference" not in titles(others), "the suggested genre is not listed twice"
+
+
+def test_picker_filters_the_suggestion_by_typed_text(suggested_napkin):
+    assert titles(picker("non", suggested_napkin)) == ["Napkin", "nonfiction"], (
+        "a suggestion that does not match the typed text is left out"
+    )
+
+
+@pytest.fixture
+def oracle_on(indexed, monkeypatch):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+
+
+@pytest.mark.parametrize("query", ["classify", "fix"])
+def test_ask_the_model_row_appears_when_books_are_unasked(oracle_on, query):
+    (ask,) = [i for i in command_rows(query) if i.get("uid") == "oracle:ask"]
+
+    assert ask["title"] == "Ask the model about 2 inbox books" and ask["valid"] is True, "the row counts what has not been asked yet"
+    assert ask["subtitle"] == "↩ runs in the background, then notifies" and action_of(ask) == "ask", "↩ runs kobolib ask in the background"
+
+
+@pytest.mark.parametrize("query", ["classify", "fix"])
+def test_ask_the_model_row_is_absent_without_a_server(indexed, monkeypatch, query):
+    monkeypatch.delenv("KOBO_ORACLE_URL", raising=False)
+
+    assert not any(i.get("uid") == "oracle:ask" for i in command_rows(query)), "nothing mentions the oracle until it is configured"
+
+
+def test_ask_the_model_row_is_absent_when_everything_is_asked(oracle_on, suggested_napkin):
+    assert not any(i.get("uid") == "oracle:ask" for i in command_rows("classify")), "answered books, none included, are not offered again"
+
+
+@pytest.mark.parametrize("query", ["classify", "fix"])
+def test_unreachable_model_is_reported(oracle_on, tmp_path, query):
+    (tmp_path / "alfred-data" / "oracle.status").write_text("http://127.0.0.1:8080")
+
+    (row,) = [i for i in command_rows(query) if i.get("uid") == "oracle:unreachable"]
+
+    assert row["title"] == "Model not reachable at http://127.0.0.1:8080" and row["valid"] is False, "the last failed connection is shown"

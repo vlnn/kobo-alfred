@@ -14,8 +14,17 @@ OBJECT_VERSIONS = {
     "alfred.workflow.utility.conditional": 1,
 }
 OBJECTS = {"KB", "PICKER", "DISPATCH", "OPEN", "REVEAL", "RUN", "NOTIFY"}
-RUNNER_ACTIONS = ("update", "fix", "trash", "undo", "import", "genre")
-ROUTES = {"update": "RUN", "fix": "RUN", "trash": "RUN", "undo": "RUN", "import": "RUN", "classify": "PICKER", "reveal": "REVEAL"}
+RUNNER_ACTIONS = ("update", "fix", "trash", "undo", "import", "genre", "ask")
+ROUTES = {
+    "update": "RUN",
+    "fix": "RUN",
+    "trash": "RUN",
+    "undo": "RUN",
+    "import": "RUN",
+    "classify": "PICKER",
+    "reveal": "REVEAL",
+    "ask": "RUN",
+}
 MODIFIER_BITS = {"shift": 131072, "alt": 524288}
 MEANING = {"REVEAL": "reveal", "PICKER": "set genre"}
 

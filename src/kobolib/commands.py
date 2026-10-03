@@ -7,15 +7,26 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from kobolib import alfred
+from kobolib import alfred, oracle
 from kobolib.alfred import counted
 from kobolib.apply import EXECUTABLE, last_batch, read_journal
-from kobolib.config import db_path, genre_store, journal_path, library_index, library_root, sources, sources_db_path, sources_index
+from kobolib.config import (
+    db_path,
+    genre_store,
+    journal_path,
+    library_index,
+    library_root,
+    sources,
+    sources_db_path,
+    sources_index,
+    suggestion_store,
+)
 from kobolib.genres import GenreStore
 from kobolib.index import Index, index_busy, is_current
 from kobolib.library import concerning, diagnosis, known_genres, not_in_library, pending_operations, unclassified_rows
 from kobolib.model import Finding, Operation, Row
 from kobolib.query import query_words
+from kobolib.suggestions import SuggestionStore
 
 
 def index_problem(path: Path | None = None, what: str = "Index") -> str:
@@ -130,8 +141,29 @@ def inbox_items(words: list[str]) -> list[dict]:
     return rows or nothing(words, "Inbox is empty", "Every book has a genre")
 
 
-def headed(head: dict, items: list[dict], batch_size: int) -> list[dict]:
-    return [head, *items] if batch_size > 1 else items
+def headed(heads: list[dict], items: list[dict], batch_size: int) -> list[dict]:
+    return [*heads, *items] if batch_size > 1 else items
+
+
+def suggested_genres(store: SuggestionStore) -> dict[str, str]:
+    return {fp: a["genre"] for fp, a in store.answers("genre").items() if a.get("genre") not in ("", oracle.NONE)}
+
+
+def unasked(rows: list[Row], question: str, store: SuggestionStore) -> list[Row]:
+    return [r for r in rows if store.get(r.fingerprint, question) is None]
+
+
+def ask_title(inbox: int, unnamed: int) -> str:
+    parts = [counted(inbox, "inbox book")] * bool(inbox) + [counted(unnamed, "unnamed file")] * bool(unnamed)
+    return f"Ask the model about {' and '.join(parts)}"
+
+
+def oracle_rows(index: Index, store: SuggestionStore) -> list[dict]:
+    if not oracle.configured():
+        return []
+    down = [alfred.unreachable_item(url)] if (url := oracle.unreachable()) else []
+    inbox = len(unasked(index.unclassified([]), "genre", store))
+    return down + ([alfred.ask_item(ask_title(inbox, 0))] if inbox else [])
 
 
 def classify_rows(words: list[str]) -> list[Row]:
@@ -139,10 +171,18 @@ def classify_rows(words: list[str]) -> list[Row]:
     return index.search(words, limit=CLASSIFY_LIMIT) if words else index.unclassified([])
 
 
+def accept_items(rows: list[Row], suggested: dict[str, str]) -> list[dict]:
+    pairs = [(r.fingerprint, suggested[r.fingerprint]) for r in rows if r.fingerprint in suggested]
+    return [alfred.accept_genres_item(pairs)] if pairs else []
+
+
 def classify_items(words: list[str]) -> list[dict]:
-    rows = classify_rows(words)
-    items = [alfred.classify_item(r) for r in rows]
-    return headed(alfred.classify_all_item(rows), items, len(rows)) or nothing(words, "Nothing to classify", "Every book has a genre")
+    index, store = library_index(), suggestion_store()
+    rows, suggested = classify_rows(words), suggested_genres(store)
+    items = [alfred.classify_item(r, suggested.get(r.fingerprint, "")) for r in rows]
+    heads = [alfred.classify_all_item(rows), *accept_items(rows, suggested)]
+    listed = headed(heads, [*oracle_rows(index, store), *items], len(rows))
+    return listed or nothing(words, "Nothing to classify", "Every book has a genre")
 
 
 def contains(fragment: str, text: str) -> bool:
@@ -174,16 +214,21 @@ def picker_header(rows: list[Row], store: GenreStore) -> dict:
     return alfred.genre_header(rows[0], store.genre_of(rows[0]))
 
 
+def suggestion_for(rows: list[Row]) -> str:
+    return suggested_genres(suggestion_store()).get(rows[0].fingerprint, "") if len(rows) == 1 else ""
+
+
 def genre_picker_items(typed: str, books: list[str]) -> list[dict]:
     index, store = library_index(), genre_store()
     rows = [row for fingerprint in books if (row := index.by_fingerprint(fingerprint))]
     if not rows:
         return [alfred.message_item("No book selected", "Press ⇧↩ on a book in kb, or ↩ in kb classify")]
     book = alfred.LINE.join(books)
-    current = store.genre_of(rows[0]) if len(rows) == 1 else ""
+    current, suggested = (store.genre_of(rows[0]) if len(rows) == 1 else ""), suggestion_for(rows)
     likely = subject_likely_first(known_genres(index, store), "; ".join(r.subjects for r in rows))
-    genres = [g for g in genre_choices(current, likely) if contains(typed, g)]
-    choices = [genre_row(g, book, typed, current) for g in genres]
+    genres = [g for g in genre_choices(current, likely) if contains(typed, g) and g != suggested]
+    first = [alfred.suggested_genre_item(suggested, book, typed)] if suggested and contains(typed, suggested) else []
+    choices = [*first, *(genre_row(g, book, typed, current) for g in genres)]
     fallback = [alfred.new_genre_item(typed, book)] if typed else []
     return [picker_header(rows, store), *(choices or fallback)]
 
@@ -191,7 +236,7 @@ def genre_picker_items(typed: str, books: list[str]) -> list[dict]:
 def source_items(words: list[str]) -> list[dict]:
     rows = not_in_library(sources_index().search(words))
     items = [alfred.source_item(r) for r in rows]
-    return headed(alfred.import_all_item(rows), items, len(rows)) or [alfred.empty_item(" ".join(words))]
+    return headed([alfred.import_all_item(rows)], items, len(rows)) or [alfred.empty_item(" ".join(words))]
 
 
 def sources_items(words: list[str]) -> list[dict]:
@@ -257,7 +302,7 @@ def trash_all_item(rows: list[Row]) -> dict:
 def trash_items(words: list[str]) -> list[dict]:
     rows = trash_rows(words)
     items = [alfred.trash_item(r) for r in rows]
-    return headed(trash_all_item(rows), items, len(rows)) or nothing(words, "Nothing to trash", "No unfinished downloads")
+    return headed([trash_all_item(rows)], items, len(rows)) or nothing(words, "Nothing to trash", "No unfinished downloads")
 
 
 def by_hand(found: list[Finding], ops: list[Operation]) -> list[Finding]:
@@ -319,6 +364,7 @@ def fix_items(words: list[str]) -> list[dict]:
     rows = [
         *fix_all_items(todo, words),
         *undo_items(),
+        *oracle_rows(library_index(), suggestion_store()),
         *fix_reminders(words),
         *(alfred.plan_item(o, root) for o in todo),
         *(alfred.conflict_item(o, root) for o in conflicts),

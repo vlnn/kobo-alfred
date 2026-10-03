@@ -39,7 +39,7 @@ from kobolib.library import (
     row_by_reference,
     run_index,
     run_index_sources,
-    set_genre,
+    set_genres,
     transfer,
     trash_operations,
 )
@@ -138,31 +138,43 @@ def cmd_trash(args) -> int:
     return 0
 
 
-def genre_summary(rows: list[Row], genre: str, outcomes: list[tuple[bool, str]], missing: list[str]) -> str:
-    if len(rows) == 1:
-        return f"{rows[0].title} → {genre} · {outcomes[0][1]}{skipped_summary(missing)}"
+def genres_label(genres: list[str]) -> str:
+    distinct = sorted(set(genres))
+    return distinct[0] if len(distinct) == 1 else counted(len(distinct), "genre")
+
+
+def genre_summary(assignments: list[tuple[Row, str]], outcomes: list[tuple[bool, str]], missing: list[str]) -> str:
+    label = genres_label([genre for _, genre in assignments])
+    if len(assignments) == 1:
+        return f"{assignments[0][0].title} → {label} · {outcomes[0][1]}{skipped_summary(missing)}"
     moved = sum(1 for was_moved, _ in outcomes if was_moved)
-    return f"{counted(len(rows), 'book')} → {genre} · {moved} moved, {len(rows) - moved} stayed put{skipped_summary(missing)}"
+    return f"{counted(len(assignments), 'book')} → {label} · {moved} moved, {len(assignments) - moved} stayed put{skipped_summary(missing)}"
 
 
 def references(values: list[str]) -> list[str]:
     return [line for value in values for line in value.splitlines() if line]
 
 
+def assignment(line: str, genre: str) -> tuple[str, str]:
+    reference, _, own = line.partition("\t")
+    return reference, genre_text(own) or genre
+
+
 def cmd_genre(args) -> int:
     if reason := not_writable():
         return refuse(reason, args.notify)
-    genre, index, store = genre_text(args.genre), library_index(), genre_store()
-    if not genre:
+    index, store = library_index(), genre_store()
+    wanted = dict(assignment(line, genre_text(args.genre)) for line in references(args.books))
+    if not all(wanted.values()):
         return refuse("No genre given", args.notify)
-    found = {ref: row_by_reference(ref, index) for ref in references(args.books)}
-    rows = [row for row in found.values() if row is not None]
+    found = {ref: row_by_reference(ref, index) for ref in wanted}
+    assignments = [(row, wanted[ref]) for ref, row in found.items() if row is not None]
     unknown = [ref for ref, row in found.items() if row is None]
     missing = [f"not indexed: {ref}" for ref in unknown]
-    if not rows:
+    if not assignments:
         return refuse(f"Not indexed: {'; '.join(unknown)}", args.notify)
-    outcomes = [set_genre(row, genre, index, store) for row in rows]
-    report(genre_summary(rows, genre, outcomes, missing), args.notify)
+    outcomes = set_genres(assignments, index, store)
+    report(genre_summary(assignments, outcomes, missing), args.notify)
     return 0
 
 
