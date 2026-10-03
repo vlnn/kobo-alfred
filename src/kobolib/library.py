@@ -40,8 +40,12 @@ def bootstrap_genres() -> int:
     return added
 
 
+def is_path(reference: str) -> bool:
+    return reference.startswith("/")
+
+
 def row_by_reference(reference: str, index: Index) -> Row | None:
-    if reference.startswith("/"):
+    if is_path(reference):
         return index.by_rel_path(relative_path(Path(reference), library_root()))
     return index.by_fingerprint(reference)
 
@@ -114,10 +118,6 @@ def concerning(words: list[str]) -> Callable[[str], bool]:
     if not words:
         return lambda rel_path: True
     return Index(db_path()).rel_paths(words).__contains__
-
-
-def is_path(target: str) -> bool:
-    return target.startswith("/")
 
 
 def targeted(targets: list[str]) -> Callable[[str], bool]:
