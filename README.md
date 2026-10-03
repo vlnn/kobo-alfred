@@ -3,13 +3,13 @@
 Alfred workflow for searching an ebook library (the Kobo SD card) by metadata, with covers.
 
 ```
-kb deep work                 full-text over title / authors / series / folder / filename
-kb author:delany fmt:epub    filters: fmt: in: author: series: lang: year: genre: is:partial is:complete
-kb in:inbox                  folder match is substring, case-insensitive
+kb deep work                 every word must match, by prefix, ignoring case and diacritics
+kb delany epub 1975          words match title, authors, series, folder, path, genre, format, language, year
+kb inbox ukrainian           language matches by code or English name (uk, ukrainian)
 kb                           empty query → most recently added books
 kb:index                     rebuild the library index and, if sources are configured, the sources index (also `kb update`)
 kb:dups                      same title in several files or formats
-kb:rnd fmt:epub              five random complete books, filters allowed
+kb:rnd epub                  five random books, drawn from those matching the words
 kb:stats                     counts: books, incomplete downloads, duplicate titles
 kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
 kb:inbox                     books without a genre yet, oldest first
@@ -46,7 +46,7 @@ Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbn
 | ⌘C           | copy relative path           |
 | ⌘L           | large type: title/author/path|
 
-`.part` files (unfinished downloads) are indexed, flagged with ⚠︎ and not actionable.
+`.part` files (unfinished downloads) are indexed but never listed by search; `kb:lint` reports them.
 
 ## Install
 
@@ -132,7 +132,7 @@ are left for you, and both are ignored by the scanner.
 unknown one is created), ↩. Narrow the inbox to a batch instead (`kb:classify newport`) and the list starts with
 "Classify all N books": ↩ there (or ⌥⇧↩ on any row, also in `kb:inbox`) opens the same picker for every complete
 book listed, and the genre you choose applies to all of them. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy`.
-Genres are searchable (`kb genre:fiction`); `genre:` matches by prefix.
+Genres are searchable: every segment of the genre is a word (`kb fiction`, `kb sci`).
 
 Any book you have just found — in `kb`, `kb:inbox`, or after `kb term` — can be fixed in place with ⇧↩: the
 picker shows the current genre and lists known genres; typing any part of a genre's path filters them
@@ -152,7 +152,7 @@ Set **Other sources** (`KOBO_SOURCES`, paths separated by `:`) to the folders of
 library yet — a Calibre library, a downloads folder, an old reader's card. `kb:index` (or `kb update`) then
 also indexes them into a separate `sources.db`; an unmounted source is skipped and mentioned, never an error.
 `kb:src` searches it with the same query syntax, and the source folder's name is part of the path, so
-`kb:src in:calibre` narrows by source.
+`kb:src calibre` narrows by source.
 
 `kb:src` only ever shows what you could still import. Left out of the sources index:
 
@@ -163,7 +163,7 @@ also indexes them into a separate `sources.db`; an unmounted source is skipped a
 
 ↩ copies the book into the library's inbox folder (the one whose name is `inbox` after the order prefix, or a
 new `_inbox/`). When the list has more than one book it starts with "Import all N books" — ↩ there (or ⌥⇧↩ on
-any row) copies every book listed (`kb:src in:calibre fmt:epub`, ↩). Each import adds the book to the library index
+any row) copies every book listed (`kb:src calibre epub`, ↩). Each import adds the book to the library index
 right away — no full reindex — so it shows up in `kb`,
 `kb:inbox` and `kb:classify` immediately. The source is never touched: import only copies, and once a book is in
 the library its source copy is simply no longer offered. Nothing is overwritten: an occupied destination refuses

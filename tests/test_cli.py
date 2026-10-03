@@ -189,7 +189,7 @@ def test_tag_command_sets_genre_by_path(indexed, library, capsys):
 
     assert main(["tag", book, "genre=reference"]) == 0, "setting a genre by path should succeed"
     assert capsys.readouterr().out.startswith("Napkin → reference"), "the result should be reported"
-    assert [i["title"] for i in run(["search", "genre:reference"], capsys)["items"]] == ["Napkin"], "the genre should be searchable"
+    assert [i["title"] for i in run(["search", "reference"], capsys)["items"]] == ["Napkin"], "the genre should be searchable"
     assert "Napkin" not in [i["title"] for i in run(["inbox"], capsys)["items"]], "a classified book leaves the inbox"
 
 
@@ -379,7 +379,7 @@ def test_single_book_moves_update_the_index_in_place(indexed, library, capsys, m
     assert items[0]["subtitle"].endswith("productivity/Newport, Cal/Newport, Cal - Deep Work (Focus 02) (2016).epub"), (
         "one moved book should not re-read every other book; the row itself is relocated"
     )
-    assert "No books match" in run(["search", "in:nonfiction"], capsys)["items"][0]["title"], "the old path should be gone from the index"
+    assert "No books match" in run(["search", "nonfiction"], capsys)["items"][0]["title"], "the old path should be gone from the index"
 
 
 def test_apply_only_moves_one_book_without_a_full_rebuild(indexed, library, capsys, mocker):
@@ -477,8 +477,8 @@ def test_search_command_items_come_before_matching_books(env, library, capsys):
 
 def test_search_command_takes_the_rest_as_its_query(indexed, capsys):
 
-    items = run(["search", "rnd fmt:epub"], capsys)["items"]
-    assert [i["title"] for i in items] == ["Deep Work"], "kb rnd <query> should filter like kb:rnd <query>"
+    items = run(["search", "rnd epub"], capsys)["items"]
+    assert [i["title"] for i in items] == ["Deep Work"], "kb rnd <words> should draw from books matching the words"
     assert items[0]["variables"]["action"] == "open", "a book item from a picker opens like any other book"
 
 
@@ -592,7 +592,7 @@ def test_tag_classifies_many_books_at_once(indexed, library, capsys):
 
     assert capsys.readouterr().out.startswith("2 books → reference"), "the summary should count the books"
     assert fingerprints_of(run(["inbox", ""], capsys)["items"]) == [], "both books leave the inbox; only the partial download stays"
-    assert len(run(["search", "genre:reference"], capsys)["items"]) == 2, "both books carry the genre"
+    assert len(run(["search", "reference"], capsys)["items"]) == 2, "both books carry the genre"
 
 
 def test_tag_skips_unknown_references_in_a_batch(indexed, library, capsys):

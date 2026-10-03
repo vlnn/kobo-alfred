@@ -14,7 +14,7 @@ from kobolib.covers import THUMBNAIL_FORMATS, cover_key, ensure_cover
 from kobolib.languages import searchable_language
 from kobolib.metadata import is_sound, read_book
 from kobolib.model import Book, DuplicateGroup, Row
-from kobolib.query import SQL_CLAUSES, STATE_CLAUSES, Query
+from kobolib.query import fts_match
 from kobolib.scan import SKIP_FOLDERS, iter_books
 
 COLUMNS = tuple(f.name for f in fields(Row))
@@ -88,7 +88,6 @@ def source_records(roots: list[Path], cover_cache: Path, exclude: tuple[Path, ..
 @contextmanager
 def reading(db_path: Path) -> Iterator[sqlite3.Connection]:
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    conn.create_function("fold", 1, str.casefold, deterministic=True)
     try:
         yield conn
     finally:
@@ -228,17 +227,17 @@ class Index:
     def count(self) -> int:
         return self.values("SELECT count(*) FROM books")[0]
 
-    def search(self, query: Query, limit: int = 40) -> list[Row]:
-        order = "rank, title" if query.fts_match() else "mtime DESC"
-        return self.matching(query, "partial = 0", order, limit)
+    def search(self, words: list[str], limit: int = 40) -> list[Row]:
+        order = "rank, title" if words else "mtime DESC"
+        return self.matching(words, "partial = 0", order, limit)
 
-    def partials(self, query: Query, limit: int = 1000) -> list[Row]:
-        return self.matching(query, "partial = 1", "mtime", limit)
+    def partials(self, words: list[str], limit: int = 1000) -> list[Row]:
+        return self.matching(words, "partial = 1", "mtime", limit)
 
-    def matching(self, query: Query, state: str, order: str, limit: int) -> list[Row]:
-        clauses, params = where_clauses(query)
-        where = " AND ".join([state, *clauses])
-        return self.rows(f"{SELECT_ROWS} WHERE {where} ORDER BY {order} LIMIT :limit", {**params, "limit": limit})
+    def matching(self, words: list[str], state: str, order: str, limit: int) -> list[Row]:
+        match = fts_match(words)
+        where = f"{state} AND books MATCH :match" if match else state
+        return self.rows(f"{SELECT_ROWS} WHERE {where} ORDER BY {order} LIMIT :limit", {"match": match, "limit": limit})
 
     def everything(self) -> list[Row]:
         return self.rows(f"{SELECT_ROWS} ORDER BY mtime DESC")
@@ -307,17 +306,3 @@ def set_aside(rel_path: str) -> bool:
 
 def matches(row: Row, query: str) -> bool:
     return query.lower() in f"{row.title} {row.authors} {row.rel_path}".lower()
-
-
-def where_clauses(query: Query) -> tuple[list[str], dict]:
-    clauses, params = [], {}
-    if match := query.fts_match():
-        clauses.append("books MATCH :match")
-        params["match"] = match
-    for key, sql in SQL_CLAUSES.items():
-        if key in query.filters:
-            clauses.append(sql)
-            params[key] = query.filters[key]
-    if state := STATE_CLAUSES.get(query.filters.get("is", "")):
-        clauses.append(state)
-    return clauses, params

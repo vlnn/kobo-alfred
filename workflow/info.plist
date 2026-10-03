@@ -13,7 +13,7 @@
 	<key>category</key>
 	<string>Productivity</string>
 	<key>readme</key>
-	<string>kb &lt;query&gt; searches the library: full text over title, authors, series, folder and filename, with filters fmt:epub in:inbox author:x series:x lang:uk year:2016 genre:fiction is:partial is:complete.
+	<string>kb &lt;query&gt; searches the library: every word must match title, authors, series, folder, filename, genre, format, language or year, by prefix: kb delany epub 1975.
 Every command works as a kb word too: kb stats, kb dups, kb rnd, kb lint, kb inbox, kb classify, kb plan, kb src, kb index, kb apply, kb undo (the kb:x keywords are the same commands).
 kb:classify picks an inbox book, then a genre, and moves the book to its genre home at once; ⇧↩ on any book sets its genre the same way. kb:lint reports problems, kb:plan proposes bulk moves, renames and trash — ↩ on a row applies that row, ↩ on the head row applies all; kb:undo moves the last batch back.
 A list with several books starts with an "Import all" / "Classify all" / "Apply all" row; ↩ there (or ⌥⇧↩ on any row) does it for every row shown.
@@ -110,7 +110,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<key>title</key>
 				<string>Search library</string>
 				<key>subtext</key>
-				<string>title, author, series · fmt:epub in:inbox author:x genre:x is:partial · stats dups rnd lint inbox classify plan src index/update apply undo · ⇧↩ fix</string>
+				<string>words match title, author, series, path, genre, format, language, year · stats dups rnd lint inbox classify plan src index/update apply undo · ⇧↩ fix</string>
 				<key>runningsubtext</key>
 				<string>Searching…</string>
 				<key>withspace</key>
@@ -188,7 +188,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<key>title</key>
 				<string>Random picks</string>
 				<key>subtext</key>
-				<string>Five random books, optionally filtered: kb:rnd fmt:epub in:fiction</string>
+				<string>Five random books, drawn from those matching the words: kb:rnd epub fiction</string>
 				<key>withspace</key>
 				<true/>
 				<key>argumenttype</key>

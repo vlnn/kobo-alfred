@@ -11,7 +11,7 @@ from kobolib.index import Index, is_current
 from kobolib.library import current_plan, findings, known_genres, not_in_library, unclassified_rows
 from kobolib.model import Row
 from kobolib.plan import write_plan
-from kobolib.query import parse_query
+from kobolib.query import query_words
 from kobolib.tags import GenreStore
 
 
@@ -36,7 +36,7 @@ def book_items(raw: str) -> list[dict]:
     if index_problem():
         return without_index_items()
     index = Index(db_path())
-    rows = index.search(parse_query(raw))
+    rows = index.search(query_words(raw))
     if not rows and index.count() == 0:
         return [alfred.message_item("Index is empty", "Run kb:index with the library mounted; check Alfred's Removable Volumes permission")]
     return [alfred.book_item(r) for r in rows] or [alfred.empty_item(raw)]
@@ -98,7 +98,7 @@ def dups_items(query: str = "") -> list[dict]:
 
 
 def random_items(query: str) -> list[dict]:
-    rows = Index(db_path()).search(parse_query(query + " is:complete"), limit=5000)
+    rows = Index(db_path()).search(query_words(query), limit=5000)
     picks = random.sample(rows, min(5, len(rows)))
     return [alfred.book_item(r) for r in picks] or [alfred.empty_item(query)]
 
@@ -153,7 +153,7 @@ def genre_edits(query: str, index: Index, store: GenreStore, book: str) -> list[
 
 
 def source_items(raw: str) -> list[dict]:
-    rows = not_in_library(Index(sources_db_path()).search(parse_query(raw)))
+    rows = not_in_library(Index(sources_db_path()).search(query_words(raw)))
     batch = alfred.batch_mod(f"Import all {len(rows)} shown", alfred.LINE.join(r.path for r in rows))
     items = alfred.with_batch([alfred.source_item(r) for r in rows], batch)
     return headed(alfred.import_all_item(rows), items, len(rows)) or [alfred.empty_item(raw)]
@@ -169,10 +169,10 @@ def sources_items(query: str) -> list[dict]:
 
 def stats_items() -> list[dict]:
     index = Index(db_path())
-    partial = len(index.partials(parse_query("")))
+    partial = len(index.partials(query_words("")))
     return [
         alfred.message_item(f"{index.count()} books indexed", str(library_root())),
-        alfred.message_item(f"{partial} incomplete downloads", "kb is:partial"),
+        alfred.message_item(f"{partial} incomplete downloads", "kb lint"),
         alfred.message_item(f"{len(index.duplicates())} duplicate titles", "kb:dups"),
     ]
 
@@ -216,7 +216,7 @@ def undo_items(query: str) -> list[dict]:
 COMMAND_LIST = [
     Command("stats", all_stats_items, "stats", "counts: books, incomplete downloads, duplicate titles"),
     Command("dups", dups_items, "dups", "same title in several files or formats"),
-    Command("rnd", random_items, "open", "five random complete books, filters allowed", aliases=("random",)),
+    Command("rnd", random_items, "open", "five random books, drawn from those matching the words", aliases=("random",)),
     Command("lint", lint_items, "open", "problems: junk, partial downloads, noisy names, duplicates, misfiled series"),
     Command("inbox", inbox_items, "open", "books without a genre yet, oldest first"),
     Command("classify", classify_items, "classify", "pick an inbox book, then a genre"),

@@ -201,7 +201,7 @@ def duplicate_item(group: DuplicateGroup) -> dict:
 def empty_item(query: str) -> dict:
     return {
         "title": f"No books match “{query}”",
-        "subtitle": "Try fmt:epub, in:inbox, author:…, series:…, lang:…, is:partial — or kb:index to rebuild",
+        "subtitle": "Words match title, author, series, path, genre, format, language and year — or kb update to rebuild",
         "valid": False,
     }
 

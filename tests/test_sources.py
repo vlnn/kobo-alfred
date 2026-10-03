@@ -83,21 +83,21 @@ def test_index_sources_skips_unmounted_source(env, tmp_path, capsys, monkeypatch
 @pytest.mark.parametrize(
     "query, expected",
     [
-        ("in:downloads", ["No books match “in:downloads”"]),
-        ("in:calibre slow", ["Slow Productivity"]),
-        ("fmt:epub newport", ["A World Without Email", "Slow Productivity"]),
+        ("downloads", ["No books match “downloads”"]),
+        ("calibre slow", ["Slow Productivity"]),
+        ("epub newport", ["A World Without Email", "Slow Productivity"]),
     ],
 )
-def test_sources_search_uses_query_syntax(env, capsys, query, expected):
+def test_sources_search_uses_words(env, capsys, query, expected):
     main(["index-sources"])
     capsys.readouterr()
 
     main(["sources", query])
 
-    assert sorted(titles(capsys)) == expected, "in: narrows by source folder; books the library already holds are hidden"
+    assert sorted(titles(capsys)) == expected, "the source folder is a word; books the library already holds are hidden"
 
 
-@pytest.mark.parametrize("query", ["nova", "dead", "found", "is:partial"])
+@pytest.mark.parametrize("query", ["nova", "dead", "found", "part"])
 def test_sources_skip_partial_and_broken_files(env, capsys, query):
     main(["index-sources"])
     capsys.readouterr()
