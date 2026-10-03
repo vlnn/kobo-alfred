@@ -329,7 +329,7 @@ case "$action" in
   undo) run undo; echo "Undoing the last batch… a notification follows";;
   import) run import "$1"; echo "Importing… a notification follows";;
   genre) run genre "$book" "$1"; echo "Setting the genre… a notification follows";;
-  ask) run ask; echo "Asking the model… a notification follows";;
+  ask) run ask "" "$1"; echo "Asking the model… a notification follows";;
   dismiss) run dismiss "$book"; echo "Dismissing… a notification follows";;
   embed) run embed; echo "Embedding… a notification follows";;
 esac</string>

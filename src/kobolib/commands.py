@@ -171,17 +171,18 @@ def unasked(rows: list[Row], question: str, store: SuggestionStore) -> list[Row]
     return [r for r in rows if store.get(r.fingerprint, question) is None]
 
 
-def ask_title(inbox: int, unnamed: int) -> str:
+def ask_title(inbox: int, unnamed: int, words: list[str]) -> str:
     parts = [counted(inbox, "inbox book")] * bool(inbox) + [counted(unnamed, "unnamed file")] * bool(unnamed)
-    return f"Ask the model about {' and '.join(parts)}"
+    matching = f" matching ‘{' '.join(words)}’" if words else ""
+    return f"Ask the model about {' and '.join(parts)}{matching}"
 
 
-def oracle_rows(index: Index, store: SuggestionStore) -> list[dict]:
+def oracle_rows(index: Index, store: SuggestionStore, words: list[str]) -> list[dict]:
     if not oracle.configured():
         return []
     down = [alfred.unreachable_item(url)] if (url := oracle.unreachable()) else []
-    inbox, unnamed = len(unasked(index.unclassified([]), "genre", store)), len(unasked(name_rows(index, []), "name", store))
-    return down + ([alfred.ask_item(ask_title(inbox, unnamed))] if inbox or unnamed else [])
+    inbox, unnamed = len(unasked(index.unclassified(words), "genre", store)), len(unasked(name_rows(index, words), "name", store))
+    return down + ([alfred.ask_item(ask_title(inbox, unnamed, words), " ".join(words))] if inbox or unnamed else [])
 
 
 def classify_rows(words: list[str]) -> list[Row]:
@@ -199,7 +200,7 @@ def classify_items(words: list[str]) -> list[dict]:
     rows, suggested = classify_rows(words), suggested_genres(store)
     items = [alfred.classify_item(r, suggested.get(r.fingerprint, "")) for r in rows]
     heads = [alfred.classify_all_item(rows), *accept_items(rows, suggested)]
-    listed = headed(heads, [*oracle_rows(index, store), *items], len(rows))
+    listed = headed(heads, [*oracle_rows(index, store, words), *items], len(rows))
     return listed or nothing(words, "Nothing to classify", "Every book has a genre")
 
 
@@ -507,7 +508,7 @@ def fix_items(words: list[str]) -> list[dict]:
         *fix_all_items(todo, words),
         *undo_items(),
         *dismiss_items(words, store),
-        *oracle_rows(index, store),
+        *oracle_rows(index, store, words),
         *fix_reminders(words),
         *(alfred.plan_item(o, root) for o in todo),
         *(alfred.plan_item(o, root) for o in renames),

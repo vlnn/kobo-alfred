@@ -306,10 +306,11 @@ def cmd_ask(args) -> int:
         return refuse("No model server: set KOBO_ORACLE_URL in the workflow configuration", args.notify)
     if problem := index_problem():
         return refuse(f"{problem}: run kb update", args.notify)
+    words = [word for value in args.words for word in value.split()]
     if args.dry_run:
-        print(evidence_report(args.question, args.words), end="")
+        print(evidence_report(args.question, words), end="")
         return 0
-    ask_questions(args.question, args.words, args.force, args.notify)
+    ask_questions(args.question, words, args.force, args.notify)
     return 0
 
 

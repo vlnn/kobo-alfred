@@ -197,8 +197,8 @@ def accept_genres_item(pairs: list[tuple[str, str]]) -> dict:
     return head_row("classify:accept", title, "↩ files each book under its suggested genre", variables={"book": books, "action": "genre"})
 
 
-def ask_item(title: str) -> dict:
-    return {"uid": "oracle:ask", **action_item(title, "↩ runs in the background, then notifies", "ask")}
+def ask_item(title: str, words: str = "") -> dict:
+    return {"uid": "oracle:ask", **action_item(title, "↩ runs in the background, then notifies", "ask", words)}
 
 
 def merge_item(canonical: str, ops: list[Operation], root: str) -> dict:

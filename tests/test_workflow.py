@@ -146,7 +146,8 @@ def test_runner_runs_each_action_in_the_background(workflow, action):
 
 
 @pytest.mark.parametrize(
-    "action, args", [("fix", '"$1"'), ("trash", '"$1"'), ("import", '"$1"'), ("genre", '"$book" "$1"'), ("dismiss", '"$book"')]
+    "action, args",
+    [("fix", '"$1"'), ("trash", '"$1"'), ("import", '"$1"'), ("genre", '"$book" "$1"'), ("dismiss", '"$book"'), ("ask", '"" "$1"')],
 )
 def test_runner_passes_the_row_argument(workflow, action, args):
     assert runner_branch(workflow, action).startswith(f"run {action} {args}"), f"{action} should receive {args}"

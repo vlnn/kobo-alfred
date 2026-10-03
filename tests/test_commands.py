@@ -922,3 +922,15 @@ def test_like_on_an_unembedded_seed_says_so(embeddings, library, capsys):
 
 def test_like_with_no_match_says_so(embeddings):
     assert titles(command_rows("like zzz")) == ["No books match ‘zzz’"], "no seed, no list"
+
+
+@pytest.mark.parametrize("query", ["classify napkin", "fix napkin"])
+def test_ask_the_model_row_follows_the_words(oracle_on, query):
+    (ask,) = [i for i in command_rows(query) if i.get("uid") == "oracle:ask"]
+
+    assert ask["title"] == "Ask the model about 1 inbox book and 1 unnamed file matching ‘napkin’", "only matching books are counted"
+    assert ask["arg"] == "napkin", "↩ asks about the matching books only"
+
+
+def test_ask_the_model_row_is_absent_when_no_matching_book_is_unasked(oracle_on):
+    assert not any(i.get("uid") == "oracle:ask" for i in command_rows("classify deep")), "a classified, named book leaves nothing to ask"

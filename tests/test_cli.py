@@ -855,3 +855,14 @@ def test_update_with_the_setting_on_skips_what_is_not_configured(both_models, mo
     main(["update", "--no-thumbnails"])
 
     assert ask.called and not embed.called, "without an embedding model only the questions run; no refusal"
+
+
+def test_ask_takes_the_words_as_one_argument_from_alfred(oracle_env, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", side_effect=[NAPKIN_NAME, {"genre": "none"}])
+
+    main(["ask", "", "napkin inbox"])
+
+    assert [c.args[0] for c in ask.call_args_list] == ["name", "genre"], "only the one matching book is asked about, name then genre"
+    assert all("Title: Napkin" in c.args[1] for c in ask.call_args_list), (
+        "the Alfred row passes the words as one argument; each must match, as in a search"
+    )
