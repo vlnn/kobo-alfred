@@ -24,6 +24,7 @@ ROUTES = {
     "classify": "PICKER",
     "reveal": "REVEAL",
     "ask": "RUN",
+    "genre": "RUN",
 }
 MODIFIER_BITS = {"shift": 131072, "alt": 524288}
 MEANING = {"REVEAL": "reveal", "PICKER": "set genre"}
@@ -232,6 +233,18 @@ def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_s
             target = keys.get(MODIFIER_BITS[mod])
             assert target, f"kb {query}: {item['title']!r} declares {mod} but kb has no {mod} connection"
             assert MEANING[target] in spec["subtitle"].lower(), f"kb {query}: {mod} says {spec['subtitle']!r} but reaches {target}"
+
+
+def test_accept_suggested_genres_head_row_reaches_the_runner_from_kb(workflow, indexed, tmp_path, mocker):
+    from kobolib.commands import search_items
+    from kobolib.suggestions import SuggestionStore
+
+    store = SuggestionStore(tmp_path / "alfred-data" / "oracle.tsv").load()
+    store.set(next(i for i in search_items("napkin") if "quicklookurl" in i)["variables"]["book"], "genre", {"genre": "reference"}, "h")
+    store.save()
+    accept = next(i for i in search_items("classify") if i["uid"] == "classify:accept")
+
+    assert route(workflow, accept) == "RUN", "↩ on Accept N suggested genres must run genre in the background, not open a book"
 
 
 def test_import_all_head_row_reaches_the_runner_from_kb(workflow, indexed_with_sources):
