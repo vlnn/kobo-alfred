@@ -93,22 +93,26 @@ def classify_item(row: Row) -> dict:
     return {**inbox_item(row), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row) + " · ↩ pick a genre"}
 
 
-def fix_header(row: Row, genre: str) -> dict:
+def genre_header(row: Row, genre: str) -> dict:
     state = SEPARATOR.join((genre or "no genre", row.rel_path))
     return {**message_item(row.title, state), "icon": icon(row)}
 
 
-def edit_item(edit: str, title: str, book: str) -> dict:
-    return {"uid": f"edit:{edit}", "title": title, "arg": edit, "autocomplete": edit, "variables": {"book": book}}
+def genre_variables(book: str) -> dict:
+    return {"book": book, "action": "genre"}
 
 
-def new_genre_mod(typed: str) -> dict:
-    return {"arg": f"genre={typed}", "subtitle": f"Create ‘{typed}’ as a new genre", "valid": True}
+def new_genre_mod(typed: str, book: str) -> dict:
+    return {"arg": typed, "subtitle": f"Create ‘{typed}’ as a new genre", "valid": True, "variables": genre_variables(book)}
 
 
 def genre_item(genre: str, book: str, typed: str = "") -> dict:
-    item = {**edit_item(f"genre={genre}", genre, book), "uid": f"genre:{genre}", "autocomplete": genre}
-    return {**item, "mods": {"shift": new_genre_mod(typed)}} if typed else item
+    item = {"uid": f"genre:{genre}", "title": genre, "arg": genre, "autocomplete": genre, "variables": genre_variables(book)}
+    return {**item, "mods": {"shift": new_genre_mod(typed, book)}} if typed else item
+
+
+def keep_genre_item(item: dict) -> dict:
+    return {**item, "title": f"Keep {item['arg']}", "subtitle": "moves the book home if it isn't"}
 
 
 def new_genre_item(typed: str, book: str) -> dict:
@@ -116,8 +120,8 @@ def new_genre_item(typed: str, book: str) -> dict:
         "uid": f"genre-new:{typed}",
         "title": f"No genre ‘{typed}’ — ⇧↩ creates it",
         "valid": False,
-        "variables": {"book": book},
-        "mods": {"shift": new_genre_mod(typed)},
+        "variables": genre_variables(book),
+        "mods": {"shift": new_genre_mod(typed, book)},
     }
 
 

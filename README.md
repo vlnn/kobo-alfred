@@ -103,7 +103,7 @@ remain for bulk work: junk, duplicates and anything classified before this behav
 | `unclassified` | no genre |
 
 From a terminal: `kobolib lint --text` prints one finding per line (`rule<TAB>detail<TAB>paths`).
-`kobolib tag <path|fingerprint> genre=fiction/sci-fi` sets the genre and moves the book.
+`kobolib genre <path|fingerprint>… fiction/sci-fi` sets the genre and moves the books.
 
 `kb:plan` turns findings and genres into operations and writes them to `plan.tsv` next to the index
 (`kobolib plan --text` prints it). Review it, delete lines you disagree with; nothing is applied yet.
@@ -130,13 +130,15 @@ are left for you, and both are ignored by the scanner.
 `kb:classify` is the daily loop: with no words it lists the inbox; type to find a book, ↩, type a genre (existing
 ones are listed, an unknown one is created), ↩. With words (`kb classify newport`) it lists every library book
 matching them, whatever its genre. Two or more books start with "Set genre for all N books": ↩ there opens the
-same picker for every book listed, and the genre you choose applies to all of them. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy`.
+same picker for every book listed, and the genre you choose applies to all of them. From a terminal: `kobolib genre <path|fingerprint>… fiction/sci-fi_fantasy`.
 Genres are searchable: every segment of the genre is a word (`kb fiction`, `kb sci`).
 
-Any book you have just found — in `kb`, `kb:inbox`, or after `kb term` — can be fixed in place with ⇧↩: the
-picker shows the current genre and lists known genres; typing any part of a genre's path filters them
-(`spy` finds `fiction/spy`, case does not matter), ⇥ completes the genre, and the typed text is offered as a new
-genre unless it already is one.
+Any book you have just found — in `kb`, `kb:inbox`, or after `kb term` — gets a genre in place with ⇧↩. The
+picker's header shows the book and its genre. Its first row keeps the current genre, which moves the book home if
+it isn't; known genres follow. Typing any part of a genre's path filters them (`spy` finds `fiction/spy`, case does
+not matter), ⇥ completes a genre, and ⇧↩ on any row creates the typed text as a new genre. When nothing matches
+there is a single row, "No genre ‘xyz’ — ⇧↩ creates it". Several books get the same picker, headed "N books"; the
+notification counts the books that moved and those that stayed put.
 
 Author folders are `Last, First`. A plain `First Last` name is inverted, except Cyrillic names, which are
 assumed `Фамилия Имя [Отчество]` as in libgen/flibusta filenames; an existing author folder (either form) wins

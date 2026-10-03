@@ -359,7 +359,7 @@ def test_old_index_refuses_writes(indexed: Path, library: Path, capsys):
     age(indexed)
 
     assert main(["import", str(library / "00_Inbox" / "Napkin.pdf")]) == 1, "an old index cannot tell what the library already holds"
-    assert main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=reference"]) == 1, "tagging would key on a stale fingerprint"
+    assert main(["genre", str(library / "00_Inbox" / "Napkin.pdf"), "reference"]) == 1, "tagging would key on a stale fingerprint"
     assert "older version" in capsys.readouterr().out, "the reason should name the rebuild"
 
 

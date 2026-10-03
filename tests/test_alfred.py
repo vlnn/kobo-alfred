@@ -90,8 +90,9 @@ def test_genre_item_creates_the_typed_text_on_shift():
 
     item = genre_item("fiction/spy", "f00", typed="spy thriller")
 
-    assert item["arg"] == "genre=fiction/spy", "↩ applies the listed genre"
-    assert item["mods"]["shift"]["arg"] == "genre=spy thriller", "⇧↩ creates the typed text as a new genre"
+    assert item["arg"] == "fiction/spy", "↩ applies the listed genre"
+    assert item["mods"]["shift"]["arg"] == "spy thriller", "⇧↩ creates the typed text as a new genre"
+    assert item["mods"]["shift"]["variables"] == item["variables"] == {"book": "f00", "action": "genre"}, "both keys go to the genre step"
     assert "new genre" in item["mods"]["shift"]["subtitle"], "the shift subtitle should say it creates a new genre"
 
 
@@ -107,8 +108,8 @@ def test_new_genre_item_creates_only_on_shift():
     item = new_genre_item("xyz", "f00")
 
     assert item["title"] == "No genre ‘xyz’ — ⇧↩ creates it" and item["valid"] is False, "plain ↩ should do nothing"
-    assert item["mods"]["shift"] == {"arg": "genre=xyz", "subtitle": "Create ‘xyz’ as a new genre", "valid": True}, "⇧↩ should create it"
-    assert item["variables"] == {"book": "f00"}, "the book travels on to the genre step"
+    assert (item["mods"]["shift"]["arg"], item["mods"]["shift"]["valid"]) == ("xyz", True), "⇧↩ should create it"
+    assert item["variables"] == {"book": "f00", "action": "genre"}, "the book travels on to the genre step"
 
 
 def test_item_omits_empty_parts():

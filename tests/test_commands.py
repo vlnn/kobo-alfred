@@ -21,7 +21,7 @@ def action_of(item: dict) -> str:
 
 def classify_inbox(library: Path, capsys) -> None:
     for name in ("Napkin.pdf", "Скиннер - Оперантное поведение.fb2"):
-        main(["tag", str(library / "00_Inbox" / name), "genre=reference"])
+        main(["genre", str(library / "00_Inbox" / name), "reference"])
     capsys.readouterr()
 
 
@@ -371,3 +371,74 @@ def test_fix_with_nothing_to_show_says_so(indexed):
 @pytest.mark.parametrize("word", ["lint", "plan", "apply", "undo"])
 def test_fix_replaces_the_old_commands(indexed, word):
     assert titles(search_items(word)) == [f"No books match ‘{word}’"], f"{word!r} is now a plain word; kb fix replaces it"
+
+
+@pytest.fixture
+def napkin(indexed, library, capsys) -> str:
+    main(["genre", str(library / "00_Inbox" / "Napkin.pdf"), "fiction/spy"])
+    capsys.readouterr()
+    return next(i for i in search_items("napkin") if "quicklookurl" in i)["variables"]["book"]
+
+
+def picker(typed: str, books: str) -> list[dict]:
+    from kobolib.commands import genre_picker_items
+
+    return genre_picker_items(typed, books.splitlines())
+
+
+def test_picker_shows_the_book_then_keeps_its_genre_first(napkin):
+    header, keep, *others = picker("", napkin)
+
+    assert (header["title"], header["subtitle"], header["valid"]) == ("Napkin", "fiction/spy · 00_Inbox/Napkin.pdf", False), (
+        "the header should show the book, its genre and path"
+    )
+    assert (keep["title"], keep["subtitle"], keep["arg"]) == ("Keep fiction/spy", "moves the book home if it isn't", "fiction/spy"), (
+        "the current genre comes first, offered as keep"
+    )
+    assert titles(others) == ["nonfiction"], "the other known genres follow"
+
+
+@pytest.mark.parametrize("typed, genres", [("SPY", ["fiction/spy"]), ("tion/sp", ["fiction/spy"]), ("non", ["nonfiction"])])
+def test_picker_matches_typed_text_anywhere_in_the_genre(napkin, typed, genres):
+    assert [i["arg"] for i in picker(typed, napkin)[1:]] == genres, f"{typed!r} should match a genre anywhere in its path, ignoring case"
+
+
+def test_picker_rows_create_the_typed_text_on_shift(napkin):
+    keep = picker("spy", napkin)[1]
+
+    assert keep["mods"]["shift"]["arg"] == "spy", "⇧↩ on any row creates the typed text as a new genre"
+
+
+def test_picker_offers_a_single_create_row_when_nothing_matches(napkin):
+    header, only = picker("zzz", napkin)
+
+    assert only["title"] == "No genre ‘zzz’ — ⇧↩ creates it" and only["valid"] is False, "↩ does nothing; ⇧↩ creates the genre"
+
+
+def test_picker_rows_carry_the_book_and_the_genre_action(napkin):
+    rows = picker("", napkin)[1:]
+
+    assert all(r["variables"] == {"book": napkin, "action": "genre"} for r in rows), "every row should send the book to the genre step"
+    assert [r["autocomplete"] for r in rows] == [r["arg"] for r in rows], "⇥ should complete the genre itself"
+
+
+def test_picker_for_a_book_without_genre_has_no_keep_row(indexed):
+    book = next(i for i in search_items("napkin") if "quicklookurl" in i)["variables"]["book"]
+
+    assert not any(i["title"].startswith("Keep ") for i in picker("", book)), "there is nothing to keep without a genre"
+
+
+def test_picker_for_several_books_says_how_many(napkin, indexed):
+    other = next(i for i in search_items("deep") if "quicklookurl" in i)["variables"]["book"]
+    books = f"{napkin}\n{other}"
+
+    header, *rows = picker("", books)
+
+    assert header["title"] == "2 books" and header["valid"] is False, "the header should count the books"
+    assert not any(r["title"].startswith("Keep ") for r in rows), "a bulk pick has no single current genre"
+    assert all(r["variables"]["book"] == books for r in rows), "every row carries all the books"
+
+
+@pytest.mark.parametrize("books", ["", "nope"])
+def test_picker_without_a_known_book_explains(indexed, books):
+    assert titles(picker("", books)) == ["No book selected"], "the picker needs a book to set the genre of"

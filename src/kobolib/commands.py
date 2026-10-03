@@ -9,7 +9,7 @@ from pathlib import Path
 from kobolib import alfred
 from kobolib.alfred import counted
 from kobolib.apply import EXECUTABLE, last_batch, read_journal
-from kobolib.config import db_path, journal_path, library_root, sources, sources_db_path
+from kobolib.config import db_path, genre_store, journal_path, library_root, sources, sources_db_path
 from kobolib.index import Index, is_current
 from kobolib.library import diagnosis, findings, known_genres, not_in_library, pending_operations, unclassified_rows
 from kobolib.model import DuplicateGroup, Finding, Operation, Row
@@ -163,12 +163,32 @@ def contains(fragment: str, text: str) -> bool:
     return fragment.casefold() in text.casefold()
 
 
-def genre_edits(query: str, index: Index, store: GenreStore, book: str) -> list[dict]:
-    genres = [g for g in known_genres(index, store) if contains(query, g)]
-    items = [alfred.genre_item(g, book) for g in genres]
-    if query and query not in genres:
-        items.append(alfred.edit_item(f"genre={query}", f"New genre: {query}", book))
-    return items
+def genre_choices(current: str, known: list[str]) -> list[str]:
+    return [current, *(g for g in known if g != current)] if current else known
+
+
+def genre_row(genre: str, book: str, typed: str, current: str) -> dict:
+    item = alfred.genre_item(genre, book, typed)
+    return alfred.keep_genre_item(item) if genre == current else item
+
+
+def picker_header(rows: list[Row], store: GenreStore) -> dict:
+    if len(rows) > 1:
+        return alfred.message_item(f"{len(rows)} books", "↩ on a genre sets it for all of them")
+    return alfred.genre_header(rows[0], store.genre_of(rows[0]))
+
+
+def genre_picker_items(typed: str, books: list[str]) -> list[dict]:
+    index, store = Index(db_path()), genre_store()
+    rows = [row for fingerprint in books if (row := index.by_fingerprint(fingerprint))]
+    if not rows:
+        return [alfred.message_item("No book selected", "Press ⇧↩ on a book in kb, or ↩ in kb classify")]
+    book = alfred.LINE.join(books)
+    current = store.genre_of(rows[0]) if len(rows) == 1 else ""
+    genres = [g for g in genre_choices(current, known_genres(index, store)) if contains(typed, g)]
+    choices = [genre_row(g, book, typed, current) for g in genres]
+    fallback = [alfred.new_genre_item(typed, book)] if typed else []
+    return [picker_header(rows, store), *(choices or fallback)]
 
 
 def source_items(words: list[str]) -> list[dict]:

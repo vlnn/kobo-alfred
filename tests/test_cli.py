@@ -184,20 +184,40 @@ def test_apply_without_plan_explains(indexed, capsys):
     assert main(["apply"]) == 1 and "kb:plan" in capsys.readouterr().out, "apply without a plan should point at kb:plan"
 
 
-def test_tag_command_sets_genre_by_path(indexed, library, capsys):
+def test_genre_command_sets_genre_by_path(indexed, library, capsys):
     book = str(library / "00_Inbox" / "Napkin.pdf")
 
-    assert main(["tag", book, "genre=reference"]) == 0, "setting a genre by path should succeed"
+    assert main(["genre", book, "reference"]) == 0, "setting a genre by path should succeed"
     assert capsys.readouterr().out.startswith("Napkin → reference"), "the result should be reported"
     assert [i["title"] for i in run(["search", "reference"], capsys)["items"]] == ["Napkin"], "the genre should be searchable"
     assert "Napkin" not in [i["title"] for i in run(["inbox"], capsys)["items"]], "a classified book leaves the inbox"
 
 
-def test_tag_command_accepts_a_fingerprint(indexed, capsys):
+def test_genre_command_accepts_a_fingerprint(indexed, capsys):
     fingerprint = run(["search", "napkin"], capsys)["items"][0]["variables"]["book"]
 
-    assert main(["tag", fingerprint, "genre=reference"]) == 0, "a fingerprint from the picker should identify the book"
+    assert main(["genre", fingerprint, "reference"]) == 0, "a fingerprint from the picker should identify the book"
     assert capsys.readouterr().out.startswith("Napkin → reference"), "the result should be reported"
+
+
+@pytest.mark.parametrize("argv", [["tag", "x", "genre=y"], ["genre", "reference"], ["genre"]])
+def test_genre_needs_books_then_a_genre(indexed, argv):
+    with pytest.raises(SystemExit):
+        main(argv)
+
+
+def test_genre_lowercases_and_trims_the_genre(indexed, library, capsys):
+    main(["genre", str(library / "00_Inbox" / "Napkin.pdf"), "  Games/Go "])
+
+    assert capsys.readouterr().out.startswith("Napkin → games/go"), "genres are stored trimmed and in lower case"
+
+
+def test_genres_renders_the_picker_for_the_selected_book(indexed, capsys, monkeypatch):
+    monkeypatch.setenv("book", run(["search", "napkin"], capsys)["items"][0]["variables"]["book"])
+
+    items = run(["genres", "non"], capsys)["items"]
+
+    assert [i["title"] for i in items] == ["Napkin", "nonfiction"], "the picker shows the book, then genres matching the typed text"
 
 
 def test_index_writes_the_genre_store(indexed, tmp_path):
@@ -205,37 +225,11 @@ def test_index_writes_the_genre_store(indexed, tmp_path):
     assert not (tmp_path / "alfred-data" / "tags.tsv").exists(), "no tags.tsv should be written any more"
 
 
-def test_genres_lists_known_genres_filtered(indexed, library, capsys):
-    main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=games/go"])
-    capsys.readouterr()
-
-    items = run(["genres", "g"], capsys)["items"]
-    assert [i["arg"] for i in items] == ["genre=games/go", "genre=g"], "matching genres are offered as edits, the fragment itself last"
-    assert [i["arg"] for i in run(["genres", ""], capsys)["items"]] == ["genre=games/go", "genre=nonfiction"], (
-        "all genres from tags and folders should be listed"
-    )
-
-
-def test_genres_offers_new_genre_from_query(indexed, library, capsys):
-
-    items = run(["genres", "fiction/mystery"], capsys)["items"]
-    assert items[-1]["arg"] == "genre=fiction/mystery" and items[-1]["title"].startswith("New genre"), (
-        "an unknown genre can be created from the query"
-    )
-
-
 def test_classify_lists_unclassified_with_book_variable(indexed, library, capsys):
 
     items = run(["classify", "napkin"], capsys)["items"]
     assert [i["title"] for i in items] == ["Napkin"], "classify should filter the inbox by the query"
     assert items[0]["arg"] == "" and len(items[0]["variables"]["book"]) == 40, "the book travels as a variable, the query starts empty"
-
-
-def test_genres_forwards_the_book_variable(indexed, library, capsys, monkeypatch):
-    monkeypatch.setenv("book", "abc123")
-
-    out = run(["genres", "non"], capsys)
-    assert out["items"][0]["variables"] == {"book": "abc123"}, "each genre item must carry the book on to the tag step"
 
 
 @pytest.mark.parametrize("book", ["one", "one\ntwo"])
@@ -257,76 +251,6 @@ def test_search_items_offer_fix_on_shift(indexed, capsys):
     assert item["mods"]["shift"]["arg"] == "", "shift+↩ should open the fix picker with an empty query"
     assert "genre" in item["mods"]["shift"]["subtitle"].lower(), "the shift subtitle should say it fixes genre/tags"
     assert item["variables"]["book"] == item["mods"]["shift"]["variables"]["book"], "the fingerprint must travel with the shift action"
-
-
-def test_fix_lists_genres_under_the_book(indexed, library, capsys, monkeypatch):
-    main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=games/go"])
-    capsys.readouterr()
-    main(["search", "napkin"])
-    monkeypatch.setenv("book", output(capsys)["items"][0]["variables"]["book"])
-
-    items = run(["fix", ""], capsys)["items"]
-    assert items[0]["title"].startswith("Napkin") and items[0]["valid"] is False, "the first item should show the book being fixed"
-    assert items[0]["subtitle"] == "games/go · 00_Inbox/Napkin.pdf", "the header should show the current genre and path"
-    assert not [i for i in items if i.get("arg", "").startswith(("+", "-"))], "tags can no longer be added or removed"
-    assert "genre=nonfiction" in [i.get("arg") for i in items], "known genres should be offered"
-
-
-@pytest.mark.parametrize(
-    "query, arg, title_start",
-    [
-        ("fiction/mystery", "genre=fiction/mystery", "New genre"),
-        ("non", "genre=nonfiction", "nonfiction"),
-    ],
-)
-def test_fix_turns_query_into_an_edit(indexed, library, capsys, monkeypatch, query, arg, title_start):
-    main(["search", "napkin"])
-    monkeypatch.setenv("book", output(capsys)["items"][0]["variables"]["book"])
-
-    edits = [i for i in run(["fix", "--", query], capsys)["items"] if i.get("valid", True)]
-    assert edits[0]["arg"] == arg, f"query {query!r} should offer the edit {arg!r}"
-    assert edits[0]["title"].startswith(title_start), f"the offered edit should be labelled {title_start!r}"
-
-
-@pytest.fixture
-def spy_book(indexed, library, capsys, monkeypatch):
-    main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=fiction/spy"])
-    capsys.readouterr()
-    monkeypatch.setenv("book", run(["search", "napkin"], capsys)["items"][0]["variables"]["book"])
-
-
-def offered(items: list[dict], prefix: str) -> list[str]:
-    return [i["arg"] for i in items if i.get("arg", "").startswith(prefix) and not i["title"].startswith("New genre")]
-
-
-@pytest.mark.parametrize("query", ["spy", "SPY", "fiction/", "tion/sp"])
-def test_fix_matches_a_genre_anywhere_in_its_path(spy_book, capsys, query):
-    items = run(["fix", query], capsys)["items"]
-    assert offered(items, "genre=") == ["genre=fiction/spy"], f"{query!r} should match the genre anywhere in its path, case-insensitively"
-    assert items[1]["autocomplete"] == "fiction/spy", "⇥ on a genre row completes to the genre itself, not to the edit"
-
-
-def test_fix_offers_a_partial_match_as_a_new_genre_too(spy_book, capsys):
-    last = run(["fix", "spy"], capsys)["items"][-1]
-    assert last["arg"] == "genre=spy" and last["title"].startswith("New genre"), (
-        "a fragment that is not itself a genre can still become one"
-    )
-
-
-def test_fix_does_not_offer_an_existing_genre_as_new(spy_book, capsys):
-    titles = [i["title"] for i in run(["fix", "fiction/spy"], capsys)["items"]]
-    assert not any(t.startswith("New genre") for t in titles), "an exact existing genre is not offered again as new"
-
-
-def test_genres_picker_matches_like_fix(spy_book, capsys):
-    args = [i["arg"] for i in run(["genres", "SP"], capsys)["items"]]
-    assert args == ["genre=fiction/spy", "genre=sp"], "kb:classify's genre step uses the same matching as the fix picker"
-
-
-def test_fix_without_book_explains(indexed, capsys, monkeypatch):
-    monkeypatch.delenv("book", raising=False)
-
-    assert run(["fix", ""], capsys)["items"][0]["valid"] is False, "without a selected book the fix picker must not be actionable"
 
 
 def test_plan_list_starts_with_apply_all(indexed, capsys):
@@ -354,10 +278,10 @@ def test_apply_summary_names_the_skip_reason(indexed, library, tmp_path, capsys)
     assert capsys.readouterr().out.startswith("Applied 0, skipped 1 (source missing)"), "the summary should say why operations were skipped"
 
 
-def test_tag_with_genre_moves_the_book_to_its_genre_home(indexed, library, capsys):
+def test_genre_moves_the_book_to_its_genre_home(indexed, library, capsys):
     book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
 
-    assert main(["tag", str(book), "genre=productivity"]) == 0, "tagging with a genre should succeed"
+    assert main(["genre", str(book), "productivity"]) == 0, "tagging with a genre should succeed"
     out = capsys.readouterr().out
 
     assert not book.exists(), "the book should leave its old folder as soon as the genre is set"
@@ -371,7 +295,7 @@ def test_single_book_moves_update_the_index_in_place(indexed, library, capsys, m
     rebuild = mocker.patch("kobolib.library.build_index")
     book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
 
-    main(["tag", str(book), "genre=productivity"])
+    main(["genre", str(book), "productivity"])
     capsys.readouterr()
 
     rebuild.assert_not_called()
@@ -396,7 +320,7 @@ def test_apply_only_moves_one_book_without_a_full_rebuild(indexed, library, caps
 def test_single_book_move_updates_the_genre_store_path(indexed, library, tmp_path, capsys):
     import csv
 
-    main(["tag", str(library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"), "genre=productivity"])
+    main(["genre", str(library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"), "productivity"])
 
     with (tmp_path / "alfred-data" / "genres.tsv").open(newline="", encoding="utf-8") as handle:
         paths = {r["rel_path"] for r in csv.DictReader(handle, delimiter="\t")}
@@ -408,7 +332,7 @@ def test_single_book_move_updates_the_genre_store_path(indexed, library, tmp_pat
 def test_apply_only_runs_a_plan_row_even_when_the_plan_went_stale(indexed, library, capsys):
     (library / "00_Inbox" / "FSCK0000.000").write_bytes(b"")
     main(["plan"])
-    main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=reference"])
+    main(["genre", str(library / "00_Inbox" / "Napkin.pdf"), "reference"])
     capsys.readouterr()
 
     assert main(["apply", "--only", str(library / "00_Inbox" / "FSCK0000.000")]) == 0, "↩ on a row still works after the index changed"
@@ -424,20 +348,20 @@ def test_apply_only_follows_a_fresh_plan_row(indexed, library, capsys):
     assert (library / "_trash" / "00_Inbox" / "FSCK0000.000").exists(), "the trash row from the plan is what runs, not a genre move"
 
 
-def test_tag_with_genre_reports_when_there_is_no_home_yet(indexed, library, capsys):
+def test_genre_reports_when_there_is_no_home_yet(indexed, library, capsys):
     book = library / "00_Inbox" / "Napkin.pdf"
 
-    assert main(["tag", str(book), "genre=reference"]) == 0, "a book without an author can still be tagged"
+    assert main(["genre", str(book), "reference"]) == 0, "a book without an author can still be tagged"
 
     assert book.exists(), "a book whose home cannot be derived stays put"
     assert "stays put" in capsys.readouterr().out, "the report should say the book was not moved"
 
 
-def test_tag_with_genre_accepts_notify_like_the_other_movers(indexed, library, mocker):
+def test_genre_accepts_notify_like_the_other_movers(indexed, library, mocker):
     notify = mocker.patch("kobolib.cli.notify")
     book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
 
-    assert main(["tag", "--notify", str(book), "genre=productivity"]) == 0, "--notify should be accepted before the book"
+    assert main(["genre", "--notify", str(book), "productivity"]) == 0, "--notify should be accepted before the book"
 
     assert notify.call_count == 1 and "moved → productivity/" in notify.call_args.args[0], "the notification should name the new home"
 
@@ -457,27 +381,18 @@ def fingerprints_of(items: list[dict]) -> list[str]:
     return [i["variables"]["book"] for i in items if "mods" in i and i.get("valid", True)]
 
 
-def test_tag_classifies_many_books_at_once(indexed, library, capsys):
+def test_genre_classifies_many_books_at_once(indexed, library, capsys):
     books = "\n".join(fingerprints_of(run(["inbox", ""], capsys)["items"]))
 
-    assert main(["tag", books, "genre=reference"]) == 0, "tagging several books should succeed"
+    assert main(["genre", books, "reference"]) == 0, "setting the genre of several books should succeed"
 
-    assert capsys.readouterr().out.startswith("2 books → reference"), "the summary should count the books"
+    assert capsys.readouterr().out.startswith("2 books → reference · 1 moved, 1 stayed put"), "the summary counts moved and unmoved books"
     assert fingerprints_of(run(["inbox", ""], capsys)["items"]) == [], "both books leave the inbox; only the partial download stays"
     assert len(run(["search", "reference"], capsys)["items"]) == 2, "both books carry the genre"
 
 
-def test_tag_skips_unknown_references_in_a_batch(indexed, library, capsys):
+def test_genre_skips_unknown_references_in_a_batch(indexed, library, capsys):
     known = fingerprints_of(run(["inbox", ""], capsys)["items"])[0]
 
-    assert main(["tag", f"{known}\nnope", "genre=reference"]) == 0, "one unknown reference does not fail the batch"
+    assert main(["genre", f"{known}\nnope", "reference"]) == 0, "one unknown reference does not fail the batch"
     assert "skipped 1" in capsys.readouterr().out, "the unknown reference should be mentioned"
-
-
-def test_genres_for_many_books_says_so(indexed, capsys, monkeypatch):
-    monkeypatch.setenv("book", "aaa\nbbb")
-
-    items = run(["genres", ""], capsys)["items"]
-
-    assert items[0]["title"] == "Genre for 2 books" and items[0]["valid"] is False, "a header should say the pick applies to all"
-    assert items[1]["variables"] == {"book": "aaa\nbbb"}, "every genre item carries all the books on"

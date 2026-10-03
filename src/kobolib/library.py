@@ -46,19 +46,15 @@ def row_by_reference(reference: str, index: Index) -> Row | None:
     return index.by_fingerprint(reference)
 
 
-def apply_edits(tag: Tag, edits: list[str]) -> Tag:
-    for edit in edits:
-        if edit.startswith("genre="):
-            tag.genre = edit.removeprefix("genre=").strip().lower()
-    return tag
+def genre_text(raw: str) -> str:
+    return raw.strip().lower()
 
 
-def sets_genre(edits: list[str]) -> bool:
-    return any(e.startswith("genre=") for e in edits)
-
-
-def tag_summary(title: str, tag: Tag) -> str:
-    return f"{title} → {tag.genre or 'no genre'}"
+def set_genre(row: Row, genre: str, index: Index, store: GenreStore) -> tuple[bool, str]:
+    store.set(row.fingerprint, Tag(genre=genre, rel_path=row.rel_path))
+    store.save()
+    index.write_genres({row.fingerprint: genre})
+    return rehome(row, index, store)
 
 
 def known_genres(index: Index, store: GenreStore) -> list[str]:
@@ -164,16 +160,16 @@ def apply_summary(result) -> str:
     return f"Applied {result.done}, skipped {len(result.skipped)} ({skip_reasons(result.skipped)})"
 
 
-def rehome(row: Row, index: Index, store: GenreStore) -> str:
+def rehome(row: Row, index: Index, store: GenreStore) -> tuple[bool, str]:
     op = relocation(row, all_rows(index), store)
     if op is None or op.kind != "move":
-        return "stays put (no author or already home)"
+        return False, "stays put (no author or already home)"
     result = apply([op], library_root(), journal_path())
     plan_path().unlink(missing_ok=True)
     refresh_index(result)
     if result.skipped:
-        return f"not moved: {skip_reasons(result.skipped)}"
-    return f"moved → {Path(op.dst).parent}/"
+        return False, f"not moved: {skip_reasons(result.skipped)}"
+    return True, f"moved → {Path(op.dst).parent}/"
 
 
 def inbox_folder() -> Path:

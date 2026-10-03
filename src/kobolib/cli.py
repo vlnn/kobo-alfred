@@ -14,7 +14,7 @@ from kobolib.commands import (
     all_stats_items,
     classify_items,
     dups_items,
-    genre_edits,
+    genre_picker_items,
     inbox_items,
     index_problem,
     lint_items,
@@ -31,35 +31,31 @@ from kobolib.config import (
     journal_path,
     library_root,
     plan_path,
-    selected_book,
     selected_books,
     sources,
 )
 from kobolib.index import Index, add_book, fill_thumbnails, index_busy
 from kobolib.library import (
-    apply_edits,
     apply_summary,
     current_plan,
     findings,
+    genre_text,
     import_blocked,
     inbox_folder,
     inbox_note,
     ops_for_one,
     plan_is_stale,
     refresh_index,
-    rehome,
     row_by_reference,
     run_index,
     run_index_sources,
-    sets_genre,
-    tag_summary,
+    set_genre,
     text_report,
     transfer,
 )
-from kobolib.model import Book, Row, Tag
+from kobolib.model import Book, Row
 from kobolib.plan import read_plan, write_plan
 from kobolib.query import query_words
-from kobolib.tags import GenreStore
 
 NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobo Library"', "end run")
 
@@ -198,65 +194,36 @@ def cmd_undo(args) -> int:
     return finish_with_reindex(f"Undid {undone}", args.notify)
 
 
-def tag_one(row: Row, edits: list[str], index: Index, store: GenreStore) -> str:
-    tag = apply_edits(store.get(row.fingerprint) or Tag(rel_path=row.rel_path), edits)
-    store.set(row.fingerprint, tag)
-    store.save()
-    index.write_genres({row.fingerprint: tag.genre})
-    summary = tag_summary(row.title, tag)
-    return summary if not sets_genre(edits) else f"{summary} · {rehome(row, index, store)}"
-
-
-def tagged_summary(rows: list[Row], results: list[str], edits: list[str], missing: list[str]) -> str:
+def genre_summary(rows: list[Row], genre: str, outcomes: list[tuple[bool, str]], missing: list[str]) -> str:
     if len(rows) == 1:
-        return results[0] + skipped_summary(missing)
-    what = " ".join(e for e in edits if e.startswith("genre=")).removeprefix("genre=") or ", ".join(edits)
-    return f"{counted(len(rows), 'book')} → {what}{skipped_summary(missing)}"
+        return f"{rows[0].title} → {genre} · {outcomes[0][1]}{skipped_summary(missing)}"
+    moved = sum(1 for was_moved, _ in outcomes if was_moved)
+    return f"{counted(len(rows), 'book')} → {genre} · {moved} moved, {len(rows) - moved} stayed put{skipped_summary(missing)}"
 
 
-def cmd_tag(args) -> int:
+def references(values: list[str]) -> list[str]:
+    return [line for value in values for line in value.splitlines() if line]
+
+
+def cmd_genre(args) -> int:
     if reason := not_writable():
         return refuse(reason, args.notify)
-    index, store = Index(db_path()), genre_store()
-    found = {ref: row_by_reference(ref, index) for ref in args.book.splitlines() if ref}
+    genre, index, store = genre_text(args.genre), Index(db_path()), genre_store()
+    if not genre:
+        return refuse("No genre given", args.notify)
+    found = {ref: row_by_reference(ref, index) for ref in references(args.books)}
     rows = [row for row in found.values() if row is not None]
     missing = [f"not indexed: {ref}" for ref, row in found.items() if row is None]
     if not rows:
-        print("; ".join(missing).capitalize())
-        return 1
-    results = [tag_one(row, args.edits, index, store) for row in rows]
-    report(tagged_summary(rows, results, args.edits, missing), args.notify)
+        return refuse("; ".join(missing).capitalize(), args.notify)
+    outcomes = [set_genre(row, genre, index, store) for row in rows]
+    report(genre_summary(rows, genre, outcomes, missing), args.notify)
     return 0
-
-
-@requires_index
-def cmd_fix(args) -> int:
-    book = selected_book()
-    index, store = Index(db_path()), genre_store()
-    row = index.by_fingerprint(book) if book else None
-    if row is None:
-        print(alfred.render([alfred.message_item("No book selected", "Start from kb and press ⇧↩ on a book")]))
-        return 0
-    tag = store.get(book) or Tag()
-    query = args.query.strip().lower()
-    print(alfred.render([alfred.fix_header(row, tag.genre), *genre_edits(query, index, store, book)]))
-    return 0
-
-
-def batch_header(books: list[str]) -> list[dict]:
-    if len(books) < 2:
-        return []
-    return [alfred.message_item(f"Genre for {len(books)} books", "↩ on a genre applies it to all of them")]
 
 
 @requires_index
 def cmd_genres(args) -> int:
-    books = selected_books()
-    if not books:
-        print(alfred.render([alfred.message_item("No book selected", "Start from kb:classify")]))
-        return 0
-    edits = genre_edits(args.query.strip().lower(), Index(db_path()), genre_store(), selected_book())
-    print(alfred.render(batch_header(books) + edits))
+    print(alfred.render(genre_picker_items(args.query.strip(), selected_books())))
     return 0
 
 
@@ -323,7 +290,6 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("inbox", parents=[query]).set_defaults(func=cmd_inbox)
     sub.add_parser("classify", parents=[query]).set_defaults(func=cmd_classify)
     sub.add_parser("sources", parents=[query]).set_defaults(func=cmd_sources)
-    sub.add_parser("fix", parents=[query]).set_defaults(func=cmd_fix)
     sub.add_parser("genres", parents=[query]).set_defaults(func=cmd_genres)
     sub.add_parser("dups").set_defaults(func=cmd_dups)
     sub.add_parser("stats").set_defaults(func=cmd_stats)
@@ -333,10 +299,10 @@ def build_parser() -> argparse.ArgumentParser:
     apply_cmd = sub.add_parser("apply", parents=[notify])
     apply_cmd.add_argument("--only")
     apply_cmd.set_defaults(func=cmd_apply)
-    tag_cmd = sub.add_parser("tag", parents=[notify])
-    tag_cmd.add_argument("book")
-    tag_cmd.add_argument("edits", nargs=argparse.REMAINDER)
-    tag_cmd.set_defaults(func=cmd_tag)
+    genre_cmd = sub.add_parser("genre", parents=[notify])
+    genre_cmd.add_argument("books", nargs="+")
+    genre_cmd.add_argument("genre")
+    genre_cmd.set_defaults(func=cmd_genre)
     import_cmd = sub.add_parser("import", parents=[notify])
     import_cmd.add_argument("book")
     import_cmd.set_defaults(func=cmd_import)
