@@ -10,12 +10,12 @@ from contextlib import contextmanager
 from dataclasses import astuple, fields
 from pathlib import Path
 
-from kobolib.covers import THUMBNAIL_FORMATS, cover_key, ensure_cover
-from kobolib.languages import searchable_language
-from kobolib.metadata import is_sound, read_book
-from kobolib.model import Book, Row
-from kobolib.query import fts_match
-from kobolib.scan import SKIP_FOLDERS, iter_books
+from kobold.covers import THUMBNAIL_FORMATS, cover_key, ensure_cover
+from kobold.languages import searchable_language
+from kobold.metadata import is_sound, read_book
+from kobold.model import Book, Row
+from kobold.query import fts_match
+from kobold.scan import SKIP_FOLDERS, iter_books
 
 COLUMNS = tuple(f.name for f in fields(Row))
 SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path", "genre", "subjects", "format", "language", "year"}

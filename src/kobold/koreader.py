@@ -4,7 +4,7 @@ import os
 import unicodedata
 from pathlib import Path
 
-from kobolib.paths import SIDECAR_SUFFIX, nfc, sidecar_of
+from kobold.paths import SIDECAR_SUFFIX, nfc, sidecar_of
 
 KOREADER_DIR = ".adds/koreader"
 SETTINGS_FILES = ("collection.lua", "history.lua", "bookmarks.lua")

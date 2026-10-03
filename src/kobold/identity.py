@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from kobolib.scan import book_format, is_partial
+from kobold.scan import book_format, is_partial
 
 TEXT_SUFFIXES = (".xhtml", ".html", ".htm")
 CHUNK = 1 << 20

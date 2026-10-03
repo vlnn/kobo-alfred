@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.identity import file_hash, fingerprint
+from kobold.identity import file_hash, fingerprint
 from tests.conftest import CONTAINER, FB2, OPF, PNG_1X1
 
 CHAPTERS = {"OEBPS/ch1.xhtml": "<p>Deep work is</p>", "OEBPS/ch2.xhtml": "<p>the ability to focus</p>"}

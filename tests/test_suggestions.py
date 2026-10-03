@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.suggestions import ANY_EVIDENCE, SuggestionStore
+from kobold.suggestions import ANY_EVIDENCE, SuggestionStore
 
 
 @pytest.fixture

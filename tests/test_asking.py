@@ -1,6 +1,6 @@
 import pytest
 
-from kobolib.asking import Asked, AskedLibrary, Embedded, author_folder_names, embed_summary, name_is_a_guess, summary
+from kobold.asking import Asked, AskedLibrary, Embedded, author_folder_names, embed_summary, name_is_a_guess, summary
 from tests.test_alfred import row
 
 
@@ -32,14 +32,14 @@ def test_name_is_a_guess_for_opaque_or_noisy_names_without_metadata(overrides, e
     ],
 )
 def test_summary_counts_what_came_back(asked, expected, mocker):
-    mocker.patch("kobolib.oracle.unreachable", return_value="")
+    mocker.patch("kobold.oracle.unreachable", return_value="")
     noun = "merge" if isinstance(asked, AskedLibrary) else "genre"
 
     assert summary(noun, asked) == expected, f"{asked} should be summarised as {expected!r}"
 
 
 def test_summary_names_the_server_when_skips_came_from_a_dead_connection(mocker):
-    mocker.patch("kobolib.oracle.unreachable", return_value="http://127.0.0.1:8080")
+    mocker.patch("kobold.oracle.unreachable", return_value="http://127.0.0.1:8080")
     down = "Model not reachable at http://127.0.0.1:8080"
 
     assert summary("genre", Asked(books=2, skipped=2)) == down, "skips plus a note mean the server is down"

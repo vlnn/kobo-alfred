@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.cli import main
+from kobold.cli import main
 
 PNG_1X1 = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
 
@@ -64,7 +64,7 @@ FB2 = """<?xml version="1.0" encoding="utf-8"?>
 
 @pytest.fixture(autouse=True)
 def no_quicklook(mocker):
-    mocker.patch("kobolib.covers.shutil.which", return_value=None)
+    mocker.patch("kobold.covers.shutil.which", return_value=None)
 
 
 @pytest.fixture
@@ -99,9 +99,9 @@ def library(tmp_path: Path, epub_file: Path, fb2_file: Path) -> Path:
 
 @pytest.fixture
 def env(library: Path, tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("KOBO_ROOT", str(library))
+    monkeypatch.setenv("KOBOLD_ROOT", str(library))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
-    monkeypatch.delenv("KOBO_DATA", raising=False)
+    monkeypatch.delenv("KOBOLD_DATA", raising=False)
     monkeypatch.setenv("book", "x")
 
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from kobolib.covers import cover_key, ensure_cover
-from kobolib.model import Book
+from kobold.covers import cover_key, ensure_cover
+from kobold.model import Book
 from tests.conftest import PNG_1X1
 
 
@@ -20,7 +20,7 @@ def test_cover_key_is_stable_per_relative_path(tmp_path: Path):
 def test_embedded_cover_is_written_once(tmp_path: Path, mocker):
     cache = tmp_path / "cache"
     book = make_book(tmp_path, "x.epub", cover=("cover.png", PNG_1X1))
-    run = mocker.patch("kobolib.covers.subprocess.run")
+    run = mocker.patch("kobold.covers.subprocess.run")
 
     first = ensure_cover(book, cache)
     second = ensure_cover(book, cache)
@@ -40,8 +40,8 @@ def test_quicklook_thumbnail_for_pdf(tmp_path: Path, mocker):
         (out_dir / "Napkin.pdf.png").write_bytes(PNG_1X1)
         return mocker.Mock(returncode=0)
 
-    mocker.patch("kobolib.covers.shutil.which", return_value="/usr/bin/qlmanage")
-    mocker.patch("kobolib.covers.subprocess.run", side_effect=fake_qlmanage)
+    mocker.patch("kobold.covers.shutil.which", return_value="/usr/bin/qlmanage")
+    mocker.patch("kobold.covers.subprocess.run", side_effect=fake_qlmanage)
 
     result = ensure_cover(book, cache)
 
@@ -52,16 +52,16 @@ def test_quicklook_timeout_gives_no_cover(tmp_path: Path, mocker):
     import subprocess
 
     book = make_book(tmp_path, "Huge.pdf")
-    mocker.patch("kobolib.covers.shutil.which", return_value="/usr/bin/qlmanage")
-    mocker.patch("kobolib.covers.subprocess.run", side_effect=subprocess.TimeoutExpired("qlmanage", 15))
+    mocker.patch("kobold.covers.shutil.which", return_value="/usr/bin/qlmanage")
+    mocker.patch("kobold.covers.subprocess.run", side_effect=subprocess.TimeoutExpired("qlmanage", 15))
 
     assert ensure_cover(book, tmp_path / "cache") is None, "a hanging qlmanage should be abandoned, not waited on"
 
 
 def test_thumbnails_can_be_skipped(tmp_path: Path, mocker):
     book = make_book(tmp_path, "Napkin.pdf")
-    mocker.patch("kobolib.covers.shutil.which", return_value="/usr/bin/qlmanage")
-    run = mocker.patch("kobolib.covers.subprocess.run")
+    mocker.patch("kobold.covers.shutil.which", return_value="/usr/bin/qlmanage")
+    run = mocker.patch("kobold.covers.subprocess.run")
 
     assert ensure_cover(book, tmp_path / "cache", thumbnails=False) is None, "thumbnails=False should skip qlmanage"
     run.assert_not_called()
@@ -69,7 +69,7 @@ def test_thumbnails_can_be_skipped(tmp_path: Path, mocker):
 
 def test_no_cover_without_quicklook(tmp_path: Path, mocker):
     book = make_book(tmp_path, "Napkin.pdf")
-    mocker.patch("kobolib.covers.shutil.which", return_value=None)
+    mocker.patch("kobold.covers.shutil.which", return_value=None)
 
     assert ensure_cover(book, tmp_path / "cache") is None, "without qlmanage pdf gets no cover"
 
@@ -77,8 +77,8 @@ def test_no_cover_without_quicklook(tmp_path: Path, mocker):
 def test_partial_books_get_no_cover(tmp_path: Path, mocker):
     book = make_book(tmp_path, "x.epub", cover=("c.jpg", PNG_1X1))
     book.partial = True
-    mocker.patch("kobolib.covers.shutil.which", return_value="/usr/bin/qlmanage")
-    run = mocker.patch("kobolib.covers.subprocess.run")
+    mocker.patch("kobold.covers.shutil.which", return_value="/usr/bin/qlmanage")
+    run = mocker.patch("kobold.covers.subprocess.run")
 
     assert ensure_cover(book, tmp_path / "cache") is None, "partial downloads should not produce covers"
     run.assert_not_called()

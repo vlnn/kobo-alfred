@@ -1,6 +1,6 @@
 import pytest
 
-from kobolib.naming import author_folder, canonical_name, destination, fat_safe, genre_root, shelves
+from kobold.naming import author_folder, canonical_name, destination, fat_safe, genre_root, shelves
 from tests.test_alfred import row
 
 
@@ -114,7 +114,7 @@ def test_cyrillic_names_follow_surname_first_convention(authors, folder):
 
 
 def test_known_authors_includes_plain_folders():
-    from kobolib.naming import known_authors
+    from kobold.naming import known_authors
 
     assert known_authors({"01_Fiction/Rowan Teague", "01_Fiction/Marlowe, Petra", "01_Fiction/Standalone"}) == {
         "Teague, Rowan",

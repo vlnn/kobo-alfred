@@ -4,11 +4,11 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from kobolib.genres import GenreStore, genre_from_folder
-from kobolib.index import series_key
-from kobolib.lint import all_folders
-from kobolib.model import Finding, Operation, Row
-from kobolib.naming import Shelves, destination, shelves
+from kobold.genres import GenreStore, genre_from_folder
+from kobold.index import series_key
+from kobold.lint import all_folders
+from kobold.model import Finding, Operation, Row
+from kobold.naming import Shelves, destination, shelves
 
 FORMAT_RANK = ("epub", "fb2", "mobi", "azw3", "azw", "pdf", "djvu")
 TRASH = "_trash"

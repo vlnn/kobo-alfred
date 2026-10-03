@@ -52,8 +52,8 @@ wheels = [
 ]
 
 [[package]]
-name = "kobolib"
-version = "0.3.0"
+name = "kobold"
+version = "0.4.0"
 source = { editable = "." }
 
 [package.dev-dependencies]

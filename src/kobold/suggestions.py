@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-from kobolib.model import Suggestion
-from kobolib.store import TsvStore
+from kobold.model import Suggestion
+from kobold.store import TsvStore
 
 QUESTIONS = ("genre", "name", "authors")
 LIBRARY = "*"

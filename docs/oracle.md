@@ -1,4 +1,4 @@
-# kobo-alfred — local model (oracle) design
+# kobold — local model (oracle) design
 
 Status: implemented, 2026-10-03. Builds on the interface described in the README; nothing there changes.
 
@@ -31,7 +31,7 @@ A fourth thing is not a chore but a missing view: *what else do I have like this
 The oracle talks to a running `llama-server` through its OpenAI-compatible endpoint.
 
 ```
-POST {KOBO_ORACLE_URL}/v1/chat/completions
+POST {KOBOLD_ORACLE_URL}/v1/chat/completions
 {
   "messages": [{"role": "system", "content": …}, {"role": "user", "content": …}],
   "temperature": 0,
@@ -45,10 +45,10 @@ Configuration (workflow variables, like the existing ones):
 
 | Variable | Meaning | Default |
 |---|---|---|
-| `KOBO_ORACLE_URL` | base URL of llama-server; empty turns the oracle and the embedder off | empty |
-| `KOBO_ORACLE_MODEL` | model for the questions | empty: whatever the server loads by default |
-| `KOBO_EMBED_URL` | base URL for embeddings, when they run on another server | empty: same as the oracle |
-| `KOBO_EMBED_MODEL` | embedding model; empty turns `kb like` off | empty |
+| `KOBOLD_ORACLE_URL` | base URL of llama-server; empty turns the oracle and the embedder off | empty |
+| `KOBOLD_ORACLE_MODEL` | model for the questions | empty: whatever the server loads by default |
+| `KOBOLD_EMBED_URL` | base URL for embeddings, when they run on another server | empty: same as the oracle |
+| `KOBOLD_EMBED_MODEL` | embedding model; empty turns `kb like` off | empty |
 
 These are ordinary workflow configuration fields. `kb model` (below) writes the two model fields for you; the URLs are typed once.
 
@@ -170,7 +170,7 @@ kb fix
   Ask the model about 12 inbox books and 4 unnamed files     ↩ runs in the background, then notifies   ← only when the oracle is configured and there is something unasked
 ```
 
-The same row appears in `kb classify` when inbox books are unasked. ↩ runs `kobolib ask` in the background runner. `kb update` does not ask on its own: indexing should stay as fast as it is, and the person decides when to spend the minutes.
+The same row appears in `kb classify` when inbox books are unasked. ↩ runs `kobold ask` in the background runner. `kb update` does not ask on its own: indexing should stay as fast as it is, and the person decides when to spend the minutes.
 
 ### `kb like`
 
@@ -214,29 +214,29 @@ Rows are what `/v1/models` returns, from both URLs when they differ. ↩ on a mo
 |---|---|---|
 | oracle configured, server not reachable | "Model not reachable at {url}" in `kb fix` and `kb classify` | — |
 | asked, nothing suggested | "The model had no suggestions" (notification only) | — |
-| `kb like` with `KOBO_EMBED_MODEL` empty | "No embedding model · ↩ opens kb model" | completes to `kb model` |
+| `kb like` with `KOBOLD_EMBED_MODEL` empty | "No embedding model · ↩ opens kb model" | completes to `kb model` |
 | `kb like` with no vectors for the current model | "No embeddings yet" | embed |
 | `kb model`, server down | "Model not reachable at {url}" | — |
 
 ### Terminal
 
 ```
-kobolib ask [genre|name|authors] [<words>]     ask the unasked, or everything matching the words; --force re-asks
-kobolib ask --dry-run                           print the evidence that would be sent, one book per block
+kobold ask [genre|name|authors] [<words>]     ask the unasked, or everything matching the words; --force re-asks
+kobold ask --dry-run                           print the evidence that would be sent, one book per block
 ```
 
 `--dry-run` is the debugging tool: it shows exactly what the model sees.
 
 ```
-kobolib embed [<words>]                        embed books without a vector for the current model; --force re-embeds
-kobolib like <words>                           Alfred JSON, the same rows as kb like
-kobolib models                                 what the server(s) list, with the current choices marked
-kobolib choose oracle|embed <model>            write the choice to the workflow configuration
+kobold embed [<words>]                        embed books without a vector for the current model; --force re-embeds
+kobold like <words>                           Alfred JSON, the same rows as kb like
+kobold models                                 what the server(s) list, with the current choices marked
+kobold choose oracle|embed <model>            write the choice to the workflow configuration
 ```
 
 ## Effect on the existing interface and code
 
-The grammar, keys, commands, journal format and `apply` path do not change. Every new row appears only when a suggestion exists or `KOBO_ORACLE_URL` is set. Three things are visible to everyone, model or not:
+The grammar, keys, commands, journal format and `apply` path do not change. Every new row appears only when a suggestion exists or `KOBOLD_ORACLE_URL` is set. Three things are visible to everyone, model or not:
 
 1. **Search widens.** Once `dc:subject` is indexed as searchable, `kb history` also matches books a publisher tagged *History*, not only ones with the word in the title or path. The "No books match" subtitle lists *subjects* among the fields. (Alternative, if this is unwanted: store subjects `UNINDEXED` and use them only as picker evidence.)
 2. **One forced re-index.** The schema version bumps for the new columns; everyone sees *Index is from an older version* once and presses ↩.
@@ -249,7 +249,7 @@ With the oracle on, `genre ?` in `kb classify` subtitles becomes `fiction/sci-fi
 | Where | Today | After |
 |---|---|---|
 | `commands.headed` | one head row | `headed(heads: list[dict], items, batch_size)`; `classify` needs *Set genre for all* and *Accept N* together. `src` and `trash` call sites follow. |
-| `library.fix_operations` | the plan filtered by targets | the plan filtered by targets, **plus suggested operations only when targeted**. ↩ on a suggested row applies it; *Fix all* and bare `kobolib fix` stay certain-only. This is the one place the model's output and the planner meet; the rule lives there and nowhere else. |
+| `library.fix_operations` | the plan filtered by targets | the plan filtered by targets, **plus suggested operations only when targeted**. ↩ on a suggested row applies it; *Fix all* and bare `kobold fix` stay certain-only. This is the one place the model's output and the planner meet; the rule lives there and nowhere else. |
 | `model.Book` / `model.Row` | — | `subjects`, `description`, `guessed`; `to_row`, `row_reader` and the tests' `BASE_ROW` follow. |
 | `metadata.from_filename` | fills blanks | also sets `Book.guessed`. |
 | `library.run_index`, `library.refresh_index` | rekey `genres.tsv` | also prune `oracle.tsv` for fingerprints that left the index. |
@@ -281,7 +281,7 @@ With the oracle on, `genre ?` in `kb classify` subtitles becomes `fiction/sci-fi
 | Module | Role |
 |---|---|
 | `evidence.py` | `evidence_for(row, question) -> str` and `evidence_hash`. Opens the file for the text sample. |
-| `oracle.py` | `ask(question, evidence, schema) -> dict \| None` over `urllib`; `genre_of`, `name_of`, `author_groups` wrap it with their schemas and prompts. Off when `KOBO_ORACLE_URL` is empty. |
+| `oracle.py` | `ask(question, evidence, schema) -> dict \| None` over `urllib`; `genre_of`, `name_of`, `author_groups` wrap it with their schemas and prompts. Off when `KOBOLD_ORACLE_URL` is empty. |
 | `store.py` | `TsvStore`: the fingerprint-keyed TSV mechanics shared by `GenreStore` and `SuggestionStore`. |
 | `suggestions.py` | `SuggestionStore` on `oracle.tsv`: `get`, `set`, `stale`, `dismiss`, `prune(rows)`. |
 | `genres.py` | `GenreStore` becomes a thin `TsvStore` subclass. |
@@ -316,7 +316,7 @@ TDD, each step a green commit, each step useful without the next.
 1. **Subjects and descriptions.** Read them in `metadata.py`, store them, make subjects searchable, sort the picker by subject overlap. Bump the schema.
 2. **`Book.guessed`.** `from_filename` marks what it filled; `lint.looks_opaque` uses it instead of its two-word heuristic.
 3. **`TsvStore`** extracted from `GenreStore`; `SuggestionStore` on top of it. Pruning wired into `run_index` and `refresh_index`.
-4. **`evidence.py` and `oracle.py`** with the genre question. `kobolib ask genre` works from the terminal.
+4. **`evidence.py` and `oracle.py`** with the genre question. `kobold ask genre` works from the terminal.
 5. **`headed` takes a list**; picker and `kb classify` rows: the `?` marker, the suggested first row, `Accept N`, `Ask the model`.
 6. **Name question**; `fix_operations` learns the targeted-only rule; suggested renames in `kb fix`.
 7. **Author alias question**, merge rows.
@@ -328,7 +328,7 @@ TDD, each step a green commit, each step useful without the next.
 ## Later
 
 - `kb next`: rank unread books against the last ten entries of KOReader's `history.lua`, using the vectors `kb like` already has. Mostly a question of what "unread" means on the Kobo side.
-- ~~Embedding during `kb update` for new books, behind a setting, once the per-book cost is known on real libraries.~~ Done: `KOBO_MODEL_ON_UPDATE`.
+- ~~Embedding during `kb update` for new books, behind a setting, once the per-book cost is known on real libraries.~~ Done: `KOBOLD_MODEL_ON_UPDATE`.
 - A text sample for PDFs if a dependency-free extractor turns out to be good enough; until then PDFs get metadata and filename only.
 - ~~Asking during `kb update` behind a setting, once the pass is known to be fast enough on real libraries.~~ Done: the same setting.
 
@@ -344,9 +344,9 @@ TDD, each step a green commit, each step useful without the next.
 - The passes that decide which books to ask about, and the embedding pass, live in `asking.py` rather than in `cli.py`; `cli.py` only parses arguments and reports.
 - `evidence_for(row, genres)` takes the genre list instead of a question name; the hash leaves out the `Path:` line, so a rename or move is not new evidence.
 - Which books are "unasked" is decided from the store alone (no stored answer), not from evidence hashes, so the script filters never open a book. "Model not reachable" in `kb fix` and `kb classify` comes from a note the last `ask` or `embed` pass left (`oracle.status`), cleared by the next answer; only `kb model` probes the server.
-- `kobolib dismiss <book>` backs the *Dismiss suggestions for this book* row; a dismissed book keeps empty answers with evidence hash `*`, so it is not asked again until `--force`.
+- `kobold dismiss <book>` backs the *Dismiss suggestions for this book* row; a dismissed book keeps empty answers with evidence hash `*`, so it is not asked again until `--force`.
 - The `genre` command takes `fingerprint<TAB>genre` lines so *Accept N suggested genres* reuses it; every genre set by one call is now one journaled batch, so *Undo last batch* covers all of them.
 - A suggested rename or merge is hidden for a file that already has a certain operation: the planner wins. After a merge, the planner derives author folders from embedded metadata, so a book whose metadata still carries the alias spelling may be offered a move back.
 - A new vector is scored against every stored one and slotted into the lists of the books it is near, so every neighbour list stays exact at one pass per new book; there is no lazy pickup.
-- `KOBO_MODEL_ON_UPDATE` (a checkbox, off by default) makes `kb update` run the name, genre and author questions and the embedding pass after indexing, reporting only steps that did something.
+- `KOBOLD_MODEL_ON_UPDATE` (a checkbox, off by default) makes `kb update` run the name, genre and author questions and the embedding pass after indexing, reporting only steps that did something.
 - `kb model`'s *Embeddings* header counts embedded books and, while some are missing, is itself the ↩-embeds row; the embedding server's reachability shows as a *Model not reachable* row in the list when it differs from the oracle's.

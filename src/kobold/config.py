@@ -3,18 +3,18 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from kobolib.genres import GenreStore
-from kobolib.index import Index
-from kobolib.suggestions import SuggestionStore
-from kobolib.vectors import VectorStore
+from kobold.genres import GenreStore
+from kobold.index import Index
+from kobold.suggestions import SuggestionStore
+from kobold.vectors import VectorStore
 
 
 def library_root() -> Path:
-    return Path(os.environ.get("KOBO_ROOT", "/Volumes/Transcend/kobo")).expanduser()
+    return Path(os.environ.get("KOBOLD_ROOT", "/Volumes/Transcend/kobo")).expanduser()
 
 
 def sources() -> list[Path]:
-    raw = os.environ.get("KOBO_SOURCES", "")
+    raw = os.environ.get("KOBOLD_SOURCES", "")
     return [Path(p).expanduser() for p in raw.replace("\n", os.pathsep).split(os.pathsep) if p.strip()]
 
 
@@ -26,9 +26,19 @@ def mounted_sources() -> tuple[list[Path], list[Path]]:
 
 
 def data_dir() -> Path:
-    default = Path.home() / "Library" / "Application Support" / "kobolib"
-    chosen = os.environ.get("KOBO_DATA") or os.environ.get("alfred_workflow_data") or str(default)
-    return Path(chosen).expanduser()
+    explicit = os.environ.get("KOBOLD_DATA")
+    if explicit:
+        return Path(explicit).expanduser()
+    default = Path.home() / "Library" / "Application Support" / "kobold"
+    chosen = Path(os.environ.get("alfred_workflow_data") or default).expanduser()
+    adopt_predecessor_data(chosen)
+    return chosen
+
+
+def adopt_predecessor_data(chosen: Path) -> None:
+    predecessor = chosen.with_name(chosen.name.replace("kobold", "kobolib"))
+    if predecessor != chosen and predecessor.is_dir() and not chosen.exists():
+        predecessor.rename(chosen)
 
 
 def db_path() -> Path:
@@ -60,31 +70,31 @@ def genre_store() -> GenreStore:
 
 
 def oracle_url() -> str:
-    return os.environ.get("KOBO_ORACLE_URL", "").strip().rstrip("/")
+    return os.environ.get("KOBOLD_ORACLE_URL", "").strip().rstrip("/")
 
 
 def oracle_model() -> str:
-    return os.environ.get("KOBO_ORACLE_MODEL", "").strip()
+    return os.environ.get("KOBOLD_ORACLE_MODEL", "").strip()
 
 
 def oracle_key() -> str:
-    return os.environ.get("KOBO_ORACLE_KEY", "").strip()
+    return os.environ.get("KOBOLD_ORACLE_KEY", "").strip()
 
 
 def embed_key() -> str:
-    return os.environ.get("KOBO_EMBED_KEY", "").strip() or oracle_key()
+    return os.environ.get("KOBOLD_EMBED_KEY", "").strip() or oracle_key()
 
 
 def embed_url() -> str:
-    return os.environ.get("KOBO_EMBED_URL", "").strip().rstrip("/") or oracle_url()
+    return os.environ.get("KOBOLD_EMBED_URL", "").strip().rstrip("/") or oracle_url()
 
 
 def embed_model() -> str:
-    return os.environ.get("KOBO_EMBED_MODEL", "").strip()
+    return os.environ.get("KOBOLD_EMBED_MODEL", "").strip()
 
 
 def model_on_update() -> bool:
-    return os.environ.get("KOBO_MODEL_ON_UPDATE", "").strip().lower() in ("1", "true", "yes", "on")
+    return os.environ.get("KOBOLD_MODEL_ON_UPDATE", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def oracle_log_path() -> Path:

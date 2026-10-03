@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.genres import GenreStore
-from kobolib.model import Finding, GenreEntry, Operation
-from kobolib.plan import plan, prefer
+from kobold.genres import GenreStore
+from kobold.model import Finding, GenreEntry, Operation
+from kobold.plan import plan, prefer
 from tests.test_lint import named
 
 
@@ -169,7 +169,7 @@ def test_series_counted_across_article_variants(tmp_path):
 
 
 def test_relocation_for_one_book_matches_the_plan(tmp_path):
-    from kobolib.plan import relocation
+    from kobold.plan import relocation
 
     rows = [
         named("Deep Work.epub", title="Deep Work", authors="Cal Newport", series="", year="", fingerprint="a"),
@@ -184,7 +184,7 @@ def test_relocation_for_one_book_matches_the_plan(tmp_path):
 
 
 def test_relocation_reports_a_taken_destination(tmp_path):
-    from kobolib.plan import relocation
+    from kobold.plan import relocation
 
     rows = [
         named("Dup.epub", title="Dup", authors="Someone", series="", year="", fingerprint="a"),
@@ -197,7 +197,7 @@ def test_relocation_reports_a_taken_destination(tmp_path):
 
 
 def test_relocation_is_none_for_books_that_stay(tmp_path):
-    from kobolib.plan import relocation
+    from kobold.plan import relocation
 
     rows = [named("x.epub", title="x", authors="", fingerprint="a"), named("y.epub.part", partial=True, authors="A B", fingerprint="b")]
     store = store_with(tmp_path, a="fiction", b="fiction")

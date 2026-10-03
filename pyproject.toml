@@ -1,12 +1,12 @@
 [project]
-name = "kobolib"
-version = "0.3.0"
+name = "kobold"
+version = "0.4.0"
 description = "Alfred workflow: search and tidy an ebook library by metadata, with covers and an optional local model"
 requires-python = ">=3.9"
 dependencies = []
 
 [project.scripts]
-kobolib = "kobolib.cli:main"
+kobold = "kobold.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-mock>=3.14", "ruff>=0.8"]
@@ -16,7 +16,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/kobolib"]
+packages = ["src/kobold"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -33,4 +33,4 @@ ignore = ["SIM112"]
 "tests/test_filenames.py" = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["kobolib", "tests"]
+known-first-party = ["kobold", "tests"]

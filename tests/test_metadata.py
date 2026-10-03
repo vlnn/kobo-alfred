@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.metadata import read_book
+from kobold.metadata import read_book
 from tests.conftest import PNG_1X1
 
 
@@ -118,7 +118,7 @@ def test_corrupt_epub_falls_back_to_filename(tmp_path: Path):
 def test_filename_metadata_is_nfc_normalized(tmp_path):
     import unicodedata
 
-    from kobolib.metadata import read_book
+    from kobold.metadata import read_book
 
     name = unicodedata.normalize("NFD", "Вайс Йосип - Пісня.fb2")
     path = tmp_path / name

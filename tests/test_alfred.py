@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from kobolib.alfred import book_item, empty_item, render
-from kobolib.model import Finding, Operation, Row
+from kobold.alfred import book_item, empty_item, render
+from kobold.model import Finding, Operation, Row
 
 BASE_ROW = {
     "title": "Deep Work",
@@ -61,14 +61,14 @@ def test_book_item_offers_only_reveal_and_set_genre():
 
 
 def test_source_item_offers_only_reveal():
-    from kobolib.alfred import source_item
+    from kobold.alfred import source_item
 
     assert set(source_item(row())["mods"]) == {"alt"}, "a source book can only be revealed; it gets a genre after import"
 
 
 @pytest.mark.parametrize("partial, mods", [(True, {"alt"}), (False, {"alt", "shift"})])
 def test_trash_item_is_actionable_and_keeps_genre_only_for_complete_books(partial, mods):
-    from kobolib.alfred import trash_item
+    from kobold.alfred import trash_item
 
     item = trash_item(row(partial=partial))
 
@@ -77,7 +77,7 @@ def test_trash_item_is_actionable_and_keeps_genre_only_for_complete_books(partia
 
 
 def test_head_row_carries_its_payload():
-    from kobolib.alfred import head_row
+    from kobold.alfred import head_row
 
     item = head_row("trash:all", "Trash all 2 books", "↩ moves them", arg="/a\n/b", variables={"book": "x\ny"})
 
@@ -87,7 +87,7 @@ def test_head_row_carries_its_payload():
 
 
 def test_genre_item_creates_the_typed_text_on_shift():
-    from kobolib.alfred import genre_item
+    from kobold.alfred import genre_item
 
     item = genre_item("fiction/spy", "f00", typed="spy thriller")
 
@@ -98,13 +98,13 @@ def test_genre_item_creates_the_typed_text_on_shift():
 
 
 def test_genre_item_without_typed_text_has_no_shift():
-    from kobolib.alfred import genre_item
+    from kobold.alfred import genre_item
 
     assert "mods" not in genre_item("fiction/spy", "f00"), "with nothing typed there is nothing to create"
 
 
 def test_new_genre_item_creates_only_on_shift():
-    from kobolib.alfred import new_genre_item
+    from kobold.alfred import new_genre_item
 
     item = new_genre_item("xyz", "f00")
 
@@ -132,7 +132,7 @@ def test_render_and_empty():
 
 
 def test_problem_item_points_at_first_file_and_copies_all():
-    from kobolib.alfred import problem_item
+    from kobold.alfred import problem_item
 
     finding = Finding("exact_duplicate", "Glasswing ×2: identical files", ["00_Inbox/bought/a.epub", "00_Inbox/NOW/a.epub"])
 
@@ -147,7 +147,7 @@ def test_problem_item_points_at_first_file_and_copies_all():
 
 
 def test_inbox_item_shows_what_is_missing():
-    from kobolib.alfred import inbox_item
+    from kobold.alfred import inbox_item
 
     item = inbox_item(row(authors="", series="", rel_path="00_Inbox/x.epub"))
 
@@ -155,7 +155,7 @@ def test_inbox_item_shows_what_is_missing():
 
 
 def test_inbox_item_shows_known_genre():
-    from kobolib.alfred import inbox_item
+    from kobold.alfred import inbox_item
 
     item = inbox_item(row(genre="fiction/sci-fi"))
 
@@ -163,7 +163,7 @@ def test_inbox_item_shows_known_genre():
 
 
 def test_plan_item_shows_source_and_destination():
-    from kobolib.alfred import plan_item
+    from kobold.alfred import plan_item
 
     op = Operation("move", "00_Inbox/a.epub", "01_Fiction/Teague, Rowan/Teague, Rowan - Ash (2011).epub", "relocate + rename")
 
@@ -180,7 +180,7 @@ def test_plan_item_shows_source_and_destination():
 
 
 def test_skip_item_is_not_actionable():
-    from kobolib.alfred import plan_item
+    from kobold.alfred import plan_item
 
     item = plan_item(Operation("skip", "a.epub", "b.epub", "destination taken by c.epub"), "/lib")
 

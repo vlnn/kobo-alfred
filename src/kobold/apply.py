@@ -9,9 +9,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path, PurePosixPath
 
-from kobolib.koreader import fix_paths
-from kobolib.model import Operation
-from kobolib.paths import is_empty_dir, nfc, sidecar_of
+from kobold.koreader import fix_paths
+from kobold.model import Operation
+from kobold.paths import is_empty_dir, nfc, sidecar_of
 
 EXECUTABLE = {"move", "trash", "dups"}
 
@@ -143,7 +143,7 @@ def restore(src: Path, kept: Path) -> None:
     src.mkdir() if kept.is_dir() else shutil.copy2(kept, src)
 
 
-TEMP_SUFFIX = ".kobolib-renaming"
+TEMP_SUFFIX = ".kobold-renaming"
 
 
 def respell(path: Path, name: str) -> Path:

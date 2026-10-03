@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.vectors import NEIGHBOURS, VectorStore, cosine
+from kobold.vectors import NEIGHBOURS, VectorStore, cosine
 from tests.test_alfred import row
 
 

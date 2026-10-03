@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.cli import main
-from kobolib.commands import EMPTY_INDEX, search_items
+from kobold.cli import main
+from kobold.commands import EMPTY_INDEX, search_items
 
 
 def titles(items: list[dict]) -> list[str]:
@@ -159,7 +159,7 @@ def test_suggestions_work_before_any_index(env):
 
 
 def command_rows(query: str) -> list[dict]:
-    from kobolib.commands import COMMANDS
+    from kobold.commands import COMMANDS
 
     word, *rest = query.split()
     return COMMANDS[word].items(rest)
@@ -380,7 +380,7 @@ def napkin(indexed, library, capsys) -> str:
 
 
 def picker(typed: str, books: str) -> list[dict]:
-    from kobolib.commands import genre_picker_items
+    from kobold.commands import genre_picker_items
 
     return genre_picker_items(typed, books.splitlines())
 
@@ -434,7 +434,7 @@ SPY, BUSINESS, HISTORY, SCIFI = "fiction/spy", "nonfiction/business", "nonfictio
     ],
 )
 def test_genres_sharing_a_word_with_the_subjects_come_first(subjects, known, expected):
-    from kobolib.commands import subject_likely_first
+    from kobold.commands import subject_likely_first
 
     assert subject_likely_first(known, subjects) == expected, f"{subjects!r} should lift the genres that share a word with it"
 
@@ -482,7 +482,7 @@ def test_update_row_says_when_an_update_is_running(indexed, tmp_path):
 
 
 def test_headed_shows_every_head_row_only_for_a_batch():
-    from kobolib.commands import headed
+    from kobold.commands import headed
 
     heads, items = [{"uid": "a"}, {"uid": "b"}], [{"uid": "x"}, {"uid": "y"}]
 
@@ -491,7 +491,7 @@ def test_headed_shows_every_head_row_only_for_a_batch():
 
 
 def suggest(tmp_path: Path, fingerprint: str, question: str, answer: dict) -> None:
-    from kobolib.suggestions import SuggestionStore
+    from kobold.suggestions import SuggestionStore
 
     store = SuggestionStore(tmp_path / "alfred-data" / "oracle.tsv").load()
     store.set(fingerprint, question, answer, "h")
@@ -553,11 +553,11 @@ def test_picker_filters_the_suggestion_by_typed_text(suggested_napkin):
 
 @pytest.fixture
 def oracle_on(indexed, monkeypatch):
-    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBOLD_ORACLE_URL", "http://127.0.0.1:8080")
 
 
 def test_the_ask_row_counts_every_candidate_the_pass_would_ask_about(oracle_on, mocker):
-    from kobolib.index import EVERYTHING, Index
+    from kobold.index import EVERYTHING, Index
 
     unclassified = mocker.spy(Index, "unclassified")
     search = mocker.spy(Index, "search")
@@ -573,12 +573,12 @@ def test_ask_the_model_row_appears_when_books_are_unasked(oracle_on, query):
     (ask,) = [i for i in command_rows(query) if i.get("uid") == "oracle:ask"]
 
     assert ask["title"] == "Ask the model about 2 inbox books and 1 unnamed file" and ask["valid"] is True, "the row counts what is unasked"
-    assert ask["subtitle"] == "↩ runs in the background, then notifies" and action_of(ask) == "ask", "↩ runs kobolib ask in the background"
+    assert ask["subtitle"] == "↩ runs in the background, then notifies" and action_of(ask) == "ask", "↩ runs kobold ask in the background"
 
 
 @pytest.mark.parametrize("query", ["classify", "fix"])
 def test_ask_the_model_row_is_absent_without_a_server(indexed, monkeypatch, query):
-    monkeypatch.delenv("KOBO_ORACLE_URL", raising=False)
+    monkeypatch.delenv("KOBOLD_ORACLE_URL", raising=False)
 
     assert not any(i.get("uid") == "oracle:ask" for i in command_rows(query)), "nothing mentions the oracle until it is configured"
 
@@ -665,7 +665,7 @@ def delany_merge(env, library, tmp_path, capsys, monkeypatch) -> None:
     author_epub(library / NOVA_HOME, "Nova", "Samuel Ray Delany")
     author_epub(library / BABEL_ALIAS, "Babel-17", "Samuel Delany")
     author_epub(library / "01_Fiction/02_Sci-Fi/Delany, Samuel/Delany, Samuel - Dhalgren (2016).epub", "Dhalgren", "Samuel Delany")
-    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBOLD_ORACLE_URL", "http://127.0.0.1:8080")
     main(["update"])
     capsys.readouterr()
     suggest(tmp_path, "*", "authors", GROUPS)
@@ -706,9 +706,9 @@ SERVED = ["qwen2.5-7b-instruct", "gemma-3-4b-it", "bge-m3"]
 
 @pytest.fixture
 def served(oracle_on, monkeypatch, mocker):
-    monkeypatch.setenv("KOBO_ORACLE_MODEL", "qwen2.5-7b-instruct")
-    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
-    return mocker.patch("kobolib.embedder.models", return_value=SERVED)
+    monkeypatch.setenv("KOBOLD_ORACLE_MODEL", "qwen2.5-7b-instruct")
+    monkeypatch.setenv("KOBOLD_EMBED_MODEL", "bge-m3")
+    return mocker.patch("kobold.embedder.models", return_value=SERVED)
 
 
 def test_model_lists_the_servers_models_with_their_roles(served):
@@ -733,7 +733,7 @@ def test_model_lists_the_servers_models_with_their_roles(served):
 
 
 def test_model_asks_both_servers_when_embeddings_live_elsewhere(served, monkeypatch):
-    monkeypatch.setenv("KOBO_EMBED_URL", "http://127.0.0.1:8081")
+    monkeypatch.setenv("KOBOLD_EMBED_URL", "http://127.0.0.1:8081")
     served.side_effect = lambda url: ["bge-m3"] if url.endswith("8081") else ["qwen2.5-7b-instruct"]
 
     rows = command_rows("model")
@@ -754,16 +754,16 @@ def test_model_with_the_server_down_says_so(served):
 
 
 def test_model_without_a_server_explains(indexed, monkeypatch):
-    monkeypatch.delenv("KOBO_ORACLE_URL", raising=False)
+    monkeypatch.delenv("KOBOLD_ORACLE_URL", raising=False)
 
     (row,) = command_rows("model")
 
-    assert row["title"] == "No model server" and "KOBO_ORACLE_URL" in row["subtitle"], "the setting to fill is named"
+    assert row["title"] == "No model server" and "KOBOLD_ORACLE_URL" in row["subtitle"], "the setting to fill is named"
 
 
 def test_model_without_chosen_models_names_the_defaults(served, monkeypatch):
-    monkeypatch.delenv("KOBO_ORACLE_MODEL")
-    monkeypatch.delenv("KOBO_EMBED_MODEL")
+    monkeypatch.delenv("KOBOLD_ORACLE_MODEL")
+    monkeypatch.delenv("KOBOLD_EMBED_MODEL")
 
     oracle_row, embed_row, *models = command_rows("model")
 
@@ -775,14 +775,14 @@ def test_model_without_chosen_models_names_the_defaults(served, monkeypatch):
 
 
 def test_model_needs_no_index(env, monkeypatch, mocker):
-    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
-    mocker.patch("kobolib.embedder.models", return_value=["bge-m3"])
+    monkeypatch.setenv("KOBOLD_ORACLE_URL", "http://127.0.0.1:8080")
+    mocker.patch("kobold.embedder.models", return_value=["bge-m3"])
 
     assert titles(search_items("model"))[-1] == "bge-m3", "kb model works before the first index, so you can see whether the server is up"
 
 
 def test_chooser_offers_the_two_roles():
-    from kobolib.commands import chooser_items
+    from kobold.commands import chooser_items
 
     oracle_row, embed_row = chooser_items("", "gemma-3-4b-it")
 
@@ -795,13 +795,13 @@ def test_chooser_offers_the_two_roles():
 
 
 def test_chooser_filters_by_typed_text():
-    from kobolib.commands import chooser_items
+    from kobold.commands import chooser_items
 
     assert [r["arg"] for r in chooser_items("emb", "gemma-3-4b-it")] == ["embed"], "typed text narrows the two rows"
 
 
 def test_chooser_without_a_model_explains():
-    from kobolib.commands import chooser_items
+    from kobold.commands import chooser_items
 
     (row,) = chooser_items("", "")
 
@@ -809,9 +809,9 @@ def test_chooser_without_a_model_explains():
 
 
 def test_stats_counts_embedded_books(indexed, tmp_path, monkeypatch):
-    from kobolib.vectors import VectorStore
+    from kobold.vectors import VectorStore
 
-    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+    monkeypatch.setenv("KOBOLD_EMBED_MODEL", "bge-m3")
     VectorStore(tmp_path / "alfred-data" / "vectors.db").put("bge-m3", fingerprint_of("napkin"), [1.0, 0.0])
 
     (row,) = [r for r in command_rows("stats") if "embedded" in r["title"]]
@@ -820,18 +820,18 @@ def test_stats_counts_embedded_books(indexed, tmp_path, monkeypatch):
 
 
 def test_model_header_offers_to_embed_the_rest(served, tmp_path):
-    from kobolib.vectors import VectorStore
+    from kobold.vectors import VectorStore
 
     VectorStore(tmp_path / "alfred-data" / "vectors.db").put("bge-m3", fingerprint_of("napkin"), [1.0, 0.0])
 
     embed_row = command_rows("model")[1]
 
-    assert embed_row["subtitle"] == "1 of 3 books embedded · ↩ embeds the rest" and action_of(embed_row) == "embed", "↩ runs kobolib embed"
+    assert embed_row["subtitle"] == "1 of 3 books embedded · ↩ embeds the rest" and action_of(embed_row) == "embed", "↩ runs kobold embed"
     assert embed_row["valid"] is True, "the header is actionable while books are missing"
 
 
 def test_model_header_is_quiet_when_everything_is_embedded(served, tmp_path):
-    from kobolib.vectors import VectorStore
+    from kobold.vectors import VectorStore
 
     store = VectorStore(tmp_path / "alfred-data" / "vectors.db")
     for word in ("napkin", "deep", "оперантное"):
@@ -843,7 +843,7 @@ def test_model_header_is_quiet_when_everything_is_embedded(served, tmp_path):
 
 
 def test_like_without_an_embedding_model_points_at_kb_model(indexed, monkeypatch):
-    monkeypatch.delenv("KOBO_EMBED_MODEL", raising=False)
+    monkeypatch.delenv("KOBOLD_EMBED_MODEL", raising=False)
 
     row = command_rows("like deep")[0]
 
@@ -854,9 +854,9 @@ def test_like_without_an_embedding_model_points_at_kb_model(indexed, monkeypatch
 
 @pytest.fixture
 def embeddings(indexed, tmp_path, monkeypatch):
-    from kobolib.vectors import VectorStore
+    from kobold.vectors import VectorStore
 
-    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+    monkeypatch.setenv("KOBOLD_EMBED_MODEL", "bge-m3")
     store = VectorStore(tmp_path / "alfred-data" / "vectors.db")
     store.put("bge-m3", fingerprint_of("deep"), [1.0, 0.0])
     store.put("bge-m3", fingerprint_of("оперантное"), [1.0, 0.3])
@@ -865,7 +865,7 @@ def embeddings(indexed, tmp_path, monkeypatch):
 
 
 def test_like_without_vectors_offers_to_embed(indexed, monkeypatch):
-    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+    monkeypatch.setenv("KOBOLD_EMBED_MODEL", "bge-m3")
 
     (row,) = command_rows("like deep")
 

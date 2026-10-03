@@ -3,12 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.cli import main, notify
-from kobolib.index import IndexBusy
+from kobold.cli import main, notify
+from kobold.index import IndexBusy
 
 
 def inbox_rows() -> list[dict]:
-    from kobolib.commands import inbox_items
+    from kobold.commands import inbox_items
 
     return [i for i in inbox_items([]) if "quicklookurl" in i]
 
@@ -53,27 +53,27 @@ def test_index_subcommands_are_gone(env, retired):
 
 
 def test_index_fails_when_root_missing(monkeypatch, tmp_path, capsys):
-    monkeypatch.setenv("KOBO_ROOT", str(tmp_path / "missing"))
+    monkeypatch.setenv("KOBOLD_ROOT", str(tmp_path / "missing"))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "c"))
     assert main(["update"]) == 1, "index should fail when the volume is not mounted"
 
 
-def test_kobo_data_overrides_alfred_data_dir(env, tmp_path, monkeypatch):
-    monkeypatch.setenv("KOBO_DATA", str(tmp_path / "custom"))
+def test_kobold_data_overrides_alfred_data_dir(env, tmp_path, monkeypatch):
+    monkeypatch.setenv("KOBOLD_DATA", str(tmp_path / "custom"))
     main(["update"])
-    assert (tmp_path / "custom" / "library.db").exists(), "KOBO_DATA should decide where the index lives"
+    assert (tmp_path / "custom" / "library.db").exists(), "KOBOLD_DATA should decide where the index lives"
 
 
 def test_index_reports_inaccessible_root(env, library, capsys, mocker):
-    mocker.patch("kobolib.library.build_index", return_value=0)
-    mocker.patch("kobolib.library.probe_root", return_value="permission denied reading root")
+    mocker.patch("kobold.library.build_index", return_value=0)
+    mocker.patch("kobold.library.probe_root", return_value="permission denied reading root")
 
     assert main(["update"]) == 1, "index should fail when no books were found"
     assert "permission denied" in capsys.readouterr().out, "the failure message should explain why"
 
 
 def test_index_notify_posts_notification(env, capsys, mocker):
-    run = mocker.patch("kobolib.cli.subprocess.run")
+    run = mocker.patch("kobold.cli.subprocess.run")
 
     main(["update", "--notify"])
 
@@ -83,14 +83,14 @@ def test_index_notify_posts_notification(env, capsys, mocker):
 
 
 def test_index_busy_is_reported(env, capsys, mocker):
-    mocker.patch("kobolib.library.build_index", side_effect=IndexBusy("busy"))
+    mocker.patch("kobold.library.build_index", side_effect=IndexBusy("busy"))
 
     assert main(["update"]) == 1, "busy index should exit non-zero"
     assert "already running" in capsys.readouterr().out, "busy index should be explained"
 
 
 def test_no_thumbnails_flag_skips_second_pass(env, capsys, mocker):
-    fill = mocker.patch("kobolib.cli.fill_thumbnails")
+    fill = mocker.patch("kobold.cli.fill_thumbnails")
     main(["update", "--no-thumbnails"])
     fill.assert_not_called()
 
@@ -184,7 +184,7 @@ def test_genre_moves_the_book_to_its_genre_home(indexed, library, capsys):
 
 
 def test_single_book_moves_update_the_index_in_place(indexed, library, capsys, mocker):
-    rebuild = mocker.patch("kobolib.library.build_index")
+    rebuild = mocker.patch("kobold.library.build_index")
     book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
 
     main(["genre", str(book), "productivity"])
@@ -220,7 +220,7 @@ def test_genre_reports_when_there_is_no_home_yet(indexed, library, capsys):
 
 
 def test_genre_accepts_notify_like_the_other_movers(indexed, library, mocker):
-    notify = mocker.patch("kobolib.cli.notify")
+    notify = mocker.patch("kobold.cli.notify")
     book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
 
     assert main(["genre", "--notify", str(book), "productivity"]) == 0, "--notify should be accepted before the book"
@@ -229,7 +229,7 @@ def test_genre_accepts_notify_like_the_other_movers(indexed, library, mocker):
 
 
 def test_notify_passes_the_message_as_an_argument(mocker):
-    run = mocker.patch("kobolib.cli.subprocess.run")
+    run = mocker.patch("kobold.cli.subprocess.run")
     message = 'Deep "Work" → C:\\Users'
 
     notify(message)
@@ -291,7 +291,7 @@ def junk(library: Path) -> Path:
 
 
 def test_fix_with_a_path_applies_only_that_operation_without_a_full_rebuild(indexed, library, junk, capsys, mocker):
-    rebuild = mocker.patch("kobolib.library.build_index")
+    rebuild = mocker.patch("kobold.library.build_index")
 
     assert main(["fix", str(library / DEEP_WORK)]) == 0, "fixing one book should succeed"
     capsys.readouterr()
@@ -382,7 +382,7 @@ def test_one_purpose_subcommands_are_gone(env, retired):
 
 
 def oracle_store(tmp_path: Path):
-    from kobolib.suggestions import SuggestionStore
+    from kobold.suggestions import SuggestionStore
 
     return SuggestionStore(tmp_path / "alfred-data" / "oracle.tsv").load()
 
@@ -417,18 +417,18 @@ def test_update_does_not_create_an_empty_oracle_store(indexed, tmp_path):
 
 @pytest.fixture
 def oracle_env(indexed, monkeypatch):
-    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBOLD_ORACLE_URL", "http://127.0.0.1:8080")
 
 
 def test_ask_is_refused_without_a_model_server(indexed, monkeypatch, capsys):
-    monkeypatch.delenv("KOBO_ORACLE_URL", raising=False)
+    monkeypatch.delenv("KOBOLD_ORACLE_URL", raising=False)
 
     assert main(["ask", "genre"]) == 1, "nothing to ask without a server"
-    assert "KOBO_ORACLE_URL" in capsys.readouterr().out, "the message should name the setting"
+    assert "KOBOLD_ORACLE_URL" in capsys.readouterr().out, "the message should name the setting"
 
 
 def test_ask_genre_stores_an_answer_per_inbox_book(oracle_env, tmp_path, capsys, mocker):
-    ask = mocker.patch("kobolib.oracle.ask", side_effect=[{"genre": "nonfiction"}, {"genre": "none"}])
+    ask = mocker.patch("kobold.oracle.ask", side_effect=[{"genre": "nonfiction"}, {"genre": "none"}])
 
     assert main(["ask", "genre"]) == 0, "asking should succeed"
 
@@ -442,7 +442,7 @@ def test_ask_genre_stores_an_answer_per_inbox_book(oracle_env, tmp_path, capsys,
 
 
 def test_ask_twice_asks_nothing_the_second_time(oracle_env, capsys, mocker):
-    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    ask = mocker.patch("kobold.oracle.ask", return_value={"genre": "none"})
     main(["ask", "genre"])
     capsys.readouterr()
 
@@ -453,7 +453,7 @@ def test_ask_twice_asks_nothing_the_second_time(oracle_env, capsys, mocker):
 
 
 def test_ask_force_asks_again(oracle_env, capsys, mocker):
-    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    ask = mocker.patch("kobold.oracle.ask", return_value={"genre": "none"})
     main(["ask", "genre"])
 
     main(["ask", "--force", "genre"])
@@ -462,7 +462,7 @@ def test_ask_force_asks_again(oracle_env, capsys, mocker):
 
 
 def test_ask_counts_skipped_requests(oracle_env, capsys, mocker):
-    mocker.patch("kobolib.oracle.ask", side_effect=[{"genre": "nonfiction"}, None])
+    mocker.patch("kobold.oracle.ask", side_effect=[{"genre": "nonfiction"}, None])
 
     main(["ask", "genre"])
 
@@ -470,7 +470,7 @@ def test_ask_counts_skipped_requests(oracle_env, capsys, mocker):
 
 
 def test_ask_dry_run_prints_the_evidence_and_writes_nothing(oracle_env, tmp_path, capsys, mocker):
-    ask = mocker.patch("kobolib.oracle.ask")
+    ask = mocker.patch("kobold.oracle.ask")
 
     assert main(["ask", "--dry-run", "genre"]) == 0, "a dry run succeeds"
 
@@ -480,7 +480,7 @@ def test_ask_dry_run_prints_the_evidence_and_writes_nothing(oracle_env, tmp_path
 
 
 def test_ask_words_narrow_the_books(oracle_env, capsys, mocker):
-    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    ask = mocker.patch("kobold.oracle.ask", return_value={"genre": "none"})
 
     main(["ask", "genre", "napkin"])
 
@@ -488,7 +488,7 @@ def test_ask_words_narrow_the_books(oracle_env, capsys, mocker):
 
 
 def test_genre_takes_fingerprint_and_genre_pairs_as_one_batch(indexed, library, tmp_path, capsys):
-    from kobolib.apply import last_batch, read_journal
+    from kobold.apply import last_batch, read_journal
 
     napkin, skinner = (run(["search", w], capsys)["items"][0]["variables"]["book"] for w in ("napkin", "оперантное"))
 
@@ -500,7 +500,7 @@ def test_genre_takes_fingerprint_and_genre_pairs_as_one_batch(indexed, library, 
 
 
 def test_genre_for_several_books_is_one_batch(indexed, library, tmp_path, capsys):
-    from kobolib.apply import last_batch, read_journal
+    from kobold.apply import last_batch, read_journal
 
     books = "\n".join(fingerprints_of(inbox_rows()))
     (library / "00_Inbox" / "Delany, Samuel R - Nova - 2014.epub.part").unlink()
@@ -528,7 +528,7 @@ NAPKIN_NAME = {"title": "Table Napkin Folding", "authors": ["Ivor Penhale"], "co
 
 
 def test_ask_name_asks_about_books_described_from_their_filename(oracle_env, tmp_path, capsys, mocker):
-    ask = mocker.patch("kobolib.oracle.ask", return_value=NAPKIN_NAME)
+    ask = mocker.patch("kobold.oracle.ask", return_value=NAPKIN_NAME)
 
     main(["ask", "name"])
 
@@ -545,7 +545,7 @@ def fingerprint_of_napkin(capsys) -> str:
 
 
 def test_an_unconfident_name_is_stored_but_not_counted(oracle_env, tmp_path, capsys, mocker):
-    mocker.patch("kobolib.oracle.ask", return_value={**NAPKIN_NAME, "confident": False})
+    mocker.patch("kobold.oracle.ask", return_value={**NAPKIN_NAME, "confident": False})
 
     main(["ask", "name"])
 
@@ -554,7 +554,7 @@ def test_an_unconfident_name_is_stored_but_not_counted(oracle_env, tmp_path, cap
 
 
 def test_ask_without_a_question_asks_names_before_genres(oracle_env, capsys, mocker):
-    ask = mocker.patch("kobolib.oracle.ask", side_effect=[NAPKIN_NAME, {"genre": "none"}, {"genre": "none"}])
+    ask = mocker.patch("kobold.oracle.ask", side_effect=[NAPKIN_NAME, {"genre": "none"}, {"genre": "none"}])
 
     main(["ask"])
 
@@ -634,13 +634,13 @@ GROUPS = {"groups": [{"canonical": "Delany, Samuel Ray", "aliases": ["Delany, Sa
 def delany_folders(env, library, capsys, monkeypatch) -> None:
     author_epub(library / NOVA_HOME, "Nova", "Samuel Ray Delany")
     author_epub(library / BABEL_ALIAS, "Babel-17", "Samuel Delany")
-    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBOLD_ORACLE_URL", "http://127.0.0.1:8080")
     main(["update"])
     capsys.readouterr()
 
 
 def test_ask_authors_asks_once_about_every_author_folder(delany_folders, tmp_path, capsys, mocker):
-    ask = mocker.patch("kobolib.oracle.ask", return_value=GROUPS)
+    ask = mocker.patch("kobold.oracle.ask", return_value=GROUPS)
 
     assert main(["ask", "authors"]) == 0, "asking should succeed"
 
@@ -656,7 +656,7 @@ def test_ask_authors_asks_once_about_every_author_folder(delany_folders, tmp_pat
 
 
 def test_ask_authors_with_nothing_to_merge_says_so(delany_folders, capsys, mocker):
-    mocker.patch("kobolib.oracle.ask", return_value={"groups": []})
+    mocker.patch("kobold.oracle.ask", return_value={"groups": []})
 
     main(["ask", "authors"])
 
@@ -686,12 +686,12 @@ def test_bare_fix_leaves_merges_alone(delany_merge, library, capsys):
 
 
 def test_choose_writes_the_workflow_configuration(env, capsys, mocker):
-    run_script = mocker.patch("kobolib.cli.subprocess.run")
+    run_script = mocker.patch("kobold.cli.subprocess.run")
 
     assert main(["choose", "oracle", "qwen2.5-7b-instruct"]) == 0, "choosing should succeed"
 
     argv = run_script.call_args.args[0]
-    assert argv[0] == "osascript" and argv[-3:] == ["KOBO_ORACLE_MODEL", "qwen2.5-7b-instruct", "com.anokhin.kobolib"], (
+    assert argv[0] == "osascript" and argv[-3:] == ["KOBOLD_ORACLE_MODEL", "qwen2.5-7b-instruct", "com.anokhin.kobold"], (
         "the variable, the value and the bundle id reach the script as arguments, never spliced into it"
     )
     assert "set configuration" in " ".join(argv) and "com.runningwithcrayons.Alfred" in " ".join(argv), (
@@ -701,17 +701,17 @@ def test_choose_writes_the_workflow_configuration(env, capsys, mocker):
 
 
 def test_choose_embed_sets_the_embedding_model(env, capsys, mocker):
-    run_script = mocker.patch("kobolib.cli.subprocess.run")
+    run_script = mocker.patch("kobold.cli.subprocess.run")
 
     main(["choose", "embed", "bge-m3"])
 
-    assert run_script.call_args.args[0][-3] == "KOBO_EMBED_MODEL", "embed chooses the embedding model"
+    assert run_script.call_args.args[0][-3] == "KOBOLD_EMBED_MODEL", "embed chooses the embedding model"
     assert capsys.readouterr().out.strip() == "Embeddings: bge-m3", "the choice is reported"
 
 
 def test_choose_uses_the_running_workflows_bundle_id(env, capsys, mocker, monkeypatch):
     monkeypatch.setenv("alfred_workflow_bundleid", "com.example.fork")
-    run_script = mocker.patch("kobolib.cli.subprocess.run")
+    run_script = mocker.patch("kobold.cli.subprocess.run")
 
     main(["choose", "oracle", "x"])
 
@@ -719,9 +719,9 @@ def test_choose_uses_the_running_workflows_bundle_id(env, capsys, mocker, monkey
 
 
 def test_models_prints_the_list_with_the_current_choices(env, capsys, mocker, monkeypatch):
-    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
-    monkeypatch.setenv("KOBO_ORACLE_MODEL", "qwen2.5-7b-instruct")
-    mocker.patch("kobolib.embedder.models", return_value=["qwen2.5-7b-instruct", "bge-m3"])
+    monkeypatch.setenv("KOBOLD_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBOLD_ORACLE_MODEL", "qwen2.5-7b-instruct")
+    mocker.patch("kobold.embedder.models", return_value=["qwen2.5-7b-instruct", "bge-m3"])
 
     assert main(["models"]) == 0, "listing should succeed"
 
@@ -729,8 +729,8 @@ def test_models_prints_the_list_with_the_current_choices(env, capsys, mocker, mo
 
 
 def test_models_reports_a_server_that_is_down(env, capsys, mocker, monkeypatch):
-    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
-    mocker.patch("kobolib.embedder.models", return_value=None)
+    monkeypatch.setenv("KOBOLD_ORACLE_URL", "http://127.0.0.1:8080")
+    mocker.patch("kobold.embedder.models", return_value=None)
 
     assert main(["models"]) == 1, "no list is a failure"
     assert capsys.readouterr().out.strip() == "Model not reachable at http://127.0.0.1:8080", "the server is named"
@@ -746,21 +746,21 @@ def test_chooser_renders_rows_for_the_selected_model(env, capsys, monkeypatch):
 
 @pytest.fixture
 def embed_env(oracle_env, monkeypatch):
-    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+    monkeypatch.setenv("KOBOLD_EMBED_MODEL", "bge-m3")
 
 
 def vector_store(tmp_path: Path):
-    from kobolib.vectors import VectorStore
+    from kobold.vectors import VectorStore
 
     return VectorStore(tmp_path / "alfred-data" / "vectors.db")
 
 
 def test_embed_is_refused_without_an_embedding_model(oracle_env, capsys):
-    assert main(["embed"]) == 1 and "KOBO_EMBED_MODEL" in capsys.readouterr().out, "the setting to fill is named"
+    assert main(["embed"]) == 1 and "KOBOLD_EMBED_MODEL" in capsys.readouterr().out, "the setting to fill is named"
 
 
 def test_embed_stores_a_vector_per_complete_book(embed_env, tmp_path, capsys, mocker):
-    embed = mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+    embed = mocker.patch("kobold.embedder.embed", return_value=[1.0, 0.0])
 
     assert main(["embed"]) == 0, "embedding should succeed"
 
@@ -772,7 +772,7 @@ def test_embed_stores_a_vector_per_complete_book(embed_env, tmp_path, capsys, mo
 
 
 def test_embed_skips_embedded_books_unless_forced(embed_env, capsys, mocker):
-    embed = mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+    embed = mocker.patch("kobold.embedder.embed", return_value=[1.0, 0.0])
     main(["embed"])
     capsys.readouterr()
 
@@ -784,7 +784,7 @@ def test_embed_skips_embedded_books_unless_forced(embed_env, capsys, mocker):
 
 
 def test_embed_counts_skipped_requests(embed_env, capsys, mocker):
-    mocker.patch("kobolib.embedder.embed", side_effect=[[1.0, 0.0], None, [0.0, 1.0]])
+    mocker.patch("kobold.embedder.embed", side_effect=[[1.0, 0.0], None, [0.0, 1.0]])
 
     main(["embed"])
 
@@ -792,7 +792,7 @@ def test_embed_counts_skipped_requests(embed_env, capsys, mocker):
 
 
 def test_embed_words_narrow_the_books(embed_env, tmp_path, capsys, mocker):
-    mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+    mocker.patch("kobold.embedder.embed", return_value=[1.0, 0.0])
 
     main(["embed", "napkin"])
 
@@ -801,13 +801,13 @@ def test_embed_words_narrow_the_books(embed_env, tmp_path, capsys, mocker):
 
 @pytest.fixture
 def both_models(env, monkeypatch, mocker):
-    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
-    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+    monkeypatch.setenv("KOBOLD_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBOLD_EMBED_MODEL", "bge-m3")
     ask = mocker.patch(
-        "kobolib.oracle.ask",
+        "kobold.oracle.ask",
         side_effect=lambda question, *_: {"name": NAPKIN_NAME, "authors": {"groups": []}}.get(question, {"genre": "none"}),
     )
-    embed = mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+    embed = mocker.patch("kobold.embedder.embed", return_value=[1.0, 0.0])
     return ask, embed
 
 
@@ -821,7 +821,7 @@ def test_update_leaves_the_models_alone_by_default(both_models, capsys):
 
 def test_update_asks_and_embeds_when_the_setting_is_on(both_models, monkeypatch, tmp_path, capsys):
     ask, embed = both_models
-    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "1")
+    monkeypatch.setenv("KOBOLD_MODEL_ON_UPDATE", "1")
 
     assert main(["update", "--no-thumbnails"]) == 0, "update should succeed"
 
@@ -837,7 +837,7 @@ def test_update_asks_and_embeds_when_the_setting_is_on(both_models, monkeypatch,
 
 def test_update_with_the_setting_on_is_quiet_when_nothing_is_new(both_models, monkeypatch, capsys):
     ask, embed = both_models
-    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "1")
+    monkeypatch.setenv("KOBOLD_MODEL_ON_UPDATE", "1")
     main(["update", "--no-thumbnails"])
     capsys.readouterr()
 
@@ -849,8 +849,8 @@ def test_update_with_the_setting_on_is_quiet_when_nothing_is_new(both_models, mo
 
 def test_update_with_the_setting_on_skips_what_is_not_configured(both_models, monkeypatch, capsys):
     ask, embed = both_models
-    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "true")
-    monkeypatch.delenv("KOBO_EMBED_MODEL")
+    monkeypatch.setenv("KOBOLD_MODEL_ON_UPDATE", "true")
+    monkeypatch.delenv("KOBOLD_EMBED_MODEL")
 
     main(["update", "--no-thumbnails"])
 
@@ -858,7 +858,7 @@ def test_update_with_the_setting_on_skips_what_is_not_configured(both_models, mo
 
 
 def test_ask_takes_the_words_as_one_argument_from_alfred(oracle_env, capsys, mocker):
-    ask = mocker.patch("kobolib.oracle.ask", side_effect=[NAPKIN_NAME, {"genre": "none"}])
+    ask = mocker.patch("kobold.oracle.ask", side_effect=[NAPKIN_NAME, {"genre": "none"}])
 
     main(["ask", "", "napkin inbox"])
 
@@ -869,7 +869,7 @@ def test_ask_takes_the_words_as_one_argument_from_alfred(oracle_env, capsys, moc
 
 
 def test_only_one_model_pass_runs_at_a_time(oracle_env, tmp_path, capsys, mocker):
-    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    ask = mocker.patch("kobold.oracle.ask", return_value={"genre": "none"})
     (tmp_path / "alfred-data" / "oracle.lock").write_text("1")
 
     assert main(["ask", "genre"]) == 1 and main(["embed"]) == 1, "a second pass is refused while one runs"
@@ -877,7 +877,7 @@ def test_only_one_model_pass_runs_at_a_time(oracle_env, tmp_path, capsys, mocker
 
 
 def test_a_pass_releases_its_lock_and_trims_the_log(oracle_env, tmp_path, capsys, mocker):
-    mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    mocker.patch("kobold.oracle.ask", return_value={"genre": "none"})
 
     main(["ask", "genre"])
 
@@ -886,7 +886,7 @@ def test_a_pass_releases_its_lock_and_trims_the_log(oracle_env, tmp_path, capsys
 
 def test_update_skips_the_model_steps_while_a_pass_runs(both_models, monkeypatch, tmp_path, capsys):
     ask, embed = both_models
-    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "1")
+    monkeypatch.setenv("KOBOLD_MODEL_ON_UPDATE", "1")
     (tmp_path / "alfred-data").mkdir(parents=True, exist_ok=True)
     (tmp_path / "alfred-data" / "oracle.lock").write_text("1")
 

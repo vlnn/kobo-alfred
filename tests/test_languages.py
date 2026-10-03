@@ -1,6 +1,6 @@
 import pytest
 
-from kobolib.languages import searchable_language
+from kobold.languages import searchable_language
 
 
 @pytest.mark.parametrize(

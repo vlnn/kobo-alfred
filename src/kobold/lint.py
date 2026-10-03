@@ -5,10 +5,10 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
-from kobolib.filenames import BRACED_AUTHOR, strip_noise, usable_title
-from kobolib.model import Finding, Row
-from kobolib.paths import relative_path
-from kobolib.scan import BOOK_SUFFIXES, display_stem, iter_junk
+from kobold.filenames import BRACED_AUTHOR, strip_noise, usable_title
+from kobold.model import Finding, Row
+from kobold.paths import relative_path
+from kobold.scan import BOOK_SUFFIXES, display_stem, iter_junk
 
 JOINED_WORDS = re.compile(r"\w[_\-]\w")
 OPAQUE_STEMS = [

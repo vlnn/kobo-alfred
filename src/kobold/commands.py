@@ -7,11 +7,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from kobolib import alfred, embedder, oracle
-from kobolib.alfred import counted
-from kobolib.apply import EXECUTABLE, last_batch, read_journal
-from kobolib.asking import genre_rows, name_rows
-from kobolib.config import (
+from kobold import alfred, embedder, oracle
+from kobold.alfred import counted
+from kobold.apply import EXECUTABLE, last_batch, read_journal
+from kobold.asking import genre_rows, name_rows
+from kobold.config import (
     db_path,
     embed_model,
     embed_url,
@@ -27,10 +27,10 @@ from kobolib.config import (
     suggestion_store,
     vector_store,
 )
-from kobolib.genres import GenreStore
-from kobolib.history import last_opened
-from kobolib.index import EVERYTHING, Index, index_busy, is_current
-from kobolib.library import (
+from kobold.genres import GenreStore
+from kobold.history import last_opened
+from kobold.index import EVERYTHING, Index, index_busy, is_current
+from kobold.library import (
     concerning,
     diagnosis,
     is_merge,
@@ -41,10 +41,10 @@ from kobolib.library import (
     suggested_operations,
     unclassified_rows,
 )
-from kobolib.model import Finding, Operation, Row
-from kobolib.query import query_words
-from kobolib.suggestions import SuggestionStore
-from kobolib.vectors import VectorStore
+from kobold.model import Finding, Operation, Row
+from kobold.query import query_words
+from kobold.suggestions import SuggestionStore
+from kobold.vectors import VectorStore
 
 
 def index_problem(path: Path | None = None, what: str = "Index") -> str:
@@ -264,7 +264,7 @@ def sources_items(words: list[str]) -> list[dict]:
     if stale_index():
         return without_index_items()
     if problem := index_problem(sources_db_path(), "Sources index"):
-        return [alfred.message_item(problem, "Set KOBO_SOURCES, then kb update")]
+        return [alfred.message_item(problem, "Set KOBOLD_SOURCES, then kb update")]
     return source_items(words)
 
 
@@ -380,7 +380,7 @@ def model_headers(served: dict[str, list[str] | None]) -> list[dict]:
 
 def model_items(words: list[str]) -> list[dict]:
     if not oracle.configured():
-        return [alfred.message_item("No model server", "set KOBO_ORACLE_URL in the workflow configuration to a running llama-server")]
+        return [alfred.message_item("No model server", "set KOBOLD_ORACLE_URL in the workflow configuration to a running llama-server")]
     served = served_models()
     return [*model_headers(served), *model_rows(served)]
 

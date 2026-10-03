@@ -1,6 +1,6 @@
 import pytest
 
-from kobolib.filenames import guess_from_stem, usable_title
+from kobold.filenames import guess_from_stem, usable_title
 
 
 @pytest.mark.parametrize(
@@ -93,7 +93,7 @@ def test_year(stem, year):
     ],
 )
 def test_split_authors_distinguishes_comma_lists_from_surname_first(raw, authors):
-    from kobolib.filenames import split_authors
+    from kobold.filenames import split_authors
 
     assert split_authors(raw) == authors, f"{raw!r} should split into {authors}"
 

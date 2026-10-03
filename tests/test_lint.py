@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.lint import (
+from kobold.lint import (
     Finding,
     double_extensions,
     exact_duplicates,
@@ -121,7 +121,7 @@ def test_lint_runs_all_rules_in_order(tmp_path: Path):
 
 
 def test_author_inversions_are_reported():
-    from kobolib.lint import author_inversions
+    from kobold.lint import author_inversions
 
     rows = [
         named("a.epub", folder="01_Fiction/Teague, Rowan"),

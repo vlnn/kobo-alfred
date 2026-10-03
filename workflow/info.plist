@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>bundleid</key>
-	<string>com.anokhin.kobolib</string>
+	<string>com.anokhin.kobold</string>
 	<key>name</key>
-	<string>Kobo Library</string>
+	<string>Kobold</string>
 	<key>description</key>
 	<string>Search the ebook library by metadata, with covers</string>
 	<key>createdby</key>
@@ -23,25 +23,25 @@ Optional: point Model server at a running llama-server and the workflow can prop
 Set the library root (and optionally other sources and the index folder) in the workflow configuration, then run kb update once; rerun after adding books. Needs only macOS's /usr/bin/python3.</string>
 	<key>variables</key>
 	<dict>
-		<key>KOBO_ROOT</key>
+		<key>KOBOLD_ROOT</key>
 		<string>/Volumes/Transcend/kobo</string>
-		<key>KOBO_DATA</key>
+		<key>KOBOLD_DATA</key>
 		<string></string>
-		<key>KOBO_SOURCES</key>
+		<key>KOBOLD_SOURCES</key>
 		<string></string>
-		<key>KOBO_ORACLE_URL</key>
+		<key>KOBOLD_ORACLE_URL</key>
 		<string></string>
-		<key>KOBO_ORACLE_MODEL</key>
+		<key>KOBOLD_ORACLE_MODEL</key>
 		<string></string>
-		<key>KOBO_ORACLE_KEY</key>
+		<key>KOBOLD_ORACLE_KEY</key>
 		<string></string>
-		<key>KOBO_EMBED_URL</key>
+		<key>KOBOLD_EMBED_URL</key>
 		<string></string>
-		<key>KOBO_EMBED_MODEL</key>
+		<key>KOBOLD_EMBED_MODEL</key>
 		<string></string>
-		<key>KOBO_EMBED_KEY</key>
+		<key>KOBOLD_EMBED_KEY</key>
 		<string></string>
-		<key>KOBO_MODEL_ON_UPDATE</key>
+		<key>KOBOLD_MODEL_ON_UPDATE</key>
 		<string>0</string>
 	</dict>
 	<key>userconfigurationconfig</key>
@@ -65,7 +65,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>type</key>
 			<string>textfield</string>
 			<key>variable</key>
-			<string>KOBO_ROOT</string>
+			<string>KOBOLD_ROOT</string>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -80,13 +80,13 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<true/>
 			</dict>
 			<key>description</key>
-			<string>Where library.db and covers/ are stored. Empty = ~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib</string>
+			<string>Where library.db and covers/ are stored. Empty = ~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobold</string>
 			<key>label</key>
 			<string>Index folder (optional)</string>
 			<key>type</key>
 			<string>textfield</string>
 			<key>variable</key>
-			<string>KOBO_DATA</string>
+			<string>KOBOLD_DATA</string>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -107,7 +107,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>type</key>
 			<string>textfield</string>
 			<key>variable</key>
-			<string>KOBO_SOURCES</string>
+			<string>KOBOLD_SOURCES</string>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -128,7 +128,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>type</key>
 			<string>textfield</string>
 			<key>variable</key>
-			<string>KOBO_ORACLE_URL</string>
+			<string>KOBOLD_ORACLE_URL</string>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -149,7 +149,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>type</key>
 			<string>textfield</string>
 			<key>variable</key>
-			<string>KOBO_ORACLE_MODEL</string>
+			<string>KOBOLD_ORACLE_MODEL</string>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -170,7 +170,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>type</key>
 			<string>textfield</string>
 			<key>variable</key>
-			<string>KOBO_ORACLE_KEY</string>
+			<string>KOBOLD_ORACLE_KEY</string>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -191,7 +191,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>type</key>
 			<string>textfield</string>
 			<key>variable</key>
-			<string>KOBO_EMBED_URL</string>
+			<string>KOBOLD_EMBED_URL</string>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -206,13 +206,13 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<true/>
 			</dict>
 			<key>description</key>
-			<string>The embedding model behind kb like, as /v1/models names it; multilingual if the library mixes scripts. Empty turns kb like off. kb model sets this for you; kobolib embed, or ↩ in kb model, embeds the books.</string>
+			<string>The embedding model behind kb like, as /v1/models names it; multilingual if the library mixes scripts. Empty turns kb like off. kb model sets this for you; kobold embed, or ↩ in kb model, embeds the books.</string>
 			<key>label</key>
 			<string>Embedding model (optional)</string>
 			<key>type</key>
 			<string>textfield</string>
 			<key>variable</key>
-			<string>KOBO_EMBED_MODEL</string>
+			<string>KOBOLD_EMBED_MODEL</string>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -233,7 +233,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>type</key>
 			<string>textfield</string>
 			<key>variable</key>
-			<string>KOBO_EMBED_KEY</string>
+			<string>KOBOLD_EMBED_KEY</string>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -252,7 +252,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>type</key>
 			<string>checkbox</string>
 			<key>variable</key>
-			<string>KOBO_MODEL_ON_UPDATE</string>
+			<string>KOBOLD_MODEL_ON_UPDATE</string>
 		</dict>
 	</array>
 	<key>objects</key>
@@ -299,7 +299,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<key>type</key>
 				<integer>0</integer>
 				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib search "$1"</string>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobold search "$1"</string>
 			</dict>
 		</dict>
 		<dict>
@@ -321,7 +321,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<integer>0</integer>
 				<key>script</key>
 				<string>export PYTHONPATH="$PWD"
-run() { nohup /usr/bin/python3 -m kobolib "$@" --notify &gt;/dev/null 2&gt;&amp;1 &amp; }
+run() { nohup /usr/bin/python3 -m kobold "$@" --notify &gt;/dev/null 2&gt;&amp;1 &amp; }
 case "$action" in
   update) run update; echo "Rebuilding the index… a notification follows";;
   fix) run fix "$1"; echo "Fixing… a notification follows";;
@@ -345,7 +345,7 @@ esac</string>
 			<key>config</key>
 			<dict>
 				<key>title</key>
-				<string>Kobo Library</string>
+				<string>Kobold</string>
 				<key>text</key>
 				<string>{query}</string>
 				<key>lastpathcomponent</key>
@@ -424,7 +424,7 @@ esac</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib genres "$1"</string>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobold genres "$1"</string>
 			</dict>
 		</dict>
 		<dict>
@@ -467,7 +467,7 @@ esac</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib chooser "$1"</string>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobold chooser "$1"</string>
 			</dict>
 		</dict>
 		<dict>
@@ -488,7 +488,7 @@ esac</string>
 				<key>type</key>
 				<integer>0</integer>
 				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib choose "$1" "$model"</string>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobold choose "$1" "$model"</string>
 			</dict>
 		</dict>
 		<dict>
@@ -1002,8 +1002,8 @@ esac</string>
 		</dict>
 	</dict>
 	<key>version</key>
-	<string>0.3.0</string>
+	<string>0.4.0</string>
 	<key>webaddress</key>
-	<string>https://github.com/vlnn/kobo-alfred</string>
+	<string>https://github.com/vlnn/kobold</string>
 </dict>
 </plist>

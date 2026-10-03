@@ -4,7 +4,7 @@ import os
 from collections.abc import Iterator
 from pathlib import Path
 
-from kobolib.paths import in_sidecar, is_empty_dir, nfc
+from kobold.paths import in_sidecar, is_empty_dir, nfc
 
 BOOK_SUFFIXES = {".epub", ".fb2", ".mobi", ".azw", ".azw3", ".pdf", ".djvu"}
 PARTIAL_SUFFIX = ".part"

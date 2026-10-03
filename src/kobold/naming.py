@@ -5,10 +5,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from kobolib.filenames import EDITOR, STOPWORDS
-from kobolib.genres import genre_from_folder
-from kobolib.model import Row
-from kobolib.scan import PARTIAL_SUFFIX
+from kobold.filenames import EDITOR, STOPWORDS
+from kobold.genres import genre_from_folder
+from kobold.model import Row
+from kobold.scan import PARTIAL_SUFFIX
 
 UNSAFE = re.compile(r'[:?*|"<>/\\]')
 SPACES = re.compile(r"\s+")

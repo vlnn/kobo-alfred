@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.evidence import evidence_for, evidence_hash, palmdoc_decompress, text_sample
-from kobolib.metadata import read_book
+from kobold.evidence import evidence_for, evidence_hash, palmdoc_decompress, text_sample
+from kobold.metadata import read_book
 from tests.test_alfred import row
 
 
@@ -86,7 +86,7 @@ def test_sample_is_cut_to_about_two_thousand_characters(tmp_path: Path):
 
 @pytest.fixture
 def deep_work(epub_file: Path):
-    from kobolib.index import to_row
+    from kobold.index import to_row
 
     book = read_book(epub_file, epub_file.parent)
     return to_row(book, None, str(epub_file.parent))

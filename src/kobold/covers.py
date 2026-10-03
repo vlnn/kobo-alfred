@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from kobolib.model import Book
+from kobold.model import Book
 
 THUMBNAIL_FORMATS = {"pdf"}
 QUICKLOOK_TIMEOUT = 15
