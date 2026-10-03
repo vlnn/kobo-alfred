@@ -28,6 +28,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 
 SCHEMA_VERSION = 7
 EVERYTHING = 100_000
+PAGE = 40
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
 
@@ -235,7 +236,7 @@ class Index:
     def rel_paths(self, words: list[str]) -> set[str]:
         return {row.rel_path for row in self.search(words, limit=EVERYTHING)}
 
-    def search(self, words: list[str], limit: int = 40) -> list[Row]:
+    def search(self, words: list[str], limit: int = PAGE) -> list[Row]:
         order = "rank, title" if words else "mtime DESC"
         return self.matching(words, "partial = 0", order, limit)
 

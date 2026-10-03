@@ -1,4 +1,5 @@
 import json
+import os
 import zipfile
 from pathlib import Path
 
@@ -72,7 +73,7 @@ def test_update_builds_a_separate_sources_index(env, tmp_path, capsys):
 @pytest.mark.parametrize(
     "query, expected",
     [
-        ("downloads", ["No books match ‘downloads’"]),
+        ("downloads", ["1 book matches ‘downloads’, already in the library"]),
         ("calibre slow", ["Slow Productivity"]),
         ("epub newport", ["A World Without Email", "Slow Productivity"]),
     ],
@@ -108,7 +109,9 @@ def test_sources_hides_books_already_in_library(env, capsys):
     main(["search", "src deep"])
 
     item = output(capsys)["items"][0]
-    assert item["title"].startswith("No books match"), "a book already in the library is not offered again"
+    assert item["title"].endswith("already in the library") and not item.get("valid", True), (
+        "a book already in the library is not offered again"
+    )
 
 
 def test_sources_empty_query_hides_library_copies_too(env, capsys):
@@ -269,7 +272,49 @@ def test_import_is_refused_while_indexing(env, tmp_path, calibre, capsys):
     assert main(["import", str(calibre / "Misc" / "A World Without Email.epub")]) == 1, "import must not write to a database being rebuilt"
 
 
-def test_stats_counts_sources(env, capsys):
+def test_stats_source_row_completes_to_its_search(env, capsys):
     main(["search", "stats"])
-    row = next(i for i in output(capsys)["items"] if i["title"].startswith("3 books in 2 sources"))
-    assert row["autocomplete"] == "src ", "the sources row should complete to kb src"
+    row = next(i for i in output(capsys)["items"] if i["title"].endswith("in Calibre Library"))
+    assert row["autocomplete"] == "src Calibre Library ", "the source row should complete to kb src for that source"
+
+
+def test_sources_hide_library_copies_before_cutting_the_list(env, library, elsewhere, capsys):
+    backup = elsewhere / "backup"
+    deep = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+    for n in range(45):
+        (backup / f"copy_{n:02d}.epub").parent.mkdir(exist_ok=True)
+        (backup / f"copy_{n:02d}.epub").write_bytes(deep.read_bytes())
+    older = write_epub(backup / "old" / "Older Book.epub", "Older Book")
+    os.utime(older, (older.stat().st_mtime - 10_000,) * 2)
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("KOBOLD_SOURCES", str(backup))
+        main(["update"])
+        capsys.readouterr()
+
+        main(["search", "src"])
+
+    assert titles(capsys) == ["Older Book"], "a book older than 40 library copies should still be offered"
+
+
+def test_sources_say_when_every_match_is_already_in_the_library(env, capsys):
+
+    main(["search", "src deep"])
+
+    item = output(capsys)["items"][0]
+    assert item["title"] == "1 book matches ‘deep’, already in the library", "the user should learn the source works but holds nothing new"
+
+
+def test_stats_counts_new_books_per_source(env, capsys, calibre, downloads):
+
+    main(["search", "stats"])
+
+    items = output(capsys)["items"]
+    assert any(i["title"] == "2 new of 2 books in Calibre Library" for i in items), "each source should report its new and total books"
+    assert any(i["title"] == "0 new of 1 book in Downloads" for i in items), "a source holding only library copies should say so"
+
+
+def test_sources_paths_are_trimmed(monkeypatch, tmp_path):
+    from kobold.config import sources
+
+    monkeypatch.setenv("KOBOLD_SOURCES", f" {tmp_path / 'a'} : {tmp_path / 'b'}")
+    assert sources() == [tmp_path / "a", tmp_path / "b"], "spaces around ':' should not become part of a path"

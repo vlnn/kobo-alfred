@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import shutil
+from collections import Counter
 from collections.abc import Callable
-from dataclasses import astuple, replace
+from dataclasses import astuple, dataclass, replace
 from pathlib import Path
 
 from kobold.alfred import counted
@@ -319,3 +320,20 @@ def transfer(src: Path, dst: Path) -> None:
 def not_in_library(rows: list[Row]) -> list[Row]:
     copies = library_index().fingerprints_among([r.fingerprint for r in rows]) if db_path().exists() else set()
     return [r for r in rows if r.fingerprint not in copies]
+
+
+@dataclass(frozen=True)
+class SourceCount:
+    source: Path
+    total: int
+    new: int
+
+
+def source_of(row: Row) -> Path:
+    return Path(row.root) / Path(row.rel_path).parts[0]
+
+
+def source_counts(rows: list[Row]) -> list[SourceCount]:
+    fresh = {r.rel_path for r in not_in_library(rows)}
+    totals, news = Counter(source_of(r) for r in rows), Counter(source_of(r) for r in rows if r.rel_path in fresh)
+    return [SourceCount(source, totals[source], news[source]) for source in sorted(totals)]

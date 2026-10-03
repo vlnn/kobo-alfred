@@ -15,7 +15,7 @@ def library_root() -> Path:
 
 def sources() -> list[Path]:
     raw = os.environ.get("KOBOLD_SOURCES", "")
-    return [Path(p).expanduser() for p in raw.replace("\n", os.pathsep).split(os.pathsep) if p.strip()]
+    return [Path(p.strip()).expanduser() for p in raw.replace("\n", os.pathsep).split(os.pathsep) if p.strip()]
 
 
 def mounted_sources() -> tuple[list[Path], list[Path]]:
