@@ -4,16 +4,27 @@ import argparse
 import subprocess
 from pathlib import Path
 
-from kobolib import alfred
+from kobolib import alfred, oracle
 from kobolib.alfred import counted
 from kobolib.apply import Applied, apply, undo
+from kobolib.asking import Question, ask_all, collect_evidence, genre_question, summary
 from kobolib.commands import (
     genre_picker_items,
     index_problem,
     search_items,
     without_index_items,
 )
-from kobolib.config import covers_dir, db_path, genre_store, journal_path, library_index, library_root, selected_books, sources
+from kobolib.config import (
+    covers_dir,
+    db_path,
+    genre_store,
+    journal_path,
+    library_index,
+    library_root,
+    selected_books,
+    sources,
+    suggestion_store,
+)
 from kobolib.index import add_book, fill_thumbnails, index_busy
 from kobolib.library import (
     apply_summary,
@@ -22,6 +33,7 @@ from kobolib.library import (
     import_blocked,
     inbox_folder,
     inbox_note,
+    known_genres,
     operation_line,
     refresh_index,
     row_by_reference,
@@ -190,6 +202,34 @@ def cmd_import(args) -> int:
     return 0 if books else 1
 
 
+def questions(name: str) -> list[Question]:
+    index, store = library_index(), genre_store()
+    all_questions = {"genre": lambda: genre_question(known_genres(index, store))}
+    return [make() for key, make in all_questions.items() if name in ("", key)]
+
+
+def dry_run_report(asked_blocks: list[str]) -> str:
+    return "\n\n".join(asked_blocks) + "\n" if asked_blocks else ""
+
+
+def cmd_ask(args) -> int:
+    if not oracle.configured():
+        return refuse("No model server: set KOBO_ORACLE_URL in the workflow configuration", args.notify)
+    if problem := index_problem():
+        return refuse(f"{problem}: run kb update", args.notify)
+    index, store, lines = library_index(), suggestion_store(), []
+    for question in questions(args.question):
+        rows = question.candidates(index, args.words)
+        if args.dry_run:
+            lines += collect_evidence(question, rows).evidence
+            continue
+        asked = ask_all(question, rows, store, args.force)
+        store.save()
+        report(summary(question, asked), args.notify)
+    print(dry_run_report(lines), end="")
+    return 0
+
+
 def flag(name: str) -> argparse.ArgumentParser:
     parent = argparse.ArgumentParser(add_help=False)
     parent.add_argument(name, action="store_true")
@@ -223,6 +263,10 @@ def build_parser() -> argparse.ArgumentParser:
     import_cmd = sub.add_parser("import", parents=[notify])
     import_cmd.add_argument("book")
     import_cmd.set_defaults(func=cmd_import)
+    ask_cmd = sub.add_parser("ask", parents=[notify, flag("--force"), flag("--dry-run")])
+    ask_cmd.add_argument("question", nargs="?", default="", choices=["", "genre"])
+    ask_cmd.add_argument("words", nargs="*")
+    ask_cmd.set_defaults(func=cmd_ask)
     return parser
 
 

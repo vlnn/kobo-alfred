@@ -31,6 +31,11 @@ OPF = """<?xml version="1.0"?>
 </package>
 """
 
+TEXT = """<?xml version="1.0"?>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter 1</title></head>
+<body><h1>Chapter 1</h1><p>Deep work is the ability to focus without distraction on a cognitively demanding task.</p></body></html>
+"""
+
 CONTAINER = """<?xml version="1.0"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
@@ -65,6 +70,7 @@ def epub_file(tmp_path: Path) -> Path:
         zf.writestr("META-INF/container.xml", CONTAINER)
         zf.writestr("OEBPS/content.opf", OPF)
         zf.writestr("OEBPS/images/cover.png", PNG_1X1)
+        zf.writestr("OEBPS/text.xhtml", TEXT)
     return path
 
 

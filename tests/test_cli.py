@@ -413,3 +413,75 @@ def test_trash_prunes_the_books_suggestions(indexed, library, tmp_path, capsys):
 
 def test_update_does_not_create_an_empty_oracle_store(indexed, tmp_path):
     assert not (tmp_path / "alfred-data" / "oracle.tsv").exists(), "nothing mentions the oracle until there is something to store"
+
+
+@pytest.fixture
+def oracle_env(indexed, monkeypatch):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+
+
+def test_ask_is_refused_without_a_model_server(indexed, monkeypatch, capsys):
+    monkeypatch.delenv("KOBO_ORACLE_URL", raising=False)
+
+    assert main(["ask", "genre"]) == 1, "nothing to ask without a server"
+    assert "KOBO_ORACLE_URL" in capsys.readouterr().out, "the message should name the setting"
+
+
+def test_ask_genre_stores_an_answer_per_inbox_book(oracle_env, tmp_path, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", side_effect=[{"genre": "nonfiction"}, {"genre": "none"}])
+
+    assert main(["ask", "genre"]) == 0, "asking should succeed"
+
+    assert capsys.readouterr().out.strip() == "Asked about 2 books: 1 genre suggested, 1 without an answer", "the summary counts answers"
+    assert ask.call_count == 2, "one request per inbox book"
+    answers = oracle_store(tmp_path).answers("genre")
+    assert sorted(a["genre"] for a in answers.values()) == ["none", "nonfiction"], "both answers are kept, none included"
+    assert ask.call_args_list[0].args[0] == "genre" and "Genres: nonfiction" in ask.call_args_list[0].args[1], (
+        "the known genres are part of the evidence"
+    )
+
+
+def test_ask_twice_asks_nothing_the_second_time(oracle_env, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    main(["ask", "genre"])
+    capsys.readouterr()
+
+    main(["ask", "genre"])
+
+    assert ask.call_count == 2, "answered books are not asked again"
+    assert capsys.readouterr().out.strip() == "The model had no suggestions", "nothing new is said plainly"
+
+
+def test_ask_force_asks_again(oracle_env, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    main(["ask", "genre"])
+
+    main(["ask", "--force", "genre"])
+
+    assert ask.call_count == 4, "--force re-asks every book"
+
+
+def test_ask_counts_skipped_requests(oracle_env, capsys, mocker):
+    mocker.patch("kobolib.oracle.ask", side_effect=[{"genre": "nonfiction"}, None])
+
+    main(["ask", "genre"])
+
+    assert capsys.readouterr().out.strip() == "Asked about 2 books: 1 genre suggested, 1 skipped", "a timeout is counted, not fatal"
+
+
+def test_ask_dry_run_prints_the_evidence_and_writes_nothing(oracle_env, tmp_path, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask")
+
+    assert main(["ask", "--dry-run", "genre"]) == 0, "a dry run succeeds"
+
+    out = capsys.readouterr().out
+    assert out.count("Title: ") == 2 and "Genres: nonfiction" in out, "one block per book, exactly what the model would see"
+    assert not ask.called and not (tmp_path / "alfred-data" / "oracle.tsv").exists(), "a dry run neither asks nor stores"
+
+
+def test_ask_words_narrow_the_books(oracle_env, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+
+    main(["ask", "genre", "napkin"])
+
+    assert ask.call_count == 1 and "Title: Napkin" in ask.call_args.args[1], "only books matching the words are asked about"

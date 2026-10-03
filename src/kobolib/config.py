@@ -58,6 +58,30 @@ def genre_store() -> GenreStore:
     return GenreStore(data_dir() / "genres.tsv").load()
 
 
+def oracle_url() -> str:
+    return os.environ.get("KOBO_ORACLE_URL", "").strip().rstrip("/")
+
+
+def oracle_model() -> str:
+    return os.environ.get("KOBO_ORACLE_MODEL", "").strip()
+
+
+def embed_url() -> str:
+    return os.environ.get("KOBO_EMBED_URL", "").strip().rstrip("/") or oracle_url()
+
+
+def embed_model() -> str:
+    return os.environ.get("KOBO_EMBED_MODEL", "").strip()
+
+
+def oracle_log_path() -> Path:
+    return data_dir() / "oracle.log"
+
+
+def oracle_status_path() -> Path:
+    return data_dir() / "oracle.status"
+
+
 def suggestion_store() -> SuggestionStore:
     return SuggestionStore(data_dir() / "oracle.tsv").load()
 
