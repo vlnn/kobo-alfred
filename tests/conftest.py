@@ -17,6 +17,9 @@ OPF = """<?xml version="1.0"?>
     <dc:language>en</dc:language>
     <dc:date>2016-01-05</dc:date>
     <dc:publisher>Grand Central</dc:publisher>
+    <dc:subject>Business</dc:subject>
+    <dc:subject>Attention economy</dc:subject>
+    <dc:description>Rules for focused success in a distracted world.</dc:description>
     <meta name="calibre:series" content="Focus"/>
     <meta name="calibre:series_index" content="2"/>
     <meta name="cover" content="cover-img"/>
@@ -26,6 +29,11 @@ OPF = """<?xml version="1.0"?>
     <item id="text" href="text.xhtml" media-type="application/xhtml+xml"/>
   </manifest>
 </package>
+"""
+
+TEXT = """<?xml version="1.0"?>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter 1</title></head>
+<body><h1>Chapter 1</h1><p>Deep work is the ability to focus without distraction on a cognitively demanding task.</p></body></html>
 """
 
 CONTAINER = """<?xml version="1.0"?>
@@ -38,8 +46,10 @@ FB2 = """<?xml version="1.0" encoding="utf-8"?>
 <FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
   <description>
     <title-info>
+      <genre>sci_psychology</genre>
       <author><first-name>Беррес</first-name><middle-name>Фредерик</middle-name><last-name>Скиннер</last-name></author>
       <book-title>Оперантное поведение</book-title>
+      <annotation><p>Что такое <emphasis>оперантное</emphasis> поведение.</p><p>Вторая глава.</p></annotation>
       <lang>ru</lang>
       <sequence name="Психология" number="3"/>
       <coverpage><image l:href="#cover.png"/></coverpage>
@@ -52,6 +62,11 @@ FB2 = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 
+@pytest.fixture(autouse=True)
+def no_quicklook(mocker):
+    mocker.patch("kobolib.covers.shutil.which", return_value=None)
+
+
 @pytest.fixture
 def epub_file(tmp_path: Path) -> Path:
     path = tmp_path / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
@@ -60,6 +75,7 @@ def epub_file(tmp_path: Path) -> Path:
         zf.writestr("META-INF/container.xml", CONTAINER)
         zf.writestr("OEBPS/content.opf", OPF)
         zf.writestr("OEBPS/images/cover.png", PNG_1X1)
+        zf.writestr("OEBPS/text.xhtml", TEXT)
     return path
 
 

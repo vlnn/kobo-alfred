@@ -47,6 +47,23 @@ def test_search(index: Index, raw, expected):
     assert titles(index.search(query_words(raw))) == expected, f"the words {raw!r} should find {expected}"
 
 
+@pytest.mark.parametrize("raw, expected", [("business", ["Deep Work"]), ("attention", ["Deep Work"]), ("psycho", ["Оперантное поведение"])])
+def test_search_matches_subjects(index: Index, raw, expected):
+    assert titles(index.search(query_words(raw))) == expected, f"{raw!r} should match a publisher's subject or an fb2 genre"
+
+
+def test_search_leaves_descriptions_alone(index: Index):
+    assert titles(index.search(query_words("distracted"))) == [], "a word from the blurb is not a search hit"
+    assert index.by_rel_path("00_Inbox/Скиннер - Оперантное поведение.fb2").description.startswith("Что такое"), (
+        "the description is stored for the picker and the oracle, not for search"
+    )
+
+
+def test_row_carries_subjects_joined(index: Index):
+    (row,) = index.search(query_words("deep"))
+    assert row.subjects == "Business; Attention economy", "subjects are stored the way authors are"
+
+
 def test_search_words_match_any_segment_of_the_genre(index: Index):
     index.write_genres({index.by_rel_path("00_Inbox/Napkin.pdf").fingerprint: "games/go_strategy"})
 

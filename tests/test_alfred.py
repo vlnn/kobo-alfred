@@ -23,6 +23,9 @@ BASE_ROW = {
     "norm_title": "deep work",
     "fingerprint": "f00",
     "genre": "",
+    "subjects": "",
+    "description": "",
+    "guessed": False,
 }
 
 
@@ -125,6 +128,7 @@ def test_render_and_empty():
     output = json.loads(render([book_item(row())]))
     assert len(output["items"]) == 1, "render should wrap items in Alfred JSON"
     assert empty_item("zzz")["valid"] is False, "no-match item should not be actionable"
+    assert "subjects" in empty_item("zzz")["subtitle"], "the no-match row should list subjects among the searched fields"
 
 
 def test_problem_item_points_at_first_file_and_copies_all():

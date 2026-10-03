@@ -379,3 +379,516 @@ def test_genre_names_unknown_references_exactly(indexed, library, capsys):
 def test_one_purpose_subcommands_are_gone(env, retired):
     with pytest.raises(SystemExit):
         main([retired])
+
+
+def oracle_store(tmp_path: Path):
+    from kobolib.suggestions import SuggestionStore
+
+    return SuggestionStore(tmp_path / "alfred-data" / "oracle.tsv").load()
+
+
+def test_update_prunes_suggestions_for_books_that_left(indexed, library, tmp_path, capsys):
+    napkin = run(["search", "napkin"], capsys)["items"][0]["variables"]["book"]
+    store = oracle_store(tmp_path)
+    store.set(napkin, "genre", {"genre": "none"}, "h")
+    store.set("vanished", "genre", {"genre": "none"}, "h")
+    store.save()
+
+    main(["update"])
+
+    store = oracle_store(tmp_path)
+    assert store.get("vanished", "genre") is None and store.get(napkin, "genre") is not None, "only answers about absent books are pruned"
+
+
+def test_trash_prunes_the_books_suggestions(indexed, library, tmp_path, capsys):
+    napkin = run(["search", "napkin"], capsys)["items"][0]["variables"]["book"]
+    store = oracle_store(tmp_path)
+    store.set(napkin, "genre", {"genre": "reference"}, "h")
+    store.save()
+
+    main(["trash", str(library / "00_Inbox" / "Napkin.pdf")])
+
+    assert oracle_store(tmp_path).get(napkin, "genre") is None, "a book set aside takes its suggestions with it"
+
+
+def test_update_does_not_create_an_empty_oracle_store(indexed, tmp_path):
+    assert not (tmp_path / "alfred-data" / "oracle.tsv").exists(), "nothing mentions the oracle until there is something to store"
+
+
+@pytest.fixture
+def oracle_env(indexed, monkeypatch):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+
+
+def test_ask_is_refused_without_a_model_server(indexed, monkeypatch, capsys):
+    monkeypatch.delenv("KOBO_ORACLE_URL", raising=False)
+
+    assert main(["ask", "genre"]) == 1, "nothing to ask without a server"
+    assert "KOBO_ORACLE_URL" in capsys.readouterr().out, "the message should name the setting"
+
+
+def test_ask_genre_stores_an_answer_per_inbox_book(oracle_env, tmp_path, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", side_effect=[{"genre": "nonfiction"}, {"genre": "none"}])
+
+    assert main(["ask", "genre"]) == 0, "asking should succeed"
+
+    assert capsys.readouterr().out.strip() == "Asked about 2 books: 1 genre suggested, 1 without an answer", "the summary counts answers"
+    assert ask.call_count == 2, "one request per inbox book"
+    answers = oracle_store(tmp_path).answers("genre")
+    assert sorted(a["genre"] for a in answers.values()) == ["none", "nonfiction"], "both answers are kept, none included"
+    assert ask.call_args_list[0].args[0] == "genre" and "Genres: nonfiction" in ask.call_args_list[0].args[1], (
+        "the known genres are part of the evidence"
+    )
+
+
+def test_ask_twice_asks_nothing_the_second_time(oracle_env, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    main(["ask", "genre"])
+    capsys.readouterr()
+
+    main(["ask", "genre"])
+
+    assert ask.call_count == 2, "answered books are not asked again"
+    assert capsys.readouterr().out.strip() == "The model had no suggestions", "nothing new is said plainly"
+
+
+def test_ask_force_asks_again(oracle_env, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    main(["ask", "genre"])
+
+    main(["ask", "--force", "genre"])
+
+    assert ask.call_count == 4, "--force re-asks every book"
+
+
+def test_ask_counts_skipped_requests(oracle_env, capsys, mocker):
+    mocker.patch("kobolib.oracle.ask", side_effect=[{"genre": "nonfiction"}, None])
+
+    main(["ask", "genre"])
+
+    assert capsys.readouterr().out.strip() == "Asked about 2 books: 1 genre suggested, 1 skipped", "a timeout is counted, not fatal"
+
+
+def test_ask_dry_run_prints_the_evidence_and_writes_nothing(oracle_env, tmp_path, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask")
+
+    assert main(["ask", "--dry-run", "genre"]) == 0, "a dry run succeeds"
+
+    out = capsys.readouterr().out
+    assert out.count("Title: ") == 2 and "Genres: nonfiction" in out, "one block per book, exactly what the model would see"
+    assert not ask.called and not (tmp_path / "alfred-data" / "oracle.tsv").exists(), "a dry run neither asks nor stores"
+
+
+def test_ask_words_narrow_the_books(oracle_env, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+
+    main(["ask", "genre", "napkin"])
+
+    assert ask.call_count == 1 and "Title: Napkin" in ask.call_args.args[1], "only books matching the words are asked about"
+
+
+def test_genre_takes_fingerprint_and_genre_pairs_as_one_batch(indexed, library, tmp_path, capsys):
+    from kobolib.apply import last_batch, read_journal
+
+    napkin, skinner = (run(["search", w], capsys)["items"][0]["variables"]["book"] for w in ("napkin", "оперантное"))
+
+    assert main(["genre", f"{napkin}\treference\n{skinner}\tnonfiction/psychology", ""]) == 0, "pairs carry their own genre"
+
+    assert capsys.readouterr().out.startswith("2 books → 2 genres · 1 moved, 1 stayed put"), "the summary counts moved and unmoved books"
+    assert [i["title"] for i in run(["search", "psychology"], capsys)["items"]] == ["Оперантное поведение"], "each book gets its own genre"
+    assert len(last_batch(read_journal(tmp_path / "alfred-data" / "journal.jsonl"))) == 1, "the moves are one journaled batch"
+
+
+def test_genre_for_several_books_is_one_batch(indexed, library, tmp_path, capsys):
+    from kobolib.apply import last_batch, read_journal
+
+    books = "\n".join(fingerprints_of(inbox_rows()))
+    (library / "00_Inbox" / "Delany, Samuel R - Nova - 2014.epub.part").unlink()
+    main(["update"])
+    capsys.readouterr()
+
+    main(["genre", books, "reference"])
+
+    batch = last_batch(read_journal(tmp_path / "alfred-data" / "journal.jsonl"))
+    assert len(batch) == 1 and "Napkin" not in batch[0].src, "the one book that can move does, in the batch of this command"
+
+
+def test_setting_a_genre_drops_the_models_suggestion(indexed, library, tmp_path, capsys):
+    napkin = run(["search", "napkin"], capsys)["items"][0]["variables"]["book"]
+    store = oracle_store(tmp_path)
+    store.set(napkin, "genre", {"genre": "reference"}, "h")
+    store.save()
+
+    main(["genre", napkin, "fiction/spy"])
+
+    assert oracle_store(tmp_path).get(napkin, "genre") is None, "a suggestion acted on, or overruled, is forgotten"
+
+
+NAPKIN_NAME = {"title": "Table Napkin Folding", "authors": ["Ivor Penhale"], "confident": True}
+
+
+def test_ask_name_asks_about_books_described_from_their_filename(oracle_env, tmp_path, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value=NAPKIN_NAME)
+
+    main(["ask", "name"])
+
+    assert ask.call_count == 1 and "Path: 00_Inbox/Napkin.pdf" in ask.call_args.args[1], (
+        "only the pdf's name is a guess from an opaque filename"
+    )
+    assert "Genres:" not in ask.call_args.args[1], "a name question does not list the genres"
+    assert capsys.readouterr().out.strip() == "Asked about 1 book: 1 name suggested", "the summary counts names"
+    assert oracle_store(tmp_path).get(fingerprint_of_napkin(capsys), "name").answer == NAPKIN_NAME, "the answer is stored as given"
+
+
+def fingerprint_of_napkin(capsys) -> str:
+    return run(["search", "napkin"], capsys)["items"][0]["variables"]["book"]
+
+
+def test_an_unconfident_name_is_stored_but_not_counted(oracle_env, tmp_path, capsys, mocker):
+    mocker.patch("kobolib.oracle.ask", return_value={**NAPKIN_NAME, "confident": False})
+
+    main(["ask", "name"])
+
+    assert capsys.readouterr().out.strip() == "The model had no suggestions", "an unsure answer is no suggestion"
+    assert oracle_store(tmp_path).get(fingerprint_of_napkin(capsys), "name") is not None, "but it is kept so the book is not asked again"
+
+
+def test_ask_without_a_question_asks_names_before_genres(oracle_env, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", side_effect=[NAPKIN_NAME, {"genre": "none"}, {"genre": "none"}])
+
+    main(["ask"])
+
+    assert [c.args[0] for c in ask.call_args_list] == ["name", "genre", "genre"], "a book that gets a title is classified under it"
+
+
+def test_dismiss_silences_a_book(oracle_env, tmp_path, capsys):
+    napkin = fingerprint_of_napkin(capsys)
+    store = oracle_store(tmp_path)
+    store.set(napkin, "name", NAPKIN_NAME, "h")
+    store.save()
+
+    assert main(["dismiss", napkin]) == 0, "dismissing should succeed"
+
+    assert capsys.readouterr().out.strip() == "Suggestions for Napkin dismissed", "the book is named"
+    assert oracle_store(tmp_path).get(napkin, "name").answer == {}, "the suggestion is gone"
+
+
+def test_dismiss_names_an_unknown_book(indexed, capsys):
+    assert main(["dismiss", "nope"]) == 1 and capsys.readouterr().out == "Not indexed: nope\n", "an unknown reference is a failure"
+
+
+@pytest.fixture
+def napkin_named(oracle_env, tmp_path, capsys) -> str:
+    napkin = fingerprint_of_napkin(capsys)
+    store = oracle_store(tmp_path)
+    store.set(napkin, "name", NAPKIN_NAME, "h")
+    store.save()
+    return napkin
+
+
+SUGGESTED_NAME = "00_Inbox/Penhale, Ivor - Table Napkin Folding.pdf"
+
+
+def test_bare_fix_leaves_suggested_renames_alone(napkin_named, library, capsys):
+    main(["fix"])
+
+    assert (library / "00_Inbox" / "Napkin.pdf").exists(), "what the model suggested is not applied without being asked for"
+
+
+def test_fix_dry_run_lists_only_what_is_certain(napkin_named, capsys):
+    main(["fix", "--dry-run"])
+
+    assert "suggested" not in capsys.readouterr().out, "a bare dry run is the certain plan"
+
+
+def test_fix_with_the_path_applies_the_suggested_rename_and_forgets_it(napkin_named, library, tmp_path, capsys):
+    assert main(["fix", str(library / "00_Inbox" / "Napkin.pdf")]) == 0, "↩ on a suggested row applies that one move"
+    capsys.readouterr()
+
+    assert (library / SUGGESTED_NAME).exists(), "the book is renamed from the suggested title and author"
+    assert oracle_store(tmp_path).get(napkin_named, "name") is None, "a suggestion acted on is forgotten"
+    assert run(["search", "penhale"], capsys)["items"][0]["subtitle"].endswith(SUGGESTED_NAME), "the index follows the rename"
+
+
+def author_epub(path: Path, title: str, author: str) -> Path:
+    import zipfile
+
+    from tests.conftest import CONTAINER, OPF
+
+    opf = "\n".join(
+        line for line in OPF.replace("Deep Work", title).splitlines() if "calibre:series" not in line and "Someone Else" not in line
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("META-INF/container.xml", CONTAINER)
+        zf.writestr("OEBPS/content.opf", opf.replace("Cal Newport", author))
+    return path
+
+
+NOVA_HOME = "01_Fiction/02_Sci-Fi/Delany, Samuel Ray/Delany, Samuel Ray - Nova (2016).epub"
+BABEL_ALIAS = "01_Fiction/02_Sci-Fi/Delany, Samuel/Delany, Samuel - Babel-17 (2016).epub"
+GROUPS = {"groups": [{"canonical": "Delany, Samuel Ray", "aliases": ["Delany, Samuel"]}]}
+
+
+@pytest.fixture
+def delany_folders(env, library, capsys, monkeypatch) -> None:
+    author_epub(library / NOVA_HOME, "Nova", "Samuel Ray Delany")
+    author_epub(library / BABEL_ALIAS, "Babel-17", "Samuel Delany")
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    main(["update"])
+    capsys.readouterr()
+
+
+def test_ask_authors_asks_once_about_every_author_folder(delany_folders, tmp_path, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value=GROUPS)
+
+    assert main(["ask", "authors"]) == 0, "asking should succeed"
+
+    assert ask.call_count == 1 and ask.call_args.args[0] == "authors", "one request for the whole library"
+    assert ask.call_args.args[1].splitlines()[1:] == ["Delany, Samuel", "Delany, Samuel Ray"], (
+        "the evidence is the sorted author folder list"
+    )
+    assert capsys.readouterr().out.strip() == "Asked about the author folders: 1 merge suggested", "the summary counts groups"
+    assert oracle_store(tmp_path).get("*", "authors").answer == GROUPS, "the answer is stored for the library"
+
+    main(["ask", "authors"])
+    assert ask.call_count == 1, "the same folder list is not asked about twice"
+
+
+def test_ask_authors_with_nothing_to_merge_says_so(delany_folders, capsys, mocker):
+    mocker.patch("kobolib.oracle.ask", return_value={"groups": []})
+
+    main(["ask", "authors"])
+
+    assert capsys.readouterr().out.strip() == "The model had no suggestions", "an empty answer is stored and reported"
+
+
+@pytest.fixture
+def delany_merge(delany_folders, tmp_path) -> None:
+    store = oracle_store(tmp_path)
+    store.set("*", "authors", GROUPS, "h")
+    store.save()
+
+
+def test_fix_with_the_paths_applies_a_suggested_merge(delany_merge, library, capsys):
+    assert main(["fix", str(library / BABEL_ALIAS)]) == 0, "↩ on the merge row passes the group's paths"
+
+    assert (library / "01_Fiction" / "02_Sci-Fi" / "Delany, Samuel Ray" / "Delany, Samuel - Babel-17 (2016).epub").exists(), (
+        "the book joins the canonical folder"
+    )
+    assert not (library / "01_Fiction" / "02_Sci-Fi" / "Delany, Samuel").exists(), "the emptied alias folder is pruned"
+
+
+def test_bare_fix_leaves_merges_alone(delany_merge, library, capsys):
+    main(["fix"])
+
+    assert (library / BABEL_ALIAS).exists(), "a merge is a suggestion until ↩ on its row"
+
+
+def test_choose_writes_the_workflow_configuration(env, capsys, mocker):
+    run_script = mocker.patch("kobolib.cli.subprocess.run")
+
+    assert main(["choose", "oracle", "qwen2.5-7b-instruct"]) == 0, "choosing should succeed"
+
+    argv = run_script.call_args.args[0]
+    assert argv[0] == "osascript" and argv[-3:] == ["KOBO_ORACLE_MODEL", "qwen2.5-7b-instruct", "com.anokhin.kobolib"], (
+        "the variable, the value and the bundle id reach the script as arguments, never spliced into it"
+    )
+    assert "set configuration" in " ".join(argv) and "com.runningwithcrayons.Alfred" in " ".join(argv), (
+        "Alfred is asked to set the variable"
+    )
+    assert capsys.readouterr().out.strip() == "Oracle: qwen2.5-7b-instruct", "the choice is reported"
+
+
+def test_choose_embed_sets_the_embedding_model(env, capsys, mocker):
+    run_script = mocker.patch("kobolib.cli.subprocess.run")
+
+    main(["choose", "embed", "bge-m3"])
+
+    assert run_script.call_args.args[0][-3] == "KOBO_EMBED_MODEL", "embed chooses the embedding model"
+    assert capsys.readouterr().out.strip() == "Embeddings: bge-m3", "the choice is reported"
+
+
+def test_choose_uses_the_running_workflows_bundle_id(env, capsys, mocker, monkeypatch):
+    monkeypatch.setenv("alfred_workflow_bundleid", "com.example.fork")
+    run_script = mocker.patch("kobolib.cli.subprocess.run")
+
+    main(["choose", "oracle", "x"])
+
+    assert run_script.call_args.args[0][-1] == "com.example.fork", "a renamed workflow configures itself, not the original"
+
+
+def test_models_prints_the_list_with_the_current_choices(env, capsys, mocker, monkeypatch):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBO_ORACLE_MODEL", "qwen2.5-7b-instruct")
+    mocker.patch("kobolib.embedder.models", return_value=["qwen2.5-7b-instruct", "bge-m3"])
+
+    assert main(["models"]) == 0, "listing should succeed"
+
+    assert capsys.readouterr().out == "qwen2.5-7b-instruct\toracle\nbge-m3\t\n", "one model per line with its role"
+
+
+def test_models_reports_a_server_that_is_down(env, capsys, mocker, monkeypatch):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    mocker.patch("kobolib.embedder.models", return_value=None)
+
+    assert main(["models"]) == 1, "no list is a failure"
+    assert capsys.readouterr().out.strip() == "Model not reachable at http://127.0.0.1:8080", "the server is named"
+
+
+def test_chooser_renders_rows_for_the_selected_model(env, capsys, monkeypatch):
+    monkeypatch.setenv("model", "bge-m3")
+
+    items = run(["chooser", ""], capsys)["items"]
+
+    assert [i["title"] for i in items] == ["Use bge-m3 for the oracle", "Use bge-m3 for embeddings"], "the chooser reads the model variable"
+
+
+@pytest.fixture
+def embed_env(oracle_env, monkeypatch):
+    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+
+
+def vector_store(tmp_path: Path):
+    from kobolib.vectors import VectorStore
+
+    return VectorStore(tmp_path / "alfred-data" / "vectors.db")
+
+
+def test_embed_is_refused_without_an_embedding_model(oracle_env, capsys):
+    assert main(["embed"]) == 1 and "KOBO_EMBED_MODEL" in capsys.readouterr().out, "the setting to fill is named"
+
+
+def test_embed_stores_a_vector_per_complete_book(embed_env, tmp_path, capsys, mocker):
+    embed = mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+
+    assert main(["embed"]) == 0, "embedding should succeed"
+
+    assert capsys.readouterr().out.strip() == "Embedded 3 books", "every complete book, the unfinished download left out"
+    assert vector_store(tmp_path).count("bge-m3") == 3, "the vectors are stored under the model"
+    assert all(len(c.args[0]) <= 1500 and "Genres:" not in c.args[0] for c in embed.call_args_list), (
+        "the text is the evidence without the genre list, cut to fit an embedding window"
+    )
+
+
+def test_embed_skips_embedded_books_unless_forced(embed_env, capsys, mocker):
+    embed = mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+    main(["embed"])
+    capsys.readouterr()
+
+    main(["embed"])
+    assert embed.call_count == 3 and capsys.readouterr().out.strip() == "Every book is embedded", "nothing new is said plainly"
+
+    main(["embed", "--force"])
+    assert embed.call_count == 6, "--force re-embeds everything"
+
+
+def test_embed_counts_skipped_requests(embed_env, capsys, mocker):
+    mocker.patch("kobolib.embedder.embed", side_effect=[[1.0, 0.0], None, [0.0, 1.0]])
+
+    main(["embed"])
+
+    assert capsys.readouterr().out.strip() == "Embedded 2 books, skipped 1", "a failed request is counted, not fatal"
+
+
+def test_embed_words_narrow_the_books(embed_env, tmp_path, capsys, mocker):
+    mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+
+    main(["embed", "napkin"])
+
+    assert vector_store(tmp_path).count("bge-m3") == 1, "only books matching the words are embedded"
+
+
+@pytest.fixture
+def both_models(env, monkeypatch, mocker):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+    ask = mocker.patch(
+        "kobolib.oracle.ask",
+        side_effect=lambda question, *_: {"name": NAPKIN_NAME, "authors": {"groups": []}}.get(question, {"genre": "none"}),
+    )
+    embed = mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+    return ask, embed
+
+
+def test_update_leaves_the_models_alone_by_default(both_models, capsys):
+    ask, embed = both_models
+
+    main(["update", "--no-thumbnails"])
+
+    assert not ask.called and not embed.called, "indexing stays as fast as it is unless asked otherwise"
+
+
+def test_update_asks_and_embeds_when_the_setting_is_on(both_models, monkeypatch, tmp_path, capsys):
+    ask, embed = both_models
+    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "1")
+
+    assert main(["update", "--no-thumbnails"]) == 0, "update should succeed"
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("Indexed 4 books"), "indexing comes first and is reported as before"
+    assert lines[1:] == ["Asked about 1 book: 1 name suggested", "The model had no suggestions", "Embedded 3 books"], (
+        "then names, genres and embeddings, each reported like any update step; no author folders, so no author question"
+    )
+    assert [c.args[0] for c in ask.call_args_list] == ["name", "genre", "genre"], "names before genres"
+    assert embed.call_count == 3, "every complete book is embedded"
+    assert vector_store(tmp_path).count("bge-m3") == 3 and oracle_store(tmp_path).answers("name"), "the stores are written"
+
+
+def test_update_with_the_setting_on_is_quiet_when_nothing_is_new(both_models, monkeypatch, capsys):
+    ask, embed = both_models
+    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "1")
+    main(["update", "--no-thumbnails"])
+    capsys.readouterr()
+
+    main(["update", "--no-thumbnails"])
+
+    assert capsys.readouterr().out.splitlines()[1:] == [], "answered and embedded books cost nothing on the next update"
+    assert ask.call_count == 3 and embed.call_count == 3, "no request is repeated"
+
+
+def test_update_with_the_setting_on_skips_what_is_not_configured(both_models, monkeypatch, capsys):
+    ask, embed = both_models
+    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "true")
+    monkeypatch.delenv("KOBO_EMBED_MODEL")
+
+    main(["update", "--no-thumbnails"])
+
+    assert ask.called and not embed.called, "without an embedding model only the questions run; no refusal"
+
+
+def test_ask_takes_the_words_as_one_argument_from_alfred(oracle_env, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", side_effect=[NAPKIN_NAME, {"genre": "none"}])
+
+    main(["ask", "", "napkin inbox"])
+
+    assert [c.args[0] for c in ask.call_args_list] == ["name", "genre"], "only the one matching book is asked about, name then genre"
+    assert all("Title: Napkin" in c.args[1] for c in ask.call_args_list), (
+        "the Alfred row passes the words as one argument; each must match, as in a search"
+    )
+
+
+def test_only_one_model_pass_runs_at_a_time(oracle_env, tmp_path, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+    (tmp_path / "alfred-data" / "oracle.lock").write_text("1")
+
+    assert main(["ask", "genre"]) == 1 and main(["embed"]) == 1, "a second pass is refused while one runs"
+    assert "already" in capsys.readouterr().out and not ask.called, "and says so"
+
+
+def test_a_pass_releases_its_lock_and_trims_the_log(oracle_env, tmp_path, capsys, mocker):
+    mocker.patch("kobolib.oracle.ask", return_value={"genre": "none"})
+
+    main(["ask", "genre"])
+
+    assert not (tmp_path / "alfred-data" / "oracle.lock").exists(), "the lock goes with the pass"
+
+
+def test_update_skips_the_model_steps_while_a_pass_runs(both_models, monkeypatch, tmp_path, capsys):
+    ask, embed = both_models
+    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "1")
+    (tmp_path / "alfred-data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "alfred-data" / "oracle.lock").write_text("1")
+
+    assert main(["update", "--no-thumbnails"]) == 0, "indexing still succeeds"
+    assert not ask.called and not embed.called and "already" in capsys.readouterr().out, "the model steps wait for the next update"

@@ -13,12 +13,13 @@
 	<key>category</key>
 	<string>Productivity</string>
 	<key>readme</key>
-	<string>kb &lt;words&gt; searches the library: every word must match, by prefix, one of title, authors, series, folder, path, genre, format, language or year (kb delany epub 1975). Empty kb lists the newest books after a reminder of books without a genre.
+	<string>kb &lt;words&gt; searches the library: every word must match, by prefix, one of title, authors, series, folder, path, genre, subjects, format, language or year (kb delany epub 1975). Empty kb lists the newest books after a reminder of books without a genre.
 A first word that names a command adds its rows above the books matching all the words: kb rnd, kb inbox, kb classify, kb dups, kb stats, kb fix, kb trash, kb src, kb update. Typing two letters of a command offers to complete it.
 ↩ does a list's main thing, ⌥↩ reveals in Finder, ⇧↩ sets the genre of a book. A list with several books starts with a head row (Import all, Set genre for all, Fix all, Trash all) that does it for every row shown.
 kb classify lists the inbox; ↩ picks a genre and moves the book to its genre home at once. In the genre picker ⇧↩ creates the typed text as a new genre.
 kb fix shows what is wrong and how to fix it, with Undo for the last batch; kb trash sets unfinished downloads and other books aside in _trash/; nothing is ever deleted.
 kb src searches other sources (a Calibre library, a downloads folder) and ↩ copies the book into the library inbox.
+Optional: point Model server at a running llama-server and the workflow can propose genres, titles and author merges, shown with a ? in kb classify and as rows in kb fix; nothing happens until you press ↩. With an embedding model, kb like lists the books nearest the one you name or read last, and kb model shows what the server serves.
 Set the library root (and optionally other sources and the index folder) in the workflow configuration, then run kb update once; rerun after adding books. Needs only macOS's /usr/bin/python3.</string>
 	<key>variables</key>
 	<dict>
@@ -28,6 +29,20 @@ Set the library root (and optionally other sources and the index folder) in the 
 		<string></string>
 		<key>KOBO_SOURCES</key>
 		<string></string>
+		<key>KOBO_ORACLE_URL</key>
+		<string></string>
+		<key>KOBO_ORACLE_MODEL</key>
+		<string></string>
+		<key>KOBO_ORACLE_KEY</key>
+		<string></string>
+		<key>KOBO_EMBED_URL</key>
+		<string></string>
+		<key>KOBO_EMBED_MODEL</key>
+		<string></string>
+		<key>KOBO_EMBED_KEY</key>
+		<string></string>
+		<key>KOBO_MODEL_ON_UPDATE</key>
+		<string>0</string>
 	</dict>
 	<key>userconfigurationconfig</key>
 	<array>
@@ -94,6 +109,151 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>variable</key>
 			<string>KOBO_SOURCES</string>
 		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>http://127.0.0.1:8080</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Base URL of a running llama-server (its OpenAI-compatible endpoint). Empty turns the model off: nothing in the workflow mentions it. With it set, kb classify and kb fix offer to ask the model about inbox books and unnamed files; its answers are suggestions until you press ↩.</string>
+			<key>label</key>
+			<string>Model server (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_ORACLE_URL</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>qwen2.5-7b-instruct</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>The model that answers genre, name and author questions, as /v1/models names it. Empty uses whatever the server loads by default. kb model sets this for you.</string>
+			<key>label</key>
+			<string>Model for questions (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_ORACLE_MODEL</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string></string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Sent as a bearer token when the model server was started with --api-key (or has LLAMA_API_KEY set). Empty sends none. Also used for the embedding server unless it has its own key.</string>
+			<key>label</key>
+			<string>Model server API key (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_ORACLE_KEY</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>http://127.0.0.1:8081</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Base URL of the server that computes embeddings, when it is not the model server above. Empty uses the model server.</string>
+			<key>label</key>
+			<string>Embedding server (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_EMBED_URL</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>bge-m3</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>The embedding model behind kb like, as /v1/models names it; multilingual if the library mixes scripts. Empty turns kb like off. kb model sets this for you; kobolib embed, or ↩ in kb model, embeds the books.</string>
+			<key>label</key>
+			<string>Embedding model (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_EMBED_MODEL</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string></string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>The embedding server's key, when it differs from the model server's.</string>
+			<key>label</key>
+			<string>Embedding server API key (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_EMBED_KEY</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<false/>
+				<key>required</key>
+				<false/>
+				<key>text</key>
+				<string>after indexing, ask the model about new books and embed them</string>
+			</dict>
+			<key>description</key>
+			<string>With this on, kb update also asks the model about inbox books and unnamed files that have no answer yet, asks about author folders when they changed, and embeds books without a vector — each step a notification, nothing when there is nothing new. Off, kb update stays as fast as it is and you ask with the rows in kb classify, kb fix and kb model.</string>
+			<key>label</key>
+			<string>Ask and embed on update</string>
+			<key>type</key>
+			<string>checkbox</string>
+			<key>variable</key>
+			<string>KOBO_MODEL_ON_UPDATE</string>
+		</dict>
 	</array>
 	<key>objects</key>
 	<array>
@@ -111,7 +271,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<key>title</key>
 				<string>Search library</string>
 				<key>subtext</key>
-				<string>words match title, author, series, path, genre, format, language, year · rnd inbox classify dups stats fix trash src update</string>
+				<string>words match title, author, series, path, genre, subjects, format, language, year · rnd inbox classify dups stats fix trash src update like model</string>
 				<key>runningsubtext</key>
 				<string>Searching…</string>
 				<key>withspace</key>
@@ -169,6 +329,9 @@ case "$action" in
   undo) run undo; echo "Undoing the last batch… a notification follows";;
   import) run import "$1"; echo "Importing… a notification follows";;
   genre) run genre "$book" "$1"; echo "Setting the genre… a notification follows";;
+  ask) run ask "" "$1"; echo "Asking the model… a notification follows";;
+  dismiss) run dismiss "$book"; echo "Dismissing… a notification follows";;
+  embed) run embed; echo "Embedding… a notification follows";;
 esac</string>
 			</dict>
 		</dict>
@@ -262,6 +425,70 @@ esac</string>
 				<integer>0</integer>
 				<key>script</key>
 				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib genres "$1"</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>CHOOSER</string>
+			<key>version</key>
+			<integer>3</integer>
+			<key>config</key>
+			<dict>
+				<key>title</key>
+				<string>Use model for…</string>
+				<key>subtext</key>
+				<string>↩ writes the choice into the workflow configuration</string>
+				<key>runningsubtext</key>
+				<string>…</string>
+				<key>withspace</key>
+				<true/>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>queuedelaycustom</key>
+				<integer>1</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib chooser "$1"</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>CHOOSE</string>
+			<key>version</key>
+			<integer>2</integer>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib choose "$1" "$model"</string>
 			</dict>
 		</dict>
 		<dict>
@@ -367,6 +594,76 @@ esac</string>
 						<key>uid</key>
 						<string>FA7FCF63-245D-4B88-936C-BDDCFD3D4C6C</string>
 					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>ask</string>
+						<key>outputlabel</key>
+						<string>ask</string>
+						<key>uid</key>
+						<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C1</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>dismiss</string>
+						<key>outputlabel</key>
+						<string>dismiss</string>
+						<key>uid</key>
+						<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C2</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>model</string>
+						<key>outputlabel</key>
+						<string>model</string>
+						<key>uid</key>
+						<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C3</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>embed</string>
+						<key>outputlabel</key>
+						<string>embed</string>
+						<key>uid</key>
+						<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C4</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>genre</string>
+						<key>outputlabel</key>
+						<string>genre</string>
+						<key>uid</key>
+						<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C5</string>
+					</dict>
 				</array>
 				<key>elselabel</key>
 				<string>open</string>
@@ -471,6 +768,66 @@ esac</string>
 			</dict>
 			<dict>
 				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C1</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C2</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>CHOOSER</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C3</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C4</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C5</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
 				<string>OPEN</string>
 				<key>modifiers</key>
 				<integer>0</integer>
@@ -522,6 +879,32 @@ esac</string>
 				<string>PICKER</string>
 				<key>modifiers</key>
 				<integer>131072</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>CHOOSER</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>CHOOSE</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>CHOOSE</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>NOTIFY</string>
+				<key>modifiers</key>
+				<integer>0</integer>
 				<key>modifiersubtext</key>
 				<string></string>
 				<key>vitoclose</key>
@@ -603,9 +986,23 @@ esac</string>
 			<key>ypos</key>
 			<real>320.0</real>
 		</dict>
+		<key>CHOOSER</key>
+		<dict>
+			<key>xpos</key>
+			<real>320.0</real>
+			<key>ypos</key>
+			<real>480.0</real>
+		</dict>
+		<key>CHOOSE</key>
+		<dict>
+			<key>xpos</key>
+			<real>580.0</real>
+			<key>ypos</key>
+			<real>480.0</real>
+		</dict>
 	</dict>
 	<key>version</key>
-	<string>0.2.0</string>
+	<string>0.3.0</string>
 	<key>webaddress</key>
 	<string>https://github.com/vlnn/kobo-alfred</string>
 </dict>

@@ -30,6 +30,7 @@ PAREN_SERIES_TAIL = re.compile(r"\s*\((?P<series>[^()#]+?),?\s*#(?P<index>\d+(?:
 INITIAL = re.compile(r"^[A-ZА-ЯІЇЄҐ]\.?$")
 YEAR_SUFFIX = re.compile(r"\s-\s(?P<year>\d{4})$")
 STOPWORDS = {"of", "the", "a", "an", "and", "in", "on", "to", "for", "it", "is", "at", "with", "from"}
+WORD_BREAK = re.compile(r"[\s_\-]+")
 
 
 @dataclass
@@ -39,6 +40,10 @@ class FilenameGuess:
     series: str = ""
     series_index: str = ""
     year: str = ""
+
+
+def usable_title(title: str) -> bool:
+    return " " in title.strip() or len(WORD_BREAK.split(title.strip())) > 2
 
 
 def strip_noise(stem: str) -> str:

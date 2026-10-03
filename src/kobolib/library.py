@@ -18,15 +18,22 @@ from kobolib.config import (
     mounted_sources,
     sources,
     sources_db_path,
+    suggestion_store,
+    vector_store,
 )
 from kobolib.genres import GenreStore, folder_slug, genre_from_folder
 from kobolib.index import Index, IndexBusy, build_index, build_sources_index
-from kobolib.lint import lint
+from kobolib.lint import all_folders, lint
 from kobolib.metadata import is_sound, read_book
 from kobolib.model import Finding, GenreEntry, Operation, Row
+from kobolib.naming import canonical_name, fat_safe, known_authors
 from kobolib.paths import relative_path
-from kobolib.plan import TRASH, aside, plan, relocation
+from kobolib.plan import TRASH, aside, plan, relocations
 from kobolib.scan import probe_root
+from kobolib.suggestions import LIBRARY, SuggestionStore
+
+SUGGESTED = "suggested"
+MERGE = f"{SUGGESTED} merge into "
 
 
 def all_rows(index: Index) -> list[Row]:
@@ -39,6 +46,15 @@ def bootstrap_genres() -> int:
     store.save()
     index.write_genres({fingerprint: entry.genre for fingerprint, entry in store.entries.items()})
     return added
+
+
+def prune_suggestions(index: Index) -> None:
+    present = {row.fingerprint for row in all_rows(index)}
+    store = suggestion_store()
+    if store.prune(present):
+        store.save()
+    if vector_store().path.exists():
+        vector_store().prune(present)
 
 
 def is_path(reference: str) -> bool:
@@ -55,11 +71,24 @@ def genre_text(raw: str) -> str:
     return raw.strip().lower()
 
 
-def set_genre(row: Row, genre: str, index: Index, store: GenreStore) -> tuple[bool, str]:
-    store.set(row.fingerprint, GenreEntry(genre=genre, rel_path=row.rel_path))
+Outcome = tuple[bool, str]
+
+
+def set_genres(assignments: list[tuple[Row, str]], index: Index, store: GenreStore) -> list[Outcome]:
+    for row, genre in assignments:
+        store.set(row.fingerprint, GenreEntry(genre=genre, rel_path=row.rel_path))
     store.save()
-    index.write_genres({row.fingerprint: genre})
-    return rehome(row, index, store)
+    index.write_genres({row.fingerprint: genre for row, genre in assignments})
+    forget_suggestions([row.fingerprint for row, _ in assignments], "genre")
+    return rehome([row for row, _ in assignments], index, store)
+
+
+def forget_suggestions(fingerprints: list[str], question: str) -> None:
+    store = suggestion_store()
+    for fingerprint in fingerprints:
+        store.drop(fingerprint, question)
+    if store.entries or store.path.exists():
+        store.save()
 
 
 def known_genres(index: Index, store: GenreStore) -> list[str]:
@@ -84,6 +113,7 @@ def run_index() -> tuple[int, str]:
     if count == 0:
         return 1, f"No books found: {probe_root(root) or f'no ebook files under {root}'}"
     bootstrap_genres()
+    prune_suggestions(library_index())
     return 0, f"Indexed {count} books from {root}"
 
 
@@ -115,6 +145,59 @@ def current_plan() -> list[Operation]:
     return diagnosis()[1]
 
 
+def confident_names(store: SuggestionStore) -> dict[str, dict]:
+    return {fp: a for fp, a in store.answers("name").items() if a.get("confident") and a.get("title")}
+
+
+def renamed(row: Row, answer: dict, known: frozenset[str]) -> Operation | None:
+    proposed = replace(row, title=answer["title"], authors="; ".join(answer["authors"]))
+    name = canonical_name(proposed, known)
+    if name == Path(row.rel_path).name:
+        return None
+    return Operation("move", row.rel_path, str(Path(row.rel_path).with_name(name)), f"{SUGGESTED} title and author")
+
+
+def suggested_renames(rows: list[Row], store: SuggestionStore) -> list[Operation]:
+    names, known = confident_names(store), frozenset(known_authors(all_folders(rows)))
+    proposals = (renamed(r, names[r.fingerprint], known) for r in rows if r.fingerprint in names and not r.partial)
+    return [op for op in proposals if op is not None]
+
+
+def author_groups(store: SuggestionStore) -> list[dict]:
+    return store.answers("authors").get(LIBRARY, {}).get("groups", [])
+
+
+def merged(row: Row, canonical: str) -> Operation:
+    dst = Path(row.folder).parent / fat_safe(canonical) / Path(row.rel_path).name
+    return Operation("move", row.rel_path, dst.as_posix(), f"{MERGE}{canonical}")
+
+
+def group_merges(rows: list[Row], group: dict) -> list[Operation]:
+    aliases = set(group["aliases"]) - {group["canonical"]}
+    return [merged(r, group["canonical"]) for r in rows if Path(r.folder).name in aliases and not r.partial]
+
+
+def suggested_merges(rows: list[Row], store: SuggestionStore) -> list[Operation]:
+    return [op for group in author_groups(store) for op in group_merges(rows, group)]
+
+
+def suggested_operations(rows: list[Row], settled: set[str]) -> list[Operation]:
+    store = suggestion_store()
+    return [op for op in suggested_renames(rows, store) + suggested_merges(rows, store) if op.src not in settled]
+
+
+def merge_target(op: Operation) -> str:
+    return op.reason.removeprefix(MERGE)
+
+
+def is_merge(op: Operation) -> bool:
+    return op.reason.startswith(MERGE)
+
+
+def is_suggested(op: Operation) -> bool:
+    return op.reason.startswith(SUGGESTED)
+
+
 def concerning(words: list[str]) -> Callable[[str], bool]:
     if not words:
         return lambda rel_path: True
@@ -129,7 +212,30 @@ def targeted(targets: list[str]) -> Callable[[str], bool]:
 
 def fix_operations(targets: list[str]) -> list[Operation]:
     wanted = targeted(targets)
-    return [o for o in current_plan() if o.kind in EXECUTABLE and wanted(o.src)]
+    certain = [o for o in current_plan() if o.kind in EXECUTABLE and wanted(o.src)]
+    if not targets:
+        return certain
+    suggested = suggested_operations(all_rows(library_index()), {o.src for o in certain})
+    return certain + [o for o in suggested if wanted(o.src)]
+
+
+def apply_fixes(ops: list[Operation]) -> Applied:
+    index = library_index()
+    acted = [index.by_rel_path(o.src) for o in ops if is_suggested(o)]
+    result = apply(ops, library_root(), journal_path())
+    forget_suggestions([r.fingerprint for r in acted if r and r.rel_path in result.moved], "name")
+    refresh_index(result)
+    return result
+
+
+def dismiss_book(reference: str) -> str:
+    row = row_by_reference(reference, library_index())
+    if row is None:
+        return ""
+    store = suggestion_store()
+    store.dismiss(row.fingerprint)
+    store.save()
+    return row.title
 
 
 def pending_operations() -> list[Operation]:
@@ -153,6 +259,7 @@ def refresh_index(result: Applied) -> None:
     for src in result.removed:
         index.remove(src)
     store.save()
+    prune_suggestions(index)
 
 
 def skip_reasons(skipped: list[str]) -> str:
@@ -166,15 +273,23 @@ def apply_summary(result) -> str:
     return f"Applied {result.done}, skipped {len(result.skipped)} ({skip_reasons(result.skipped)})"
 
 
-def rehome(row: Row, index: Index, store: GenreStore) -> tuple[bool, str]:
-    op = relocation(row, all_rows(index), store)
-    if op is None or op.kind != "move":
+def outcome(row: Row, ops: dict[str, Operation], result: Applied) -> Outcome:
+    op = ops.get(row.rel_path)
+    if op is None:
         return False, "stays put (no author or already home)"
-    result = apply([op], library_root(), journal_path())
+    if row.rel_path in result.moved:
+        return True, f"moved → {Path(op.dst).parent}/"
+    reason = op.reason if op.kind == "skip" else skip_reasons([s for s in result.skipped if s.startswith(f"{row.rel_path}: ")])
+    return False, f"not moved: {reason}"
+
+
+def rehome(rows: list[Row], index: Index, store: GenreStore) -> list[Outcome]:
+    everything = all_rows(index)
+    settled = {r.rel_path for r in everything} - {r.rel_path for r in rows}
+    ops = {op.src: op for op in relocations(everything, store, settled)}
+    result = apply(list(ops.values()), library_root(), journal_path())
     refresh_index(result)
-    if result.skipped:
-        return False, f"not moved: {skip_reasons(result.skipped)}"
-    return True, f"moved → {Path(op.dst).parent}/"
+    return [outcome(row, ops, result) for row in rows]
 
 
 def inbox_folder() -> Path:

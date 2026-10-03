@@ -18,7 +18,7 @@ from kobolib.query import fts_match
 from kobolib.scan import SKIP_FOLDERS, iter_books
 
 COLUMNS = tuple(f.name for f in fields(Row))
-SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path", "genre", "format", "language", "year"}
+SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path", "genre", "subjects", "format", "language", "year"}
 SCHEMA = f"""
 CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
     {", ".join(c if c in SEARCHABLE else f"{c} UNINDEXED" for c in COLUMNS)},
@@ -26,7 +26,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 );
 """
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
+EVERYTHING = 100_000
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
 
@@ -57,6 +58,9 @@ def to_row(book: Book, cover: Path | None, root: str = "") -> Row:
         norm_title=normalize_title(book.title),
         fingerprint=book.fingerprint,
         genre="",
+        subjects="; ".join(book.subjects),
+        description=book.description,
+        guessed=book.guessed,
     )
 
 
@@ -190,7 +194,8 @@ def add_book(db_path: Path, path: Path, root: Path, cover_cache: Path) -> Book:
 def row_reader(root: str):
     def read(cursor, values) -> Row:
         data = dict(zip([c[0] for c in cursor.description], values))
-        return Row(**{**data, "partial": bool(data["partial"]), "root": data["root"] or root})
+        flags = {"partial": bool(data["partial"]), "guessed": bool(data["guessed"])}
+        return Row(**{**data, **flags, "root": data["root"] or root})
 
     return read
 
@@ -228,7 +233,7 @@ class Index:
         return self.values("SELECT count(*) FROM books WHERE partial = 0")[0]
 
     def rel_paths(self, words: list[str]) -> set[str]:
-        return {row.rel_path for row in self.search(words, limit=100_000)}
+        return {row.rel_path for row in self.search(words, limit=EVERYTHING)}
 
     def search(self, words: list[str], limit: int = 40) -> list[Row]:
         order = "rank, title" if words else "mtime DESC"

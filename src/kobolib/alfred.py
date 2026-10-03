@@ -76,6 +76,14 @@ def book_item(row: Row) -> dict:
     }
 
 
+def like_header(row: Row) -> dict:
+    return {**message_item(f"Like {row.title}", subtitle(row)), "icon": icon(row)}
+
+
+def like_item(row: Row, score: float) -> dict:
+    return {**book_item(row), "subtitle": f"{score:.0%}{SEPARATOR}{subtitle(row)}"}
+
+
 def copy_item(row: Row, copies: int) -> dict:
     return {**book_item(row), "subtitle": f"×{copies}{SEPARATOR}{subtitle(row)}"}
 
@@ -89,8 +97,8 @@ def trash_item(row: Row) -> dict:
     return {**item, "mods": {"alt": reveal(row.path)}} if row.partial else item
 
 
-def classify_item(row: Row) -> dict:
-    return {**inbox_item(row), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row) + " · ↩ pick a genre"}
+def classify_item(row: Row, suggested: str = "") -> dict:
+    return {**inbox_item(row), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row, suggested) + " · ↩ pick a genre"}
 
 
 def genre_header(row: Row, genre: str) -> dict:
@@ -115,6 +123,11 @@ def keep_genre_item(item: dict) -> dict:
     return {**item, "title": f"Keep {item['arg']}", "subtitle": "moves the book home if it isn't"}
 
 
+def suggested_genre_item(genre: str, book: str, typed: str = "") -> dict:
+    item = genre_item(genre, book, typed)
+    return {**item, "uid": f"genre:suggested:{genre}", "subtitle": "suggested · ↩ sets it and moves the book home"}
+
+
 def new_genre_item(typed: str, book: str) -> dict:
     return {
         "uid": f"genre-new:{typed}",
@@ -129,8 +142,12 @@ def source_item(row: Row) -> dict:
     return {**book_item(row), "variables": {}, "mods": {"alt": reveal(row.path)}}
 
 
-def inbox_subtitle(row: Row) -> str:
-    parts = [row.authors or "author ?", series_label(row), row.genre or "genre ?", format_label(row), row.rel_path]
+def genre_marker(row: Row, suggested: str) -> str:
+    return row.genre or (f"{suggested}?" if suggested else "genre ?")
+
+
+def inbox_subtitle(row: Row, suggested: str = "") -> str:
+    parts = [row.authors or "author ?", series_label(row), genre_marker(row, suggested), format_label(row), row.rel_path]
     return SEPARATOR.join(p for p in parts if p)
 
 
@@ -174,6 +191,41 @@ def classify_all_item(rows: list[Row]) -> dict:
     return head_row("classify:all", title, "↩ picks one genre for every book listed below", variables={"book": books})
 
 
+def accept_genres_item(pairs: list[tuple[str, str]]) -> dict:
+    books = LINE.join(f"{fingerprint}\t{genre}" for fingerprint, genre in pairs)
+    title = f"Accept {counted(len(pairs), 'suggested genre')}"
+    return head_row("classify:accept", title, "↩ files each book under its suggested genre", variables={"book": books, "action": "genre"})
+
+
+def ask_item(title: str, words: str = "") -> dict:
+    return {"uid": "oracle:ask", **action_item(title, "↩ runs in the background, then notifies", "ask", words)}
+
+
+def merge_item(canonical: str, ops: list[Operation], root: str) -> dict:
+    folders = sorted({str(PurePosixPath(o.src).parent) for o in ops})
+    title = f"Merge {counted(len(folders), 'author folder')} into {canonical}"
+    paths = LINE.join(sorted(f"{root}/{o.src}" for o in ops))
+    head = head_row(f"oracle:merge:{canonical}", title, f"↩ moves {counted(len(ops), 'book')} · ⌥↩ reveals", paths)
+    return {**head, "mods": {"alt": reveal(f"{root}/{folders[0]}")}}
+
+
+def choose_item(model: str, role: str, title: str, subtitle: str) -> dict:
+    return {"uid": f"choose:{role}", **action_item(title, subtitle, "choose", role), "variables": {"model": model, "action": "choose"}}
+
+
+def dismiss_item(book: str) -> dict:
+    subtitle = "↩ forgets the model's answers for it · kobolib ask --force asks again"
+    return head_row("oracle:dismiss", "Dismiss suggestions for this book", subtitle, variables={"book": book, "action": "dismiss"})
+
+
+def busy_item(title: str) -> dict:
+    return {"uid": "oracle:busy", **message_item(title, "one pass at a time; kb stats and kb classify show the result")}
+
+
+def unreachable_item(url: str) -> dict:
+    return {"uid": "oracle:unreachable", **message_item(f"Model not reachable at {url}", "start llama-server, or change KOBO_ORACLE_URL")}
+
+
 def plan_item(op: Operation, root: str) -> dict:
     src = f"{root}/{op.src}"
     skipped = op.kind == "skip"
@@ -194,7 +246,7 @@ def plan_item(op: Operation, root: str) -> dict:
 def empty_item(query: str) -> dict:
     return {
         "title": f"No books match ‘{query}’",
-        "subtitle": "Words match title, author, series, path, genre, format, language and year",
+        "subtitle": "Words match title, author, series, path, genre, subjects, format, language and year",
         "valid": False,
     }
 

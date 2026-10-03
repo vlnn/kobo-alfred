@@ -23,28 +23,28 @@ def paths(findings: list[Finding]) -> list[list[str]]:
 
 
 @pytest.mark.parametrize(
-    "name, title, authors, opaque",
+    "name, title, authors, guessed, opaque",
     [
-        ("7_815203.epub", "7_815203", "", True),
-        ("512_904417.epub", "512_904417", "", True),
-        ("smp9900000415626_7c1d2.epub", "smp9900000415626_7c1d2", "", True),
-        ("annas-arch-0a1b2c3d4e5f.fb2", "annas-arch-0a1b2c3d4e5f", "", True),
-        ("9f8e7d6c5b4a3_zorya.fb2", "9f8e7d6c5b4a3_zorya", "", True),
-        ("fb2048576u_misto_bez_sontsia.fb2", "fb2048576u_misto_bez_sontsia", "", True),
-        ("vorlak.fb2", "vorlak", "", True),
-        ("ZYX.mobi", "ZYX", "", True),
-        ("quiet-lantern.epub", "quiet-lantern", "", True),
-        ("Learn_Ferrite_in_a_Month_of_Evenings.epub", "Learn_Ferrite_in_a_Month_of_Evenings", "", False),
-        ("pisnia-dlya-mandrivnyka.fb2", "pisnia-dlya-mandrivnyka", "", False),
-        ("Orbital Gardening.pdf", "Orbital Gardening", "", False),
-        ("Learning Quill.pdf", "Learning Quill", "", False),
-        ("1847 - Marta Velinska.epub", "1847", "Marta Velinska", False),
-        ("Saltmarsh.epub", "Saltmarsh", "Ivor Penhale", False),
+        ("7_815203.epub", "7_815203", "", True, True),
+        ("512_904417.epub", "512_904417", "", True, True),
+        ("smp9900000415626_7c1d2.epub", "smp9900000415626_7c1d2", "", True, True),
+        ("annas-arch-0a1b2c3d4e5f.fb2", "annas-arch-0a1b2c3d4e5f", "", True, True),
+        ("9f8e7d6c5b4a3_zorya.fb2", "9f8e7d6c5b4a3_zorya", "", True, True),
+        ("fb2048576u_misto_bez_sontsia.fb2", "fb2048576u_misto_bez_sontsia", "", True, True),
+        ("vorlak.fb2", "vorlak", "", True, True),
+        ("ZYX.mobi", "ZYX", "", True, True),
+        ("quiet-lantern.epub", "quiet-lantern", "", True, True),
+        ("7_815203.epub", "Dhalgren", "", False, True),
+        ("vorlak.fb2", "Vorlak", "", False, False),
+        ("Learn_Ferrite_in_a_Month_of_Evenings.epub", "Learn_Ferrite_in_a_Month_of_Evenings", "", True, False),
+        ("Orbital Gardening.pdf", "Orbital Gardening", "", True, False),
+        ("1847 - Marta Velinska.epub", "1847", "Marta Velinska", True, False),
+        ("Saltmarsh.epub", "Saltmarsh", "Ivor Penhale", True, False),
     ],
 )
-def test_opaque_names(name, title, authors, opaque):
-    found = opaque_names([named(name, title=title, authors=authors)])
-    assert bool(found) is opaque, f"{name!r} opaque should be {opaque}"
+def test_opaque_names(name, title, authors, guessed, opaque):
+    found = opaque_names([named(name, title=title, authors=authors, guessed=guessed)])
+    assert bool(found) is opaque, f"{name!r} (guessed={guessed}) opaque should be {opaque}"
 
 
 @pytest.mark.parametrize(

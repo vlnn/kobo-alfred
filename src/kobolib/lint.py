@@ -5,12 +5,11 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
-from kobolib.filenames import BRACED_AUTHOR, strip_noise
+from kobolib.filenames import BRACED_AUTHOR, strip_noise, usable_title
 from kobolib.model import Finding, Row
 from kobolib.paths import relative_path
 from kobolib.scan import BOOK_SUFFIXES, display_stem, iter_junk
 
-WORD_BREAK = re.compile(r"[\s_\-]+")
 JOINED_WORDS = re.compile(r"\w[_\-]\w")
 OPAQUE_STEMS = [
     re.compile(r"^\d+_\d+$"),
@@ -40,11 +39,9 @@ def flag(
 
 
 def looks_opaque(row: Row) -> bool:
-    stem = stem_of(row)
-    if any(p.match(stem) for p in OPAQUE_STEMS):
+    if any(p.match(stem_of(row)) for p in OPAQUE_STEMS):
         return True
-    title = row.title.strip()
-    return not row.authors and " " not in title and len(WORD_BREAK.split(title)) <= 2
+    return row.guessed and not row.authors and not usable_title(row.title)
 
 
 def has_double_extension(row: Row) -> bool:

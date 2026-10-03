@@ -5,6 +5,8 @@ from pathlib import Path
 
 from kobolib.genres import GenreStore
 from kobolib.index import Index
+from kobolib.suggestions import SuggestionStore
+from kobolib.vectors import VectorStore
 
 
 def library_root() -> Path:
@@ -55,6 +57,54 @@ def journal_path() -> Path:
 
 def genre_store() -> GenreStore:
     return GenreStore(data_dir() / "genres.tsv").load()
+
+
+def oracle_url() -> str:
+    return os.environ.get("KOBO_ORACLE_URL", "").strip().rstrip("/")
+
+
+def oracle_model() -> str:
+    return os.environ.get("KOBO_ORACLE_MODEL", "").strip()
+
+
+def oracle_key() -> str:
+    return os.environ.get("KOBO_ORACLE_KEY", "").strip()
+
+
+def embed_key() -> str:
+    return os.environ.get("KOBO_EMBED_KEY", "").strip() or oracle_key()
+
+
+def embed_url() -> str:
+    return os.environ.get("KOBO_EMBED_URL", "").strip().rstrip("/") or oracle_url()
+
+
+def embed_model() -> str:
+    return os.environ.get("KOBO_EMBED_MODEL", "").strip()
+
+
+def model_on_update() -> bool:
+    return os.environ.get("KOBO_MODEL_ON_UPDATE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def oracle_log_path() -> Path:
+    return data_dir() / "oracle.log"
+
+
+def oracle_lock_base() -> Path:
+    return data_dir() / "oracle"
+
+
+def oracle_status_path() -> Path:
+    return data_dir() / "oracle.status"
+
+
+def suggestion_store() -> SuggestionStore:
+    return SuggestionStore(data_dir() / "oracle.tsv").load()
+
+
+def vector_store() -> VectorStore:
+    return VectorStore(data_dir() / "vectors.db")
 
 
 def selected_books() -> list[str]:

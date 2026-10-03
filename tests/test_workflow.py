@@ -13,9 +13,19 @@ OBJECT_VERSIONS = {
     "alfred.workflow.action.revealfile": 1,
     "alfred.workflow.utility.conditional": 1,
 }
-OBJECTS = {"KB", "PICKER", "DISPATCH", "OPEN", "REVEAL", "RUN", "NOTIFY"}
-RUNNER_ACTIONS = ("update", "fix", "trash", "undo", "import", "genre")
-ROUTES = {"update": "RUN", "fix": "RUN", "trash": "RUN", "undo": "RUN", "import": "RUN", "classify": "PICKER", "reveal": "REVEAL"}
+OBJECTS = {"KB", "PICKER", "DISPATCH", "OPEN", "REVEAL", "RUN", "NOTIFY", "CHOOSER", "CHOOSE"}
+RUNNER_ACTIONS = ("update", "fix", "trash", "undo", "import", "genre", "ask", "dismiss", "embed")
+ROUTES = {
+    "update": "RUN",
+    "fix": "RUN",
+    "trash": "RUN",
+    "undo": "RUN",
+    "import": "RUN",
+    "classify": "PICKER",
+    "reveal": "REVEAL",
+    "ask": "RUN",
+    "genre": "RUN",
+}
 MODIFIER_BITS = {"shift": 131072, "alt": 524288}
 MEANING = {"REVEAL": "reveal", "PICKER": "set genre"}
 
@@ -53,8 +63,10 @@ def test_every_object_is_placed_on_the_canvas(workflow):
     assert set(workflow["uidata"]) == {o["uid"] for o in workflow["objects"]}, "every object, and only those, should have a canvas position"
 
 
-def test_the_workflow_is_one_filter_one_picker_and_their_actions(workflow):
-    assert {o["uid"] for o in workflow["objects"]} == OBJECTS, "kb, the genre picker, the dispatcher, open, reveal, runner, notification"
+def test_the_workflow_is_one_filter_two_pickers_and_their_actions(workflow):
+    assert {o["uid"] for o in workflow["objects"]} == OBJECTS, (
+        "kb, the genre picker, the dispatcher, open, reveal, runner, notification, the model chooser and its step"
+    )
 
 
 def test_kb_is_the_only_keyword(workflow):
@@ -62,7 +74,7 @@ def test_kb_is_the_only_keyword(workflow):
     assert keywords == ["kb"], "everything starts with kb; there are no kb:x keywords"
 
 
-@pytest.mark.parametrize("uid, subcommand", [("KB", 'search "$1"'), ("PICKER", 'genres "$1"')])
+@pytest.mark.parametrize("uid, subcommand", [("KB", 'search "$1"'), ("PICKER", 'genres "$1"'), ("CHOOSER", 'chooser "$1"')])
 def test_script_filters_call_their_subcommand(workflow, uid, subcommand):
     assert f"-m kobolib {subcommand}" in obj(workflow, uid)["config"]["script"], f"{uid} should run kobolib {subcommand}"
 
@@ -112,6 +124,13 @@ def test_runner_notifies(workflow):
     assert targets(workflow, "RUN") == {0: "NOTIFY"}, "the runner's message should become a notification"
 
 
+def test_model_chooser_runs_the_choose_step_in_the_foreground(workflow):
+    assert targets(workflow, "CHOOSER") == {0: "CHOOSE"}, "↩ on a role writes the configuration"
+    assert targets(workflow, "CHOOSE") == {0: "NOTIFY"}, "and the result becomes a notification"
+    script = obj(workflow, "CHOOSE")["config"]["script"]
+    assert 'choose "$1" "$model"' in script and "nohup" not in script, "choose runs in the foreground with the role and the model"
+
+
 def runner_branch(workflow: dict, action: str) -> str:
     script = obj(workflow, "RUN")["config"]["script"]
     match = re.search(rf"^\s*{action}\) (.+?);;", script, re.M)
@@ -127,7 +146,10 @@ def test_runner_runs_each_action_in_the_background(workflow, action):
     )
 
 
-@pytest.mark.parametrize("action, args", [("fix", '"$1"'), ("trash", '"$1"'), ("import", '"$1"'), ("genre", '"$book" "$1"')])
+@pytest.mark.parametrize(
+    "action, args",
+    [("fix", '"$1"'), ("trash", '"$1"'), ("import", '"$1"'), ("genre", '"$book" "$1"'), ("dismiss", '"$book"'), ("ask", '"" "$1"')],
+)
 def test_runner_passes_the_row_argument(workflow, action, args):
     assert runner_branch(workflow, action).startswith(f"run {action} {args}"), f"{action} should receive {args}"
 
@@ -213,6 +235,18 @@ def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_s
             assert MEANING[target] in spec["subtitle"].lower(), f"kb {query}: {mod} says {spec['subtitle']!r} but reaches {target}"
 
 
+def test_accept_suggested_genres_head_row_reaches_the_runner_from_kb(workflow, indexed, tmp_path, mocker):
+    from kobolib.commands import search_items
+    from kobolib.suggestions import SuggestionStore
+
+    store = SuggestionStore(tmp_path / "alfred-data" / "oracle.tsv").load()
+    store.set(next(i for i in search_items("napkin") if "quicklookurl" in i)["variables"]["book"], "genre", {"genre": "reference"}, "h")
+    store.save()
+    accept = next(i for i in search_items("classify") if i["uid"] == "classify:accept")
+
+    assert route(workflow, accept) == "RUN", "↩ on Accept N suggested genres must run genre in the background, not open a book"
+
+
 def test_import_all_head_row_reaches_the_runner_from_kb(workflow, indexed_with_sources):
     from kobolib.commands import search_items
 
@@ -220,3 +254,24 @@ def test_import_all_head_row_reaches_the_runner_from_kb(workflow, indexed_with_s
 
     assert head["uid"] == "src:import-all", "kb src should start with the import-all row"
     assert route(workflow, head) == "RUN", "↩ on it must run the import in the background"
+
+
+ORACLE_VARIABLES = ("KOBO_ORACLE_URL", "KOBO_ORACLE_MODEL", "KOBO_ORACLE_KEY", "KOBO_EMBED_URL", "KOBO_EMBED_MODEL", "KOBO_EMBED_KEY")
+
+
+@pytest.mark.parametrize("variable", ORACLE_VARIABLES)
+def test_the_oracle_is_configured_from_the_workflow_panel(workflow, variable):
+    assert workflow["variables"].get(variable) == "", f"{variable} should default to empty, which keeps the oracle off"
+    field = next(c for c in workflow["userconfigurationconfig"] if c["variable"] == variable)
+    assert field["config"]["required"] is False and field["type"] == "textfield", f"{variable} is an optional text field"
+
+
+def test_the_readme_mentions_the_oracle_commands(workflow):
+    for words in ("kb like", "kb model"):
+        assert words in workflow["readme"], f"the install readme should mention {words}"
+
+
+def test_asking_and_embedding_on_update_is_an_optional_checkbox(workflow):
+    assert workflow["variables"].get("KOBO_MODEL_ON_UPDATE") == "0", "off by default: kb update stays as fast as it is"
+    field = next(c for c in workflow["userconfigurationconfig"] if c["variable"] == "KOBO_MODEL_ON_UPDATE")
+    assert field["type"] == "checkbox" and field["config"]["default"] is False, "a checkbox in the configuration panel"
