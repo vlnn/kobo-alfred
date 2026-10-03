@@ -25,13 +25,14 @@ from kobolib.index import Index, IndexBusy, build_index, build_sources_index
 from kobolib.lint import all_folders, lint
 from kobolib.metadata import is_sound, read_book
 from kobolib.model import Finding, GenreEntry, Operation, Row
-from kobolib.naming import canonical_name, known_authors
+from kobolib.naming import canonical_name, fat_safe, known_authors
 from kobolib.paths import relative_path
 from kobolib.plan import TRASH, aside, plan, relocations
 from kobolib.scan import probe_root
-from kobolib.suggestions import SuggestionStore
+from kobolib.suggestions import LIBRARY, SuggestionStore
 
 SUGGESTED = "suggested"
+MERGE = f"{SUGGESTED} merge into "
 
 
 def all_rows(index: Index) -> list[Row]:
@@ -158,8 +159,35 @@ def suggested_renames(rows: list[Row], store: SuggestionStore) -> list[Operation
     return [op for op in proposals if op is not None]
 
 
+def author_groups(store: SuggestionStore) -> list[dict]:
+    return store.answers("authors").get(LIBRARY, {}).get("groups", [])
+
+
+def merged(row: Row, canonical: str) -> Operation:
+    dst = Path(row.folder).parent / fat_safe(canonical) / Path(row.rel_path).name
+    return Operation("move", row.rel_path, dst.as_posix(), f"{MERGE}{canonical}")
+
+
+def group_merges(rows: list[Row], group: dict) -> list[Operation]:
+    aliases = set(group["aliases"]) - {group["canonical"]}
+    return [merged(r, group["canonical"]) for r in rows if Path(r.folder).name in aliases and not r.partial]
+
+
+def suggested_merges(rows: list[Row], store: SuggestionStore) -> list[Operation]:
+    return [op for group in author_groups(store) for op in group_merges(rows, group)]
+
+
 def suggested_operations(rows: list[Row], settled: set[str]) -> list[Operation]:
-    return [op for op in suggested_renames(rows, suggestion_store()) if op.src not in settled]
+    store = suggestion_store()
+    return [op for op in suggested_renames(rows, store) + suggested_merges(rows, store) if op.src not in settled]
+
+
+def merge_target(op: Operation) -> str:
+    return op.reason.removeprefix(MERGE)
+
+
+def is_merge(op: Operation) -> bool:
+    return op.reason.startswith(MERGE)
 
 
 def is_suggested(op: Operation) -> bool:

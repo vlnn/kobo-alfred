@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from kobolib import oracle
 from kobolib.alfred import counted
@@ -10,7 +11,7 @@ from kobolib.index import Index
 from kobolib.lint import is_noisy, looks_opaque
 from kobolib.metadata import READERS
 from kobolib.model import Row
-from kobolib.suggestions import SuggestionStore
+from kobolib.suggestions import LIBRARY, SuggestionStore
 
 
 @dataclass
@@ -20,6 +21,17 @@ class Asked:
     none: int = 0
     skipped: int = 0
     evidence: list[str] = field(default_factory=list)
+
+    @property
+    def about(self) -> str:
+        return counted(self.books, "book")
+
+
+@dataclass
+class AskedLibrary(Asked):
+    @property
+    def about(self) -> str:
+        return "the author folders"
 
 
 @dataclass(frozen=True)
@@ -73,6 +85,25 @@ def ask_one(question: Question, row: Row, store: SuggestionStore, force: bool, a
         asked.suggested += 1
 
 
+def author_folder_names(rows: list[Row]) -> list[str]:
+    return sorted({name for r in rows if "," in (name := Path(r.folder).name)})
+
+
+def ask_authors(rows: list[Row], store: SuggestionStore, force: bool) -> Asked:
+    asked, names = AskedLibrary(), author_folder_names(rows)
+    digest = evidence_hash(oracle.authors_evidence(names))
+    if not names or (not force and not store.stale(LIBRARY, "authors", digest)):
+        return asked
+    asked.books = 1
+    groups = oracle.author_groups(names)
+    if groups is None:
+        asked.skipped = 1
+        return asked
+    store.set(LIBRARY, "authors", {"groups": groups}, digest)
+    asked.suggested, asked.none = len(groups), int(not groups)
+    return asked
+
+
 def ask_all(question: Question, rows: list[Row], store: SuggestionStore, force: bool) -> Asked:
     asked = Asked()
     for row in rows:
@@ -90,12 +121,12 @@ def no_suggestions(asked: Asked) -> str:
     return f"The model had no suggestions ({asked.skipped} skipped)" if asked.skipped else "The model had no suggestions"
 
 
-def summary(question: Question, asked: Asked) -> str:
+def summary(noun: str, asked: Asked) -> str:
     if not asked.suggested:
         return no_suggestions(asked)
-    parts = [f"{counted(asked.suggested, question.noun)} suggested"]
+    parts = [f"{counted(asked.suggested, noun)} suggested"]
     if asked.none:
         parts.append(f"{asked.none} without an answer")
     if asked.skipped:
         parts.append(f"{asked.skipped} skipped")
-    return f"Asked about {counted(asked.books, 'book')}: {', '.join(parts)}"
+    return f"Asked about {asked.about}: {', '.join(parts)}"

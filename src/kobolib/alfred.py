@@ -193,6 +193,14 @@ def ask_item(title: str) -> dict:
     return {"uid": "oracle:ask", **action_item(title, "↩ runs in the background, then notifies", "ask")}
 
 
+def merge_item(canonical: str, ops: list[Operation], root: str) -> dict:
+    folders = sorted({str(PurePosixPath(o.src).parent) for o in ops})
+    title = f"Merge {counted(len(folders), 'author folder')} into {canonical}"
+    paths = LINE.join(sorted(f"{root}/{o.src}" for o in ops))
+    head = head_row(f"oracle:merge:{canonical}", title, f"↩ moves {counted(len(ops), 'book')} · ⌥↩ reveals", paths)
+    return {**head, "mods": {"alt": reveal(f"{root}/{folders[0]}")}}
+
+
 def dismiss_item(book: str) -> dict:
     subtitle = "↩ forgets the model's answers for it · kobolib ask --force asks again"
     return head_row("oracle:dismiss", "Dismiss suggestions for this book", subtitle, variables={"book": book, "action": "dismiss"})

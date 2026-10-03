@@ -154,3 +154,31 @@ def test_name_of_accepts_only_a_well_formed_answer(server, mocker, reply, expect
     assert set(ask.call_args.args[2]["properties"]) == {"title", "authors", "confident"}, (
         "the schema asks for title, authors and confidence only"
     )
+
+
+FOLDERS = ["Delany, Samuel R.", "Delany, Samuel", "Дилэни, Сэмюэл", "Newport, Cal"]
+
+
+@pytest.mark.parametrize(
+    "reply, expected",
+    [
+        (
+            {"groups": [{"canonical": "Delany, Samuel R.", "aliases": ["Delany, Samuel", "Дилэни, Сэмюэл"]}]},
+            [{"canonical": "Delany, Samuel R.", "aliases": ["Delany, Samuel", "Дилэни, Сэмюэл"]}],
+        ),
+        (
+            {"groups": [{"canonical": "Delany, Samuel R.", "aliases": ["Delany, Samuel R.", "Delany, Samuel", "Nobody, At All"]}]},
+            [{"canonical": "Delany, Samuel R.", "aliases": ["Delany, Samuel"]}],
+        ),
+        ({"groups": [{"canonical": "Delany, Samuel R.", "aliases": ["Nobody, At All"]}]}, []),
+        ({"groups": [{"canonical": "", "aliases": ["Delany, Samuel"]}]}, []),
+        ({"groups": "nope"}, None),
+        ({"groups": [{"canonical": "x"}]}, None),
+        (None, None),
+    ],
+)
+def test_author_groups_keeps_only_groups_of_known_folders(server, mocker, reply, expected):
+    ask = mocker.patch("kobolib.oracle.ask", return_value=reply)
+
+    assert oracle.author_groups(FOLDERS) == expected, f"{reply!r} should give {expected!r}"
+    assert "Delany, Samuel R." in ask.call_args.args[1] and "Дилэни, Сэмюэл" in ask.call_args.args[1], "the evidence is the folder list"

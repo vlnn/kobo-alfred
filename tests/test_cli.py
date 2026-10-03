@@ -608,3 +608,78 @@ def test_fix_with_the_path_applies_the_suggested_rename_and_forgets_it(napkin_na
     assert (library / SUGGESTED_NAME).exists(), "the book is renamed from the suggested title and author"
     assert oracle_store(tmp_path).get(napkin_named, "name") is None, "a suggestion acted on is forgotten"
     assert run(["search", "penhale"], capsys)["items"][0]["subtitle"].endswith(SUGGESTED_NAME), "the index follows the rename"
+
+
+def author_epub(path: Path, title: str, author: str) -> Path:
+    import zipfile
+
+    from tests.conftest import CONTAINER, OPF
+
+    opf = "\n".join(
+        line for line in OPF.replace("Deep Work", title).splitlines() if "calibre:series" not in line and "Someone Else" not in line
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("META-INF/container.xml", CONTAINER)
+        zf.writestr("OEBPS/content.opf", opf.replace("Cal Newport", author))
+    return path
+
+
+NOVA_HOME = "01_Fiction/02_Sci-Fi/Delany, Samuel Ray/Delany, Samuel Ray - Nova (2016).epub"
+BABEL_ALIAS = "01_Fiction/02_Sci-Fi/Delany, Samuel/Delany, Samuel - Babel-17 (2016).epub"
+GROUPS = {"groups": [{"canonical": "Delany, Samuel Ray", "aliases": ["Delany, Samuel"]}]}
+
+
+@pytest.fixture
+def delany_folders(env, library, capsys, monkeypatch) -> None:
+    author_epub(library / NOVA_HOME, "Nova", "Samuel Ray Delany")
+    author_epub(library / BABEL_ALIAS, "Babel-17", "Samuel Delany")
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    main(["update"])
+    capsys.readouterr()
+
+
+def test_ask_authors_asks_once_about_every_author_folder(delany_folders, tmp_path, capsys, mocker):
+    ask = mocker.patch("kobolib.oracle.ask", return_value=GROUPS)
+
+    assert main(["ask", "authors"]) == 0, "asking should succeed"
+
+    assert ask.call_count == 1 and ask.call_args.args[0] == "authors", "one request for the whole library"
+    assert ask.call_args.args[1].splitlines()[1:] == ["Delany, Samuel", "Delany, Samuel Ray"], (
+        "the evidence is the sorted author folder list"
+    )
+    assert capsys.readouterr().out.strip() == "Asked about the author folders: 1 merge suggested", "the summary counts groups"
+    assert oracle_store(tmp_path).get("*", "authors").answer == GROUPS, "the answer is stored for the library"
+
+    main(["ask", "authors"])
+    assert ask.call_count == 1, "the same folder list is not asked about twice"
+
+
+def test_ask_authors_with_nothing_to_merge_says_so(delany_folders, capsys, mocker):
+    mocker.patch("kobolib.oracle.ask", return_value={"groups": []})
+
+    main(["ask", "authors"])
+
+    assert capsys.readouterr().out.strip() == "The model had no suggestions", "an empty answer is stored and reported"
+
+
+@pytest.fixture
+def delany_merge(delany_folders, tmp_path) -> None:
+    store = oracle_store(tmp_path)
+    store.set("*", "authors", GROUPS, "h")
+    store.save()
+
+
+def test_fix_with_the_paths_applies_a_suggested_merge(delany_merge, library, capsys):
+    assert main(["fix", str(library / BABEL_ALIAS)]) == 0, "↩ on the merge row passes the group's paths"
+
+    assert (library / "01_Fiction" / "02_Sci-Fi" / "Delany, Samuel Ray" / "Delany, Samuel - Babel-17 (2016).epub").exists(), (
+        "the book joins the canonical folder"
+    )
+    assert not (library / "01_Fiction" / "02_Sci-Fi" / "Delany, Samuel").exists(), "the emptied alias folder is pruned"
+
+
+def test_bare_fix_leaves_merges_alone(delany_merge, library, capsys):
+    main(["fix"])
+
+    assert (library / BABEL_ALIAS).exists(), "a merge is a suggestion until ↩ on its row"

@@ -18,6 +18,23 @@ PROMPTS = {
     "name": "You catalogue ebooks whose file names carry no usable information. Given what is known about one book, state "
     "its real title and its authors as a library catalogue would write them, each author as Surname, Given. Never invent: "
     "when the evidence does not say, answer confident false. Answer with JSON only.",
+    "authors": "These are the author folders of a personal ebook library, named Surname, Given. Find folders that denote one "
+    "and the same person spelled differently, transliterated or with and without initials. For each such group give the "
+    "canonical spelling, Surname, Given, and the other folders as aliases. Leave out anyone who appears once. Answer with JSON only.",
+}
+AUTHORS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "groups": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"canonical": {"type": "string"}, "aliases": {"type": "array", "items": {"type": "string"}}},
+                "required": ["canonical", "aliases"],
+            },
+        }
+    },
+    "required": ["groups"],
 }
 NAME_SCHEMA = {
     "type": "object",
@@ -121,3 +138,25 @@ def well_formed_name(reply: dict | None) -> bool:
 def name_of(evidence: str) -> dict | None:
     reply = ask("name", evidence, NAME_SCHEMA)
     return reply if well_formed_name(reply) else None
+
+
+def well_formed_group(group) -> bool:
+    return isinstance(group, dict) and isinstance(group.get("canonical"), str) and isinstance(group.get("aliases"), list)
+
+
+def known_group(group: dict, folders: list[str]) -> dict:
+    aliases = [a for a in group["aliases"] if a in folders and a != group["canonical"]]
+    return {"canonical": group["canonical"], "aliases": aliases}
+
+
+def author_groups(folders: list[str]) -> list[dict] | None:
+    reply = ask("authors", authors_evidence(folders), AUTHORS_SCHEMA)
+    groups = reply.get("groups") if reply else None
+    if not isinstance(groups, list) or not all(well_formed_group(g) for g in groups):
+        return None
+    known = (known_group(g, folders) for g in groups if g["canonical"])
+    return [g for g in known if g["aliases"]]
+
+
+def authors_evidence(folders: list[str]) -> str:
+    return "\n".join(["Author folders:", *sorted(folders)])

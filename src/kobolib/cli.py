@@ -7,7 +7,7 @@ from pathlib import Path
 from kobolib import alfred, oracle
 from kobolib.alfred import counted
 from kobolib.apply import Applied, apply, undo
-from kobolib.asking import Question, ask_all, collect_evidence, genre_question, name_question, summary
+from kobolib.asking import Question, ask_all, ask_authors, author_folder_names, collect_evidence, genre_question, name_question, summary
 from kobolib.commands import (
     genre_picker_items,
     index_problem,
@@ -235,6 +235,18 @@ def dry_run_report(asked_blocks: list[str]) -> str:
     return "\n\n".join(asked_blocks) + "\n" if asked_blocks else ""
 
 
+def ask_about_authors(args, index, store) -> list[str]:
+    if args.question not in ("", "authors"):
+        return []
+    rows = index.everything()
+    if args.dry_run:
+        return [oracle.authors_evidence(author_folder_names(rows))]
+    asked = ask_authors(rows, store, args.force)
+    store.save()
+    report(summary("merge", asked), args.notify)
+    return []
+
+
 def cmd_ask(args) -> int:
     if not oracle.configured():
         return refuse("No model server: set KOBO_ORACLE_URL in the workflow configuration", args.notify)
@@ -248,7 +260,8 @@ def cmd_ask(args) -> int:
             continue
         asked = ask_all(question, rows, store, args.force)
         store.save()
-        report(summary(question, asked), args.notify)
+        report(summary(question.noun, asked), args.notify)
+    lines += ask_about_authors(args, index, store)
     print(dry_run_report(lines), end="")
     return 0
 
@@ -287,7 +300,7 @@ def build_parser() -> argparse.ArgumentParser:
     import_cmd.add_argument("book")
     import_cmd.set_defaults(func=cmd_import)
     ask_cmd = sub.add_parser("ask", parents=[notify, flag("--force"), flag("--dry-run")])
-    ask_cmd.add_argument("question", nargs="?", default="", choices=["", "genre", "name"])
+    ask_cmd.add_argument("question", nargs="?", default="", choices=["", "genre", "name", "authors"])
     ask_cmd.add_argument("words", nargs="*")
     ask_cmd.set_defaults(func=cmd_ask)
     dismiss_cmd = sub.add_parser("dismiss", parents=[notify])

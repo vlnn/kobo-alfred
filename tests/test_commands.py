@@ -643,3 +643,46 @@ def test_ask_the_model_row_counts_unnamed_files(oracle_on):
     (ask,) = [i for i in command_rows("fix") if i.get("uid") == "oracle:ask"]
 
     assert ask["title"] == "Ask the model about 2 inbox books and 1 unnamed file", "books whose name is a guess are counted too"
+
+
+@pytest.fixture
+def delany_merge(env, library, tmp_path, capsys, monkeypatch) -> None:
+    from tests.test_cli import BABEL_ALIAS, GROUPS, NOVA_HOME, author_epub
+
+    author_epub(library / NOVA_HOME, "Nova", "Samuel Ray Delany")
+    author_epub(library / BABEL_ALIAS, "Babel-17", "Samuel Delany")
+    author_epub(library / "01_Fiction/02_Sci-Fi/Delany, Samuel/Delany, Samuel - Dhalgren (2016).epub", "Dhalgren", "Samuel Delany")
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    main(["update"])
+    capsys.readouterr()
+    suggest(tmp_path, "*", "authors", GROUPS)
+
+
+def test_fix_lists_one_merge_row_per_author_group(delany_merge, library):
+    from tests.test_cli import BABEL_ALIAS
+
+    (merge,) = [i for i in command_rows("fix") if i["uid"].startswith("oracle:merge")]
+
+    assert merge["title"] == "Merge 1 author folder into Delany, Samuel Ray" and merge["subtitle"] == "↩ moves 2 books · ⌥↩ reveals", (
+        "a group is one row, counting its folders and books"
+    )
+    assert merge["arg"].splitlines() == sorted(
+        [str(library / BABEL_ALIAS), str(library / "01_Fiction/02_Sci-Fi/Delany, Samuel/Delany, Samuel - Dhalgren (2016).epub")]
+    ), "↩ passes every book of the group to fix"
+    assert merge["mods"]["alt"]["arg"] == str(library / "01_Fiction" / "02_Sci-Fi" / "Delany, Samuel"), "⌥↩ reveals the alias folder"
+    assert action_of(next(i for i in search_items("fix") if i["uid"].startswith("oracle:merge"))) == "fix", "through the fix action"
+
+
+def test_merge_rows_come_after_the_automatic_operations(delany_merge):
+    uids = [i["uid"] for i in command_rows("fix")]
+
+    merge = next(i for i, uid in enumerate(uids) if uid.startswith("oracle:merge"))
+    assert merge > max(i for i, uid in enumerate(uids) if uid.startswith("fix:")), "merges follow the certain operations"
+    assert merge < min(i for i, uid in enumerate(uids) if uid.startswith("problem:")), "and come before problems by hand"
+
+
+@pytest.mark.parametrize("words, shown", [("dhalgren", True), ("delany", True), ("newport", False)])
+def test_merge_rows_follow_the_words(delany_merge, words, shown):
+    assert any(i["uid"].startswith("oracle:merge") for i in command_rows(f"fix {words}")) is shown, (
+        f"kb fix {words} should {'show' if shown else 'hide'} the merge"
+    )

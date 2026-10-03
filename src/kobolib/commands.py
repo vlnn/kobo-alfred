@@ -27,7 +27,9 @@ from kobolib.index import Index, index_busy, is_current
 from kobolib.library import (
     concerning,
     diagnosis,
+    is_merge,
     known_genres,
+    merge_target,
     not_in_library,
     pending_operations,
     suggested_operations,
@@ -373,11 +375,20 @@ def nothing_to_fix(words: list[str]) -> dict:
     return alfred.message_item(title, "The library is clean")
 
 
+def merge_groups(ops: list[Operation], concerns: Callable[[str], bool]) -> dict[str, list[Operation]]:
+    groups: dict[str, list[Operation]] = {}
+    for op in ops:
+        groups.setdefault(merge_target(op), []).append(op)
+    return {canonical: group for canonical, group in groups.items() if any(concerns(o.src) for o in group)}
+
+
 def fix_items(words: list[str]) -> list[dict]:
     found, ops = diagnosis()
     index, store, concerns, root = library_index(), suggestion_store(), concerning(words), str(library_root())
     todo = [o for o in ops if o.kind in EXECUTABLE and concerns(o.src)]
-    suggested = [o for o in suggested_operations(index.everything(), {o.src for o in ops}) if concerns(o.src)]
+    suggested = suggested_operations(index.everything(), {o.src for o in ops})
+    renames = [o for o in suggested if not is_merge(o) and concerns(o.src)]
+    merges = merge_groups([o for o in suggested if is_merge(o)], concerns)
     conflicts = [o for o in ops if o.kind == "skip" and concerns(o.src)]
     manual = [f for f in by_hand(found, ops + suggested) if concerns(f.rel_paths[0])]
     rows = [
@@ -387,7 +398,8 @@ def fix_items(words: list[str]) -> list[dict]:
         *oracle_rows(index, store),
         *fix_reminders(words),
         *(alfred.plan_item(o, root) for o in todo),
-        *(alfred.plan_item(o, root) for o in suggested),
+        *(alfred.plan_item(o, root) for o in renames),
+        *(alfred.merge_item(canonical, group, root) for canonical, group in merges.items()),
         *(alfred.conflict_item(o, root) for o in conflicts),
         *(alfred.problem_item(f, root) for f in manual),
     ]
