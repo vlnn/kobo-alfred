@@ -15,7 +15,7 @@ PAREN_SERIES = re.compile(r"^\((?P<series>.+?)\s+(?P<index>\d+(?:-\d+)?)\)\s*")
 SERIES_BODY = re.compile(r"^(?P<series>.+?)\s*(?:№|#)?\s*(?P<index>\d+(?:-\d+)?)?\s*$")
 INLINE_SERIES = re.compile(r"\s*\((?P<series>[^()]+?)\s+(?P<index>\d+(?:-\d+)?)\)\s*$")
 BRACED_AUTHOR = re.compile(r"\{(?P<author>[^}]+)\}")
-PUBLISHER = re.compile(r"\s*\((?P<year>\d{4})?(?:_\d{4})?,?\s*(?P<publisher>[^)]*)\)\s*$")
+PUBLICATION = re.compile(r"\s*\((?P<year>\d{4})?(?:_\d{4})?,?\s*[^)]*\)\s*$")
 TRAILING_YEAR = re.compile(r"^\d{4}$")
 LEADING_NUMBER = re.compile(r"^\d{1,3}(?:-\d{1,3})?\s+")
 AUTHOR_LIKE = re.compile(r"^\S+(?:\s\S+){0,2},\s*\S")
@@ -39,7 +39,6 @@ class FilenameGuess:
     series: str = ""
     series_index: str = ""
     year: str = ""
-    publisher: str = ""
 
 
 def strip_noise(stem: str) -> str:
@@ -73,10 +72,10 @@ def take_braced_author(stem: str) -> tuple[str, list[str]]:
     return stem, []
 
 
-def take_publisher(stem: str) -> tuple[str, str, str]:
-    if match := PUBLISHER.search(stem):
-        return stem[: match.start()], match.group("year") or "", match.group("publisher").strip()
-    return stem, "", ""
+def take_publication(stem: str) -> tuple[str, str]:
+    if match := PUBLICATION.search(stem):
+        return stem[: match.start()], match.group("year") or ""
+    return stem, ""
 
 
 def take_trailing_year(parts: list[str]) -> tuple[list[str], str]:
@@ -175,7 +174,7 @@ def guess_from_stem(stem: str) -> FilenameGuess:
     stem = strip_noise(stem)
     stem, series, index = take_leading_series(stem)
     stem, braced = take_braced_author(stem)
-    stem, year, publisher = take_publisher(stem)
+    stem, year = take_publication(stem)
     stem, suffix_year = take_year_suffix(stem)
     stem, inline_series, inline_index = take_trailing_series(stem)
     anna_series, anna_index = split_anna(stem)[2:4] if " -- " in stem else ("", "")
@@ -186,5 +185,4 @@ def guess_from_stem(stem: str) -> FilenameGuess:
         series=series or inline_series or anna_series,
         series_index=index or inline_index or anna_index,
         year=year or suffix_year or split_year,
-        publisher=publisher,
     )

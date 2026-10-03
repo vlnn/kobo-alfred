@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from kobolib.index import Index, build_index
-from kobolib.query import parse_query
+from kobolib.query import query_words
 
 
 @pytest.fixture
@@ -26,21 +26,57 @@ def test_build_indexes_all_books(index: Index):
     [
         ("deep", ["Deep Work"]),
         ("newport", ["Deep Work"]),
-        ("author:newport", ["Deep Work"]),
+        ("NEWPORT", ["Deep Work"]),
         ("оперант", ["Оперантное поведение"]),
         ("скинн", ["Оперантное поведение"]),
-        ("fmt:fb2", ["Оперантное поведение"]),
-        ("in:inbox fmt:epub", ["Nova"]),
-        ("is:partial", ["Nova"]),
-        ("lang:en", ["Deep Work"]),
-        ("series:focus", ["Deep Work"]),
-        ("year:2016", ["Deep Work"]),
-        ("in:nonfiction", ["Deep Work"]),
+        ("focus", ["Deep Work"]),
+        ("nonfiction", ["Deep Work"]),
+        ("deep 1971", []),
         ("nothing-here", []),
+        ("epub", ["Deep Work"]),
+        ("fb2", ["Оперантное поведение"]),
+        ("english", ["Deep Work"]),
+        ("russian", ["Оперантное поведение"]),
+        ("ru", ["Оперантное поведение"]),
+        ("1971", ["Оперантное поведение"]),
+        ("inbox fb2", ["Оперантное поведение"]),
+        ("nonfiction epub 2016", ["Deep Work"]),
     ],
 )
 def test_search(index: Index, raw, expected):
-    assert titles(index.search(parse_query(raw))) == expected, f"{raw!r} should find {expected}"
+    assert titles(index.search(query_words(raw))) == expected, f"the words {raw!r} should find {expected}"
+
+
+def test_search_words_match_any_segment_of_the_genre(index: Index):
+    index.write_genres({index.by_rel_path("00_Inbox/Napkin.pdf").fingerprint: "games/go_strategy"})
+
+    for word in ("games", "strat"):
+        assert titles(index.search(query_words(word))) == ["Napkin"], f"{word!r} should match a segment of the book's genre"
+
+
+@pytest.mark.parametrize("raw", ["", "nova", "delany", "inbox"])
+def test_search_leaves_out_unfinished_downloads(index: Index, raw):
+    assert "Nova" not in titles(index.search(query_words(raw))), f"a .part download should never be listed by {raw!r}"
+
+
+@pytest.mark.parametrize("raw, expected", [("", ["Nova"]), ("delany", ["Nova"]), ("inbox epub", ["Nova"]), ("deep", [])])
+def test_partials_lists_only_unfinished_downloads(index: Index, raw, expected):
+    assert titles(index.partials(query_words(raw))) == expected, f"partials({raw!r}) should list {expected}"
+
+
+def test_partials_lists_oldest_first(index: Index, library: Path):
+    import os
+
+    older = library / "00_Inbox" / "Older Download.pdf.part"
+    older.write_bytes(b"")
+    os.utime(older, (1, 1))
+    build_index(library, index.db_path, cover_cache=library / "c")
+
+    assert titles(index.partials(query_words(""))) == ["Older Download", "Nova"], "unfinished downloads should be listed oldest first"
+
+
+def test_everything_includes_unfinished_downloads(index: Index):
+    assert len(index.everything()) == 4 and "Nova" in titles(index.everything()), "lint and fix still see every indexed file"
 
 
 def test_empty_query_lists_recent_first(index: Index, library: Path):
@@ -51,23 +87,30 @@ def test_empty_query_lists_recent_first(index: Index, library: Path):
     os.utime(newest, (time.time() + 100, time.time() + 100))
     build_index(library, index.db_path, cover_cache=library / "c")
 
-    assert titles(index.search(parse_query("")))[0] == "Napkin", "empty query should list most recently added first"
+    assert titles(index.search(query_words("")))[0] == "Napkin", "empty query should list most recently added first"
 
 
 def test_rel_path_and_cover_stored(index: Index):
-    (row,) = index.search(parse_query("deep"))
+    (row,) = index.search(query_words("deep"))
     assert row.rel_path.startswith("02_NonFiction/"), "rel_path should be relative to the library root"
     assert row.cover and Path(row.cover).exists(), "epub cover should be extracted into the cache"
 
 
 def test_duplicates_group_by_normalized_title(index: Index, library: Path):
-    (library / "00_Inbox" / "Newport, Cal - Deep Work.fb2.part").write_bytes(b"")
+    (library / "00_Inbox" / "Newport, Cal - Deep Work.pdf").write_bytes(b"%PDF-1.4")
     build_index(library, index.db_path, cover_cache=library / "c")
 
     groups = index.duplicates()
 
     assert [g.title for g in groups] == ["Deep Work"], "same title in different files should be reported as duplicate"
-    assert sorted(b.format for b in groups[0].books) == ["epub", "fb2"], "duplicate group should list both formats"
+    assert sorted(b.format for b in groups[0].books) == ["epub", "pdf"], "duplicate group should list both formats"
+
+
+def test_duplicates_leave_out_unfinished_downloads(index: Index, library: Path):
+    (library / "00_Inbox" / "Newport, Cal - Deep Work.fb2.part").write_bytes(b"")
+    build_index(library, index.db_path, cover_cache=library / "c")
+
+    assert index.duplicates() == [], "a .part file is not a copy of a title"
 
 
 def test_rebuild_replaces_old_rows(index: Index, library: Path):
@@ -130,44 +173,36 @@ def test_fill_thumbnails_updates_pdf_rows(index: Index, library: Path, mocker):
 
     made = fill_thumbnails(index.db_path, library / "c")
 
-    (napkin,) = index.search(parse_query("napkin"))
+    (napkin,) = index.search(query_words("napkin"))
     assert made == 1, "only the pdf without a cover should get a thumbnail"
     assert napkin.cover.endswith(".png"), "the pdf row should now carry its thumbnail path"
 
 
 def test_fingerprint_stored_per_book(index: Index):
-    (row,) = index.search(parse_query("deep"))
+    (row,) = index.search(query_words("deep"))
     assert len(row.fingerprint) == 40, "each indexed book should carry a fingerprint"
 
 
-def test_write_tags_updates_rows_and_search_filters(index: Index):
-    from kobolib.model import Tag
-    from kobolib.tags import TagStore
+def test_write_genres_updates_rows_and_search(index: Index):
+    (deep,) = index.search(query_words("deep"))
 
-    store = TagStore(index.db_path.parent / "tags.tsv")
-    (deep,) = index.search(parse_query("deep"))
-    store.set(deep.fingerprint, Tag(genre="nonfiction/focus", tags=["bought", "now"]))
+    index.write_genres({deep.fingerprint: "productivity/attention"})
 
-    index.write_tags(store)
-
-    assert titles(index.search(parse_query("genre:nonfiction"))) == ["Deep Work"], "genre: should match by prefix"
-    assert titles(index.search(parse_query("genre:nonfiction/focus"))) == ["Deep Work"], "genre: should match the full genre"
-    assert titles(index.search(parse_query("tag:now"))) == ["Deep Work"], "tag: should match one of the tags"
-    assert titles(index.search(parse_query("tag:no"))) == [], "tag: must not match a tag prefix"
-    assert index.search(parse_query("deep"))[0].tags == "bought,now", "tags should be stored on the row"
+    assert index.by_fingerprint(deep.fingerprint).genre == "productivity/attention", "the row should carry the genre"
+    assert titles(index.search(query_words("attention"))) == ["Deep Work"], "the new genre should be searchable at once"
 
 
 def test_relocate_moves_a_row_to_its_new_path(index: Index, library: Path):
     src = "02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
-    dst = "02_NonFiction/Newport, Cal/Newport, Cal - Deep Work (2016).epub"
+    dst = "02_NonFiction/Shelved/Newport, Cal - Deep Work (2016).epub"
 
     index.relocate(src, dst, library)
 
     row = index.by_rel_path(dst)
-    assert row is not None and row.folder == "02_NonFiction/Newport, Cal", "the moved row should carry its new path and folder"
+    assert row is not None and row.folder == "02_NonFiction/Shelved", "the moved row should carry its new path and folder"
     assert row.path == str(library / dst), "the absolute path should follow the move"
     assert index.by_rel_path(src) is None, "the old path should be gone"
-    assert titles(index.search(parse_query("in:newport"))) == ["Deep Work"], "the new folder should be searchable at once"
+    assert titles(index.search(query_words("shelved"))) == ["Deep Work"], "the new folder should be searchable at once"
 
 
 @pytest.mark.parametrize("aside", ["_trash", "_dups"])
@@ -193,9 +228,9 @@ def test_unclassified_lists_books_without_genre_oldest_first(index: Index, libra
     with_genre = index.by_fingerprint(classified.fingerprint)
     index.write_genres({with_genre.fingerprint: "nonfiction"})
 
-    listed = titles(index.unclassified())
-    assert listed[0] == "Napkin" and set(listed) == {"Napkin", "Оперантное поведение", "Nova"}, "books with no genre, oldest first"
-    assert titles(index.unclassified("napk")) == ["Napkin"], "the query narrows by title, author or path, case-insensitively"
+    listed = titles(index.unclassified([]))
+    assert listed == ["Napkin", "Оперантное поведение"], "complete books with no genre, oldest first; unfinished downloads left out"
+    assert titles(index.unclassified(["NAPK"])) == ["Napkin"], "the words narrow the list like a search"
 
 
 def test_genres_and_folders_are_distinct_columns(index: Index):
@@ -211,14 +246,11 @@ def test_fingerprints_among_returns_only_the_known_ones(index: Index):
     assert index.fingerprints_among([]) == set(), "nothing asked, nothing found"
 
 
-def test_write_tag_touches_only_one_book(index: Index):
-    from kobolib.model import Tag
-
+def test_write_genres_touches_only_the_named_book(index: Index):
     napkin = index.by_rel_path("00_Inbox/Napkin.pdf")
-    index.write_tag(napkin.fingerprint, Tag(genre="games/go", tags=["now", "bought"]))
+    index.write_genres({napkin.fingerprint: "games/go"})
 
-    tagged = index.by_fingerprint(napkin.fingerprint)
-    assert (tagged.genre, tagged.tags) == ("games/go", "now,bought"), "the one book carries its genre and tags"
+    assert index.by_fingerprint(napkin.fingerprint).genre == "games/go", "the one book carries its genre"
     assert index.genres() == ["games/go"], "no other book gained a genre"
 
 
@@ -235,8 +267,6 @@ def test_columns_follow_the_row_dataclass():
 def test_every_connection_is_closed_after_use(index: Index, mocker):
     import sqlite3
 
-    from kobolib.model import Tag
-
     opened = []
     real_connect = sqlite3.connect
 
@@ -246,8 +276,8 @@ def test_every_connection_is_closed_after_use(index: Index, mocker):
 
     mocker.patch("kobolib.index.sqlite3.connect", side_effect=tracked)
     index.count()
-    index.search(parse_query("deep"))
-    index.write_tag("nope", Tag(genre="x"))
+    index.search(query_words("deep"))
+    index.write_genres({"nope": "x"})
 
     assert len(opened) == 3, "each operation opens its own connection"
     for conn in opened:
@@ -255,22 +285,22 @@ def test_every_connection_is_closed_after_use(index: Index, mocker):
             conn.execute("SELECT 1")
 
 
-@pytest.mark.parametrize("raw", ["in:пригоди", "in:Пригоди", "in:ПРИГОДИ", "lang:EN"])
-def test_filters_fold_case_beyond_ascii(index: Index, library: Path, raw):
+@pytest.mark.parametrize("raw", ["пригоди", "Пригоди", "ПРИГОДИ", "пригоди EN", "пригоди English"])
+def test_words_fold_case_beyond_ascii(index: Index, library: Path, raw):
     import shutil
 
     (library / "03_Пригоди").mkdir()
     shutil.move(library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub", library / "03_Пригоди")
     build_index(library, index.db_path, cover_cache=library / "c")
 
-    assert titles(index.search(parse_query(raw))) == ["Deep Work"], f"{raw!r} should match regardless of case, Cyrillic included"
+    assert titles(index.search(query_words(raw))) == ["Deep Work"], f"{raw!r} should match regardless of case, Cyrillic included"
 
 
 def test_relocate_carries_the_cover_to_the_new_key(index: Index, library: Path):
     from kobolib.covers import cover_key
 
     src = "02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
-    dst = "02_NonFiction/Newport, Cal/Newport, Cal - Deep Work (2016).epub"
+    dst = "02_NonFiction/Shelved/Newport, Cal - Deep Work (2016).epub"
     old_cover = Path(index.by_rel_path(src).cover)
 
     index.relocate(src, dst, library)
@@ -290,7 +320,7 @@ def indexed(library: Path, tmp_path: Path, monkeypatch) -> Path:
     monkeypatch.setenv("KOBO_ROOT", str(library))
     monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
     monkeypatch.delenv("KOBO_DATA", raising=False)
-    main(["index"])
+    main(["update"])
     return tmp_path / "alfred-data" / "library.db"
 
 
@@ -307,7 +337,7 @@ def first_title(capsys) -> str:
     return json.loads(capsys.readouterr().out)["items"][0]["title"]
 
 
-@pytest.mark.parametrize("command", [["search", "deep"], ["inbox"], ["dups"], ["stats"], ["random", ""], ["lint"], ["plan"]])
+@pytest.mark.parametrize("command", [["search", w] for w in ("deep", "inbox", "dups", "stats", "rnd", "fix", "trash")])
 def test_index_from_an_older_version_asks_for_a_rebuild(indexed: Path, capsys, command):
     from kobolib.cli import main
 
@@ -323,7 +353,7 @@ def test_old_index_refuses_writes(indexed: Path, library: Path, capsys):
     age(indexed)
 
     assert main(["import", str(library / "00_Inbox" / "Napkin.pdf")]) == 1, "an old index cannot tell what the library already holds"
-    assert main(["tag", str(library / "00_Inbox" / "Napkin.pdf"), "genre=reference"]) == 1, "tagging would key on a stale fingerprint"
+    assert main(["genre", str(library / "00_Inbox" / "Napkin.pdf"), "reference"]) == 1, "tagging would key on a stale fingerprint"
     assert "older version" in capsys.readouterr().out, "the reason should name the rebuild"
 
 
@@ -331,8 +361,13 @@ def test_reindex_brings_an_old_index_up_to_date(indexed: Path, capsys):
     from kobolib.cli import main
 
     age(indexed)
-    main(["index"])
+    main(["update"])
     capsys.readouterr()
     main(["search", "deep"])
 
     assert first_title(capsys) == "Deep Work", "kb:index should rewrite the index at the current version"
+
+
+@pytest.mark.parametrize("raw", [".", "-", "/", '"', "deep ."])
+def test_punctuation_only_words_do_not_break_search(index: Index, raw):
+    assert isinstance(index.search(query_words(raw)), list), f"searching for {raw!r} should return rows, not raise"

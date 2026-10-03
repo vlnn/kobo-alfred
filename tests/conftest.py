@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from kobolib.cli import main
+
 PNG_1X1 = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
 
 OPF = """<?xml version="1.0"?>
@@ -77,3 +79,17 @@ def library(tmp_path: Path, epub_file: Path, fb2_file: Path) -> Path:
     (tmp_path / "00_Inbox" / "Delany, Samuel R - Nova - 2014.epub.part").write_bytes(b"")
     (tmp_path / "00_Inbox" / "Napkin.pdf").write_bytes(b"%PDF-1.4")
     return tmp_path
+
+
+@pytest.fixture
+def env(library: Path, tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("KOBO_ROOT", str(library))
+    monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
+    monkeypatch.delenv("KOBO_DATA", raising=False)
+    monkeypatch.setenv("book", "x")
+
+
+@pytest.fixture
+def indexed(env, capsys):
+    main(["update"])
+    capsys.readouterr()

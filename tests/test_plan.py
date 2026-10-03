@@ -2,16 +2,16 @@ from pathlib import Path
 
 import pytest
 
-from kobolib.model import Finding, Operation, Tag
-from kobolib.plan import plan, prefer, read_plan, write_plan
-from kobolib.tags import TagStore
+from kobolib.genres import GenreStore
+from kobolib.model import Finding, GenreEntry, Operation
+from kobolib.plan import plan, prefer
 from tests.test_lint import named
 
 
-def store_with(tmp_path: Path, **genres) -> TagStore:
-    store = TagStore(tmp_path / "t.tsv")
+def store_with(tmp_path: Path, **genres) -> GenreStore:
+    store = GenreStore(tmp_path / "t.tsv")
     for fingerprint, genre in genres.items():
-        store.set(fingerprint, Tag(genre=genre))
+        store.set(fingerprint, GenreEntry(genre=genre))
     return store
 
 
@@ -154,13 +154,6 @@ def test_destination_collisions_are_reported_not_planned(tmp_path):
 
     assert [o.kind for o in result] == ["move", "skip"], "the second book cannot take the same destination"
     assert "one.epub" in result[1].reason, "the skip should name the conflicting source"
-
-
-def test_plan_file_roundtrip(tmp_path):
-    original = [Operation("move", "a/b.epub", "c/d.epub", "relocate"), Operation("trash", "x\ty", "_trash/x y", "junk")]
-    write_plan(original, tmp_path / "plan.tsv")
-
-    assert read_plan(tmp_path / "plan.tsv") == original, "plan file should roundtrip, tabs in names included"
 
 
 def test_series_counted_across_article_variants(tmp_path):

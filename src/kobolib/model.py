@@ -18,8 +18,6 @@ class Book:
     series_index: str = ""
     language: str = ""
     year: str = ""
-    publisher: str = ""
-    source: str = "filename"
     cover: Cover | None = None
     size: int = 0
     mtime: float = 0.0
@@ -39,15 +37,12 @@ class Row:
     partial: bool
     language: str
     year: str
-    publisher: str
-    source: str
     cover: str
     size: int
     mtime: float
     norm_title: str
     fingerprint: str
     genre: str
-    tags: str
 
 
 @dataclass
@@ -57,9 +52,8 @@ class DuplicateGroup:
 
 
 @dataclass
-class Tag:
+class GenreEntry:
     genre: str = ""
-    tags: list[str] = field(default_factory=list)
     rel_path: str = ""
 
 

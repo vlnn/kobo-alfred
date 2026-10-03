@@ -1,42 +1,42 @@
 from __future__ import annotations
 
 import shutil
-from dataclasses import replace
+from collections.abc import Callable
+from dataclasses import astuple, replace
 from pathlib import Path
 
-from kobolib.apply import Applied, apply
+from kobolib.alfred import counted
+from kobolib.apply import EXECUTABLE, Applied, apply
 from kobolib.config import (
     covers_dir,
     data_dir,
     db_path,
+    genre_store,
     journal_path,
     library_root,
     mounted_sources,
-    plan_path,
     sources,
     sources_db_path,
-    tag_store,
 )
+from kobolib.genres import GenreStore, folder_slug, genre_from_folder
 from kobolib.index import Index, IndexBusy, build_index, build_sources_index
 from kobolib.lint import lint
 from kobolib.metadata import is_sound, read_book
-from kobolib.model import Operation, Row, Tag
+from kobolib.model import Finding, GenreEntry, Operation, Row
 from kobolib.paths import relative_path
-from kobolib.plan import plan, read_plan, relocation
-from kobolib.query import parse_query
+from kobolib.plan import TRASH, aside, plan, relocation
 from kobolib.scan import probe_root
-from kobolib.tags import TagStore, folder_slug, genre_from_folder
 
 
-def all_rows(index: Index) -> list:
-    return index.search(parse_query(""), limit=100_000)
+def all_rows(index: Index) -> list[Row]:
+    return index.everything()
 
 
-def bootstrap_tags() -> int:
-    store, index = tag_store(), Index(db_path())
+def bootstrap_genres() -> int:
+    store, index = genre_store(), Index(db_path())
     added = store.bootstrap(all_rows(index))
     store.save()
-    index.write_tags(store)
+    index.write_genres({fingerprint: entry.genre for fingerprint, entry in store.entries.items()})
     return added
 
 
@@ -46,33 +46,26 @@ def row_by_reference(reference: str, index: Index) -> Row | None:
     return index.by_fingerprint(reference)
 
 
-def apply_edits(tag: Tag, edits: list[str]) -> Tag:
-    for edit in edits:
-        if edit.startswith("genre="):
-            tag.genre = edit.removeprefix("genre=").strip().lower()
-        elif edit.startswith("+"):
-            tag.tags = [*tag.tags, edit[1:]]
-        elif edit.startswith("-"):
-            tag.tags = [t for t in tag.tags if t != edit[1:].lower()]
-    return tag
+def genre_text(raw: str) -> str:
+    return raw.strip().lower()
 
 
-def sets_genre(edits: list[str]) -> bool:
-    return any(e.startswith("genre=") for e in edits)
+def set_genre(row: Row, genre: str, index: Index, store: GenreStore) -> tuple[bool, str]:
+    store.set(row.fingerprint, GenreEntry(genre=genre, rel_path=row.rel_path))
+    store.save()
+    index.write_genres({row.fingerprint: genre})
+    return rehome(row, index, store)
 
 
-def tag_summary(title: str, tag: Tag) -> str:
-    return f"{title} → {tag.genre or 'no genre'}" + (f" · {', '.join(tag.tags)}" if tag.tags else "")
-
-
-def known_genres(index: Index, store: TagStore) -> list[str]:
-    from_tags = {t.genre for t in store.entries.values() if t.genre}
+def known_genres(index: Index, store: GenreStore) -> list[str]:
+    from_store = {e.genre for e in store.entries.values() if e.genre}
     from_folders = {g for f in index.folders() if (g := genre_from_folder(f))}
-    return sorted(from_tags | from_folders | set(index.genres()))
+    return sorted(from_store | from_folders | set(index.genres()))
 
 
-def known_tags(index: Index) -> list[str]:
-    return sorted({t for tags in index.tags() for t in tags.split(",") if t})
+def inbox_note() -> str:
+    waiting = len(Index(db_path()).unclassified([]))
+    return f" · {counted(waiting, 'book')} without a genre" if waiting else ""
 
 
 def run_index() -> tuple[int, str]:
@@ -85,7 +78,7 @@ def run_index() -> tuple[int, str]:
         return 1, "Indexing is already running"
     if count == 0:
         return 1, f"No books found: {probe_root(root) or f'no ebook files under {root}'}"
-    bootstrap_tags()
+    bootstrap_genres()
     return 0, f"Indexed {count} books from {root}"
 
 
@@ -99,48 +92,62 @@ def run_index_sources() -> tuple[int, str]:
         count = build_sources_index(found, sources_db_path(), covers_dir(), exclude=(data_dir(),))
     except IndexBusy:
         return 1, "Indexing is already running"
-    skipped = f", skipped {len(missing)} unmounted" if missing else ""
+    skipped = f", skipped {len(missing)} unmounted: {', '.join(map(str, missing))}" if missing else ""
     return 0, f"Indexed {count} books from {len(found)} sources{skipped}"
 
 
-def findings() -> list:
-    return lint(all_rows(Index(db_path())), tag_store(), library_root(), exclude=(data_dir(),))
+def unclassified_rows(words: list[str]) -> list[Row]:
+    return Index(db_path()).unclassified(words)
 
 
-def text_report(findings) -> str:
-    return "\n".join(f"{f.rule}\t{f.detail}\t{' | '.join(f.rel_paths)}" for f in findings)
+def diagnosis() -> tuple[list[Finding], list[Operation]]:
+    rows, store = all_rows(Index(db_path())), genre_store()
+    found = lint(rows, library_root(), exclude=(data_dir(),))
+    return found, plan(rows, found, store)
 
 
-def unclassified_rows(query: str = "") -> list[Row]:
-    return Index(db_path()).unclassified(query)
+def current_plan() -> list[Operation]:
+    return diagnosis()[1]
 
 
-def current_plan():
-    rows, store = all_rows(Index(db_path())), tag_store()
-    return plan(rows, lint(rows, store, library_root(), exclude=(data_dir(),)), store)
+def concerning(words: list[str]) -> Callable[[str], bool]:
+    if not words:
+        return lambda rel_path: True
+    return Index(db_path()).rel_paths(words).__contains__
 
 
-def plan_is_stale() -> bool:
-    return plan_path().stat().st_mtime < db_path().stat().st_mtime
+def is_path(target: str) -> bool:
+    return target.startswith("/")
 
 
-def fresh_plan() -> list[Operation]:
-    if not plan_path().exists() or plan_is_stale():
-        return []
-    return read_plan(plan_path())
+def targeted(targets: list[str]) -> Callable[[str], bool]:
+    paths = {relative_path(Path(t), library_root()) for t in targets if is_path(t)}
+    by_words = concerning([t for t in targets if not is_path(t)])
+    return lambda rel_path: (not paths or rel_path in paths) and by_words(rel_path)
 
 
-def ops_for_one(path: str) -> list[Operation]:
-    rel = relative_path(Path(path), library_root())
-    planned = [o for o in fresh_plan() if o.src == rel]
-    return planned or [o for o in current_plan() if o.src == rel]
+def fix_operations(targets: list[str]) -> list[Operation]:
+    wanted = targeted(targets)
+    return [o for o in current_plan() if o.kind in EXECUTABLE and wanted(o.src)]
+
+
+def pending_operations() -> list[Operation]:
+    return fix_operations([])
+
+
+def trash_operations(rows: list[Row]) -> list[Operation]:
+    return [aside("trash", TRASH, row, "set aside by hand") for row in rows]
+
+
+def operation_line(op: Operation) -> str:
+    return "\t".join(astuple(op))
 
 
 def refresh_index(result: Applied) -> None:
-    index, store = Index(db_path()), tag_store()
+    index, store = Index(db_path()), genre_store()
     for src, dst in result.moved.items():
-        if (row := index.by_rel_path(src)) and (tag := store.get(row.fingerprint)):
-            store.set(row.fingerprint, replace(tag, rel_path=dst))
+        if (row := index.by_rel_path(src)) and (entry := store.get(row.fingerprint)):
+            store.set(row.fingerprint, replace(entry, rel_path=dst))
         index.relocate(src, dst, library_root())
     for src in result.removed:
         index.remove(src)
@@ -158,16 +165,15 @@ def apply_summary(result) -> str:
     return f"Applied {result.done}, skipped {len(result.skipped)} ({skip_reasons(result.skipped)})"
 
 
-def rehome(row: Row, index: Index, store: TagStore) -> str:
+def rehome(row: Row, index: Index, store: GenreStore) -> tuple[bool, str]:
     op = relocation(row, all_rows(index), store)
     if op is None or op.kind != "move":
-        return "stays put (no author or already home)"
+        return False, "stays put (no author or already home)"
     result = apply([op], library_root(), journal_path())
-    plan_path().unlink(missing_ok=True)
     refresh_index(result)
     if result.skipped:
-        return f"not moved: {skip_reasons(result.skipped)}"
-    return f"moved → {Path(op.dst).parent}/"
+        return False, f"not moved: {skip_reasons(result.skipped)}"
+    return True, f"moved → {Path(op.dst).parent}/"
 
 
 def inbox_folder() -> Path:

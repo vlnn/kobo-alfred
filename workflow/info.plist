@@ -13,12 +13,13 @@
 	<key>category</key>
 	<string>Productivity</string>
 	<key>readme</key>
-	<string>kb &lt;query&gt; searches the library: full text over title, authors, series, folder and filename, with filters fmt:epub in:inbox author:x series:x lang:uk year:2016 genre:fiction tag:now is:partial is:complete.
-Every command works as a kb word too: kb stats, kb dups, kb rnd, kb lint, kb inbox, kb classify, kb plan, kb src, kb index, kb apply, kb undo (the kb:x keywords are the same commands).
-kb:classify picks an inbox book, then a genre, and moves the book to its genre home at once; ⇧↩ on any book fixes its genre and tags the same way. kb:lint reports problems, kb:plan proposes bulk moves, renames and trash — ↩ on a row applies that row, ↩ on the head row applies all; kb:undo moves the last batch back.
-A list with several books starts with an "Import all" / "Classify all" / "Apply all" row; ↩ there (or ⌥⇧↩ on any row) does it for every row shown.
-kb:src searches other sources (a Calibre library, a downloads folder) and ↩ copies the book into the library inbox; books already in the library, unfinished downloads and unreadable files are not offered.
-Set the library root (and optionally other sources and the index folder) in the workflow configuration, then run kb:index once; rerun after adding books. The index lives in Alfred's workflow data folder. Needs only macOS's /usr/bin/python3.</string>
+	<string>kb &lt;words&gt; searches the library: every word must match, by prefix, one of title, authors, series, folder, path, genre, format, language or year (kb delany epub 1975). Empty kb lists the newest books after a reminder of books without a genre.
+A first word that names a command adds its rows above the books matching all the words: kb rnd, kb inbox, kb classify, kb dups, kb stats, kb fix, kb trash, kb src, kb update. Typing two letters of a command offers to complete it.
+↩ does a list's main thing, ⌥↩ reveals in Finder, ⇧↩ sets the genre of a book. A list with several books starts with a head row (Import all, Set genre for all, Fix all, Trash all) that does it for every row shown.
+kb classify lists the inbox; ↩ picks a genre and moves the book to its genre home at once. In the genre picker ⇧↩ creates the typed text as a new genre.
+kb fix shows what is wrong and how to fix it, with Undo for the last batch; kb trash sets unfinished downloads and other books aside in _trash/; nothing is ever deleted.
+kb src searches other sources (a Calibre library, a downloads folder) and ↩ copies the book into the library inbox.
+Set the library root (and optionally other sources and the index folder) in the workflow configuration, then run kb update once; rerun after adding books. Needs only macOS's /usr/bin/python3.</string>
 	<key>variables</key>
 	<dict>
 		<key>KOBO_ROOT</key>
@@ -100,7 +101,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>type</key>
 			<string>alfred.workflow.input.scriptfilter</string>
 			<key>uid</key>
-			<string>SEARCH</string>
+			<string>KB</string>
 			<key>version</key>
 			<integer>3</integer>
 			<key>config</key>
@@ -110,7 +111,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<key>title</key>
 				<string>Search library</string>
 				<key>subtext</key>
-				<string>title, author, series · fmt:epub in:inbox author:x genre:x tag:x is:partial · stats dups rnd lint inbox classify plan src index/update apply undo · ⇧↩ fix</string>
+				<string>words match title, author, series, path, genre, format, language, year · rnd inbox classify dups stats fix trash src update</string>
 				<key>runningsubtext</key>
 				<string>Searching…</string>
 				<key>withspace</key>
@@ -143,123 +144,9 @@ Set the library root (and optionally other sources and the index folder) in the 
 		</dict>
 		<dict>
 			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>DUPS</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:dups</string>
-				<key>title</key>
-				<string>Duplicate titles</string>
-				<key>subtext</key>
-				<string>Same title in several files or formats</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-				<key>alfredfiltersresults</key>
-				<true/>
-				<key>alfredfiltersresultsmatchmode</key>
-				<integer>0</integer>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib dups</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>RANDOM</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:rnd</string>
-				<key>title</key>
-				<string>Random picks</string>
-				<key>subtext</key>
-				<string>Five random books, optionally filtered: kb:rnd fmt:epub in:fiction</string>
-				<key>withspace</key>
-				<true/>
-				<key>argumenttype</key>
-				<integer>1</integer>
-				<key>alfredfiltersresults</key>
-				<false/>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib random "$1"</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>STATS</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:stats</string>
-				<key>title</key>
-				<string>Library stats</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-				<key>alfredfiltersresults</key>
-				<false/>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib stats</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.keyword</string>
-			<key>uid</key>
-			<string>INDEX_KW</string>
-			<key>version</key>
-			<integer>1</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:index</string>
-				<key>text</key>
-				<string>Rebuild library index</string>
-				<key>subtext</key>
-				<string>Scan the library, read metadata, extract covers</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
 			<string>alfred.workflow.action.script</string>
 			<key>uid</key>
-			<string>INDEX_RUN</string>
+			<string>RUN</string>
 			<key>version</key>
 			<integer>2</integer>
 			<key>config</key>
@@ -274,15 +161,22 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<integer>0</integer>
 				<key>script</key>
 				<string>export PYTHONPATH="$PWD"
-nohup /usr/bin/python3 -m kobolib index --notify &gt;/dev/null 2&gt;&amp;1 &amp;
-echo "Indexing started… you will get a notification when it finishes"</string>
+run() { nohup /usr/bin/python3 -m kobolib "$@" --notify &gt;/dev/null 2&gt;&amp;1 &amp; }
+case "$action" in
+  update) run update; echo "Rebuilding the index… a notification follows";;
+  fix) run fix "$1"; echo "Fixing… a notification follows";;
+  trash) run trash "$1"; echo "Moving to _trash/… a notification follows";;
+  undo) run undo; echo "Undoing the last batch… a notification follows";;
+  import) run import "$1"; echo "Importing… a notification follows";;
+  genre) run genre "$book" "$1"; echo "Setting the genre… a notification follows";;
+esac</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>type</key>
 			<string>alfred.workflow.output.notification</string>
 			<key>uid</key>
-			<string>INDEX_NOTIFY</string>
+			<string>NOTIFY</string>
 			<key>version</key>
 			<integer>1</integer>
 			<key>config</key>
@@ -329,340 +223,17 @@ echo "Indexing started… you will get a notification when it finishes"</string>
 		</dict>
 		<dict>
 			<key>type</key>
-			<string>alfred.workflow.output.clipboard</string>
-			<key>uid</key>
-			<string>COPY</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>autopaste</key>
-				<false/>
-				<key>clipboardtext</key>
-				<string>{query}</string>
-				<key>ignoredynamicplaceholders</key>
-				<false/>
-				<key>transient</key>
-				<false/>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.action.browseinalfred</string>
-			<key>uid</key>
-			<string>BROWSE</string>
-			<key>version</key>
-			<integer>1</integer>
-			<key>config</key>
-			<dict>
-				<key>browse</key>
-				<string>{var:KOBO_ROOT}/{query}</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
 			<string>alfred.workflow.input.scriptfilter</string>
 			<key>uid</key>
-			<string>LINT</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:lint</string>
-				<key>title</key>
-				<string>Library problems</string>
-				<key>subtext</key>
-				<string>junk · partial downloads · noisy names · duplicates · misfiled series · unclassified</string>
-				<key>runningsubtext</key>
-				<string>Checking…</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-				<key>argumenttrimmode</key>
-				<integer>0</integer>
-				<key>alfredfiltersresults</key>
-				<true/>
-				<key>alfredfiltersresultsmatchmode</key>
-				<integer>0</integer>
-				<key>queuedelaycustom</key>
-				<integer>1</integer>
-				<key>queuedelayimmediatelyinitially</key>
-				<true/>
-				<key>queuedelaymode</key>
-				<integer>0</integer>
-				<key>queuemode</key>
-				<integer>1</integer>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib lint</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>INBOX</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:inbox</string>
-				<key>title</key>
-				<string>Books waiting for a genre</string>
-				<key>subtext</key>
-				<string>oldest first · ↩ open · ⌥↩ reveal in Finder · ⇧↩ fix genre/tags</string>
-				<key>runningsubtext</key>
-				<string>Checking…</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-				<key>argumenttrimmode</key>
-				<integer>0</integer>
-				<key>alfredfiltersresults</key>
-				<true/>
-				<key>alfredfiltersresultsmatchmode</key>
-				<integer>0</integer>
-				<key>queuedelaycustom</key>
-				<integer>1</integer>
-				<key>queuedelayimmediatelyinitially</key>
-				<true/>
-				<key>queuedelaymode</key>
-				<integer>0</integer>
-				<key>queuemode</key>
-				<integer>1</integer>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib inbox</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>PLAN</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:plan</string>
-				<key>title</key>
-				<string>Proposed moves and renames</string>
-				<key>subtext</key>
-				<string>nothing is changed yet · ⌘C copies the plan line · plan.tsv lives next to the index</string>
-				<key>runningsubtext</key>
-				<string>Planning…</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-				<key>argumenttrimmode</key>
-				<integer>0</integer>
-				<key>alfredfiltersresults</key>
-				<true/>
-				<key>alfredfiltersresultsmatchmode</key>
-				<integer>0</integer>
-				<key>queuedelaycustom</key>
-				<integer>1</integer>
-				<key>queuedelayimmediatelyinitially</key>
-				<true/>
-				<key>queuedelaymode</key>
-				<integer>0</integer>
-				<key>queuemode</key>
-				<integer>1</integer>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib plan</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.keyword</string>
-			<key>uid</key>
-			<string>APPLY_KW</string>
-			<key>version</key>
-			<integer>1</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:apply</string>
-				<key>text</key>
-				<string>Apply the plan</string>
-				<key>subtext</key>
-				<string>Move, rename and trash as listed in kb:plan; the index is rebuilt afterwards</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.action.script</string>
-			<key>uid</key>
-			<string>APPLY_RUN</string>
-			<key>version</key>
-			<integer>2</integer>
-			<key>config</key>
-			<dict>
-				<key>concurrently</key>
-				<true/>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>export PYTHONPATH="$PWD"
-nohup /usr/bin/python3 -m kobolib apply --notify &gt;/dev/null 2&gt;&amp;1 &amp;
-echo "Applying the plan… you will get a notification when it finishes"</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.keyword</string>
-			<key>uid</key>
-			<string>UNDO_KW</string>
-			<key>version</key>
-			<integer>1</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:undo</string>
-				<key>text</key>
-				<string>Undo the last apply</string>
-				<key>subtext</key>
-				<string>Move everything from the last batch back</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.action.script</string>
-			<key>uid</key>
-			<string>UNDO_RUN</string>
-			<key>version</key>
-			<integer>2</integer>
-			<key>config</key>
-			<dict>
-				<key>concurrently</key>
-				<true/>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>export PYTHONPATH="$PWD"
-nohup /usr/bin/python3 -m kobolib undo --notify &gt;/dev/null 2&gt;&amp;1 &amp;
-echo "Undoing… you will get a notification when it finishes"</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.action.script</string>
-			<key>uid</key>
-			<string>APPLY_ONE</string>
-			<key>version</key>
-			<integer>2</integer>
-			<key>config</key>
-			<dict>
-				<key>concurrently</key>
-				<true/>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>export PYTHONPATH="$PWD"
-nohup /usr/bin/python3 -m kobolib apply --only "$1" --notify &gt;/dev/null 2&gt;&amp;1 &amp;
-if [ -z "$1" ]; then echo "Applying the plan… you will get a notification when it finishes"; else echo "Moving one book… you will get a notification when it finishes"; fi</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>CLASSIFY</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:classify</string>
-				<key>title</key>
-				<string>Classify a book</string>
-				<key>subtext</key>
-				<string>type to filter the inbox · ↩ then pick a genre</string>
-				<key>runningsubtext</key>
-				<string>…</string>
-				<key>withspace</key>
-				<true/>
-				<key>argumenttype</key>
-				<integer>1</integer>
-				<key>argumenttrimmode</key>
-				<integer>0</integer>
-				<key>alfredfiltersresults</key>
-				<false/>
-				<key>alfredfiltersresultsmatchmode</key>
-				<integer>0</integer>
-				<key>queuedelaycustom</key>
-				<integer>1</integer>
-				<key>queuedelayimmediatelyinitially</key>
-				<true/>
-				<key>queuedelaymode</key>
-				<integer>0</integer>
-				<key>queuemode</key>
-				<integer>1</integer>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib classify "$1"</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>GENRES</string>
+			<string>PICKER</string>
 			<key>version</key>
 			<integer>3</integer>
 			<key>config</key>
 			<dict>
 				<key>title</key>
-				<string>Pick a genre</string>
+				<string>Set genre</string>
 				<key>subtext</key>
-				<string>type to filter · an unknown genre is created</string>
+				<string>type to filter · ⇧↩ creates the typed text as a new genre</string>
 				<key>runningsubtext</key>
 				<string>…</string>
 				<key>withspace</key>
@@ -694,142 +265,6 @@ if [ -z "$1" ]; then echo "Applying the plan… you will get a notification when
 			</dict>
 		</dict>
 		<dict>
-			<key>type</key>
-			<string>alfred.workflow.action.script</string>
-			<key>uid</key>
-			<string>TAG_RUN</string>
-			<key>version</key>
-			<integer>2</integer>
-			<key>config</key>
-			<dict>
-				<key>concurrently</key>
-				<false/>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>case "$1" in
-  genre=*) PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib tag --notify "$book" "$1" &gt;/dev/null 2&gt;&amp;1 &amp;
-           echo "Moving to the genre home… you will get a notification when it finishes";;
-  *) PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib tag "$book" "$1";;
-esac</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>FIX</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>title</key>
-				<string>Fix a book</string>
-				<key>subtext</key>
-				<string>genre to set · +tag to add · -tag to remove</string>
-				<key>runningsubtext</key>
-				<string>…</string>
-				<key>withspace</key>
-				<true/>
-				<key>argumenttype</key>
-				<integer>1</integer>
-				<key>argumenttrimmode</key>
-				<integer>0</integer>
-				<key>alfredfiltersresults</key>
-				<false/>
-				<key>alfredfiltersresultsmatchmode</key>
-				<integer>0</integer>
-				<key>queuedelaycustom</key>
-				<integer>1</integer>
-				<key>queuedelayimmediatelyinitially</key>
-				<true/>
-				<key>queuedelaymode</key>
-				<integer>0</integer>
-				<key>queuemode</key>
-				<integer>1</integer>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib fix -- "$1"</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>SOURCES</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:src</string>
-				<key>title</key>
-				<string>Search other book sources</string>
-				<key>subtext</key>
-				<string>same filters as kb · ↩ copy into the library inbox · ⌥↩ move · ⌘↩ reveal</string>
-				<key>runningsubtext</key>
-				<string>Searching…</string>
-				<key>withspace</key>
-				<true/>
-				<key>argumenttype</key>
-				<integer>1</integer>
-				<key>argumenttrimmode</key>
-				<integer>0</integer>
-				<key>alfredfiltersresults</key>
-				<false/>
-				<key>alfredfiltersresultsmatchmode</key>
-				<integer>0</integer>
-				<key>queuedelaycustom</key>
-				<integer>1</integer>
-				<key>queuedelayimmediatelyinitially</key>
-				<true/>
-				<key>queuedelaymode</key>
-				<integer>0</integer>
-				<key>queuemode</key>
-				<integer>1</integer>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib sources "$1"</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.action.script</string>
-			<key>uid</key>
-			<string>IMPORT_RUN</string>
-			<key>version</key>
-			<integer>2</integer>
-			<key>config</key>
-			<dict>
-				<key>concurrently</key>
-				<true/>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>export PYTHONPATH="$PWD"
-nohup /usr/bin/python3 -m kobolib import "$1" --notify &gt;/dev/null 2&gt;&amp;1 &amp;
-case "$1" in *$'\n'*) echo "Importing several books… you will get a notification when it finishes";; *) echo "Importing… you will get a notification when it finishes";; esac</string>
-			</dict>
-		</dict>
-		<dict>
 			<key>config</key>
 			<dict>
 				<key>conditions</key>
@@ -842,9 +277,9 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 						<key>matchmode</key>
 						<integer>0</integer>
 						<key>matchstring</key>
-						<string>index</string>
+						<string>update</string>
 						<key>outputlabel</key>
-						<string>index</string>
+						<string>update</string>
 						<key>uid</key>
 						<string>D2BB2AA4-9769-43F6-A150-1C28D648FDB6</string>
 					</dict>
@@ -856,11 +291,25 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 						<key>matchmode</key>
 						<integer>0</integer>
 						<key>matchstring</key>
-						<string>apply</string>
+						<string>fix</string>
 						<key>outputlabel</key>
-						<string>apply</string>
+						<string>fix</string>
 						<key>uid</key>
-						<string>DF061D5B-FCB1-4569-9868-D3F9BA7465CD</string>
+						<string>489683B0-6179-4060-9F20-FA7A2B93EB4A</string>
+					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>trash</string>
+						<key>outputlabel</key>
+						<string>trash</string>
+						<key>uid</key>
+						<string>E632C43E-DC2F-4845-99A9-E19EB44CFBCF</string>
 					</dict>
 					<dict>
 						<key>inputstring</key>
@@ -884,11 +333,11 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 						<key>matchmode</key>
 						<integer>0</integer>
 						<key>matchstring</key>
-						<string>apply-one</string>
+						<string>import</string>
 						<key>outputlabel</key>
-						<string>apply-one</string>
+						<string>import</string>
 						<key>uid</key>
-						<string>489683B0-6179-4060-9F20-FA7A2B93EB4A</string>
+						<string>9CD12F4D-E799-4CF1-A9E6-A750E02699F7</string>
 					</dict>
 					<dict>
 						<key>inputstring</key>
@@ -912,11 +361,11 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 						<key>matchmode</key>
 						<integer>0</integer>
 						<key>matchstring</key>
-						<string>import</string>
+						<string>reveal</string>
 						<key>outputlabel</key>
-						<string>import</string>
+						<string>reveal</string>
 						<key>uid</key>
-						<string>9CD12F4D-E799-4CF1-A9E6-A750E02699F7</string>
+						<string>FA7FCF63-245D-4B88-936C-BDDCFD3D4C6C</string>
 					</dict>
 				</array>
 				<key>elselabel</key>
@@ -934,518 +383,11 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 	</array>
 	<key>connections</key>
 	<dict>
-		<key>SEARCH</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>DISPATCH</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>REVEAL</string>
-				<key>modifiers</key>
-				<integer>524288</integer>
-				<key>modifiersubtext</key>
-				<string>Reveal in Finder</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>COPY</string>
-				<key>modifiers</key>
-				<integer>1048576</integer>
-				<key>modifiersubtext</key>
-				<string>Copy relative path</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>BROWSE</string>
-				<key>modifiers</key>
-				<integer>262144</integer>
-				<key>modifiersubtext</key>
-				<string>Browse folder in Alfred</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>APPLY_ONE</string>
-				<key>modifiers</key>
-				<integer>8388608</integer>
-				<key>modifiersubtext</key>
-				<string>Move to its genre home now</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>FIX</string>
-				<key>modifiers</key>
-				<integer>131072</integer>
-				<key>modifiersubtext</key>
-				<string>Fix genre / tags</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>DISPATCH</string>
-				<key>modifiers</key>
-				<integer>655360</integer>
-				<key>modifiersubtext</key>
-				<string>Apply to every row shown</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>DUPS</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>OPEN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>REVEAL</string>
-				<key>modifiers</key>
-				<integer>524288</integer>
-				<key>modifiersubtext</key>
-				<string>Reveal in Finder</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>RANDOM</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>OPEN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>REVEAL</string>
-				<key>modifiers</key>
-				<integer>524288</integer>
-				<key>modifiersubtext</key>
-				<string>Reveal in Finder</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>COPY</string>
-				<key>modifiers</key>
-				<integer>1048576</integer>
-				<key>modifiersubtext</key>
-				<string>Copy relative path</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>BROWSE</string>
-				<key>modifiers</key>
-				<integer>262144</integer>
-				<key>modifiersubtext</key>
-				<string>Browse folder in Alfred</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>APPLY_ONE</string>
-				<key>modifiers</key>
-				<integer>8388608</integer>
-				<key>modifiersubtext</key>
-				<string>Move to its genre home now</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>FIX</string>
-				<key>modifiers</key>
-				<integer>131072</integer>
-				<key>modifiersubtext</key>
-				<string>Fix genre / tags</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>LINT</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>OPEN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>REVEAL</string>
-				<key>modifiers</key>
-				<integer>524288</integer>
-				<key>modifiersubtext</key>
-				<string>Reveal in Finder</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>INBOX</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>OPEN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>REVEAL</string>
-				<key>modifiers</key>
-				<integer>524288</integer>
-				<key>modifiersubtext</key>
-				<string>Reveal in Finder</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>COPY</string>
-				<key>modifiers</key>
-				<integer>1048576</integer>
-				<key>modifiersubtext</key>
-				<string>Copy relative path</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>BROWSE</string>
-				<key>modifiers</key>
-				<integer>262144</integer>
-				<key>modifiersubtext</key>
-				<string>Browse folder in Alfred</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>APPLY_ONE</string>
-				<key>modifiers</key>
-				<integer>8388608</integer>
-				<key>modifiersubtext</key>
-				<string>Move to its genre home now</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>FIX</string>
-				<key>modifiers</key>
-				<integer>131072</integer>
-				<key>modifiersubtext</key>
-				<string>Fix genre / tags</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>GENRES</string>
-				<key>modifiers</key>
-				<integer>655360</integer>
-				<key>modifiersubtext</key>
-				<string>Classify all shown</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>PLAN</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>APPLY_ONE</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>REVEAL</string>
-				<key>modifiers</key>
-				<integer>524288</integer>
-				<key>modifiersubtext</key>
-				<string>Reveal in Finder</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>APPLY_ONE</string>
-				<key>modifiers</key>
-				<integer>655360</integer>
-				<key>modifiersubtext</key>
-				<string>Apply all</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>APPLY_KW</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>APPLY_RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>APPLY_RUN</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>INDEX_NOTIFY</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>UNDO_KW</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>UNDO_RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>UNDO_RUN</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>INDEX_NOTIFY</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>APPLY_ONE</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>INDEX_NOTIFY</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>CLASSIFY</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>GENRES</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>GENRES</string>
-				<key>modifiers</key>
-				<integer>655360</integer>
-				<key>modifiersubtext</key>
-				<string>Classify all shown</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>GENRES</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>TAG_RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>TAG_RUN</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>INDEX_NOTIFY</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>INDEX_KW</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>INDEX_RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>INDEX_RUN</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>INDEX_NOTIFY</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>FIX</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>TAG_RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>SOURCES</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>IMPORT_RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>REVEAL</string>
-				<key>modifiers</key>
-				<integer>524288</integer>
-				<key>modifiersubtext</key>
-				<string>Reveal in Finder</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>COPY</string>
-				<key>modifiers</key>
-				<integer>1048576</integer>
-				<key>modifiersubtext</key>
-				<string>Copy path</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>BROWSE</string>
-				<key>modifiers</key>
-				<integer>262144</integer>
-				<key>modifiersubtext</key>
-				<string>Browse folder in Alfred</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>IMPORT_RUN</string>
-				<key>modifiers</key>
-				<integer>655360</integer>
-				<key>modifiersubtext</key>
-				<string>Import all shown</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>IMPORT_RUN</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>INDEX_NOTIFY</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
 		<key>DISPATCH</key>
 		<array>
 			<dict>
 				<key>destinationuid</key>
-				<string>INDEX_RUN</string>
+				<string>RUN</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -1457,31 +399,7 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 			</dict>
 			<dict>
 				<key>destinationuid</key>
-				<string>APPLY_RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-				<key>sourceoutputuid</key>
-				<string>DF061D5B-FCB1-4569-9868-D3F9BA7465CD</string>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>UNDO_RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-				<key>sourceoutputuid</key>
-				<string>0D99B9A6-3966-44BE-8958-5965343A6415</string>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>APPLY_ONE</string>
+				<string>RUN</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -1493,7 +411,43 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 			</dict>
 			<dict>
 				<key>destinationuid</key>
-				<string>GENRES</string>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>E632C43E-DC2F-4845-99A9-E19EB44CFBCF</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>0D99B9A6-3966-44BE-8958-5965343A6415</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>9CD12F4D-E799-4CF1-A9E6-A750E02699F7</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>PICKER</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -1505,7 +459,7 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 			</dict>
 			<dict>
 				<key>destinationuid</key>
-				<string>IMPORT_RUN</string>
+				<string>REVEAL</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -1513,7 +467,7 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 				<key>vitoclose</key>
 				<false/>
 				<key>sourceoutputuid</key>
-				<string>9CD12F4D-E799-4CF1-A9E6-A750E02699F7</string>
+				<string>FA7FCF63-245D-4B88-936C-BDDCFD3D4C6C</string>
 			</dict>
 			<dict>
 				<key>destinationuid</key>
@@ -1526,190 +480,128 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 				<false/>
 			</dict>
 		</array>
+		<key>RUN</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>NOTIFY</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>NOTIFY</key>
+		<array/>
+		<key>KB</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>DISPATCH</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>REVEAL</string>
+				<key>modifiers</key>
+				<integer>524288</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>PICKER</string>
+				<key>modifiers</key>
+				<integer>131072</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>PICKER</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>131072</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
 	</dict>
 	<key>uidata</key>
 	<dict>
-		<key>SEARCH</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>60.0</real>
-		</dict>
-		<key>DUPS</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>200.0</real>
-		</dict>
-		<key>RANDOM</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>340.0</real>
-		</dict>
-		<key>STATS</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>480.0</real>
-		</dict>
-		<key>INDEX_KW</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>620.0</real>
-		</dict>
-		<key>INDEX_RUN</key>
+		<key>DISPATCH</key>
 		<dict>
 			<key>xpos</key>
 			<real>320.0</real>
 			<key>ypos</key>
-			<real>620.0</real>
-		</dict>
-		<key>INDEX_NOTIFY</key>
-		<dict>
-			<key>xpos</key>
-			<real>580.0</real>
-			<key>ypos</key>
-			<real>620.0</real>
-		</dict>
-		<key>LINT</key>
-		<dict>
-			<key>xpos</key>
 			<real>60.0</real>
-			<key>ypos</key>
-			<real>760.0</real>
-		</dict>
-		<key>INBOX</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>900.0</real>
-		</dict>
-		<key>PLAN</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>1040.0</real>
-		</dict>
-		<key>APPLY_KW</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>1180.0</real>
-		</dict>
-		<key>APPLY_RUN</key>
-		<dict>
-			<key>xpos</key>
-			<real>320.0</real>
-			<key>ypos</key>
-			<real>1180.0</real>
-		</dict>
-		<key>UNDO_KW</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>1320.0</real>
-		</dict>
-		<key>UNDO_RUN</key>
-		<dict>
-			<key>xpos</key>
-			<real>320.0</real>
-			<key>ypos</key>
-			<real>1320.0</real>
-		</dict>
-		<key>APPLY_ONE</key>
-		<dict>
-			<key>xpos</key>
-			<real>320.0</real>
-			<key>ypos</key>
-			<real>1040.0</real>
-		</dict>
-		<key>CLASSIFY</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>1460.0</real>
-		</dict>
-		<key>GENRES</key>
-		<dict>
-			<key>xpos</key>
-			<real>320.0</real>
-			<key>ypos</key>
-			<real>1460.0</real>
-		</dict>
-		<key>TAG_RUN</key>
-		<dict>
-			<key>xpos</key>
-			<real>580.0</real>
-			<key>ypos</key>
-			<real>1460.0</real>
 		</dict>
 		<key>OPEN</key>
 		<dict>
 			<key>xpos</key>
-			<real>420.0</real>
+			<real>580.0</real>
 			<key>ypos</key>
-			<real>60.0</real>
+			<real>20.0</real>
 		</dict>
 		<key>REVEAL</key>
 		<dict>
 			<key>xpos</key>
-			<real>420.0</real>
+			<real>580.0</real>
 			<key>ypos</key>
-			<real>200.0</real>
+			<real>160.0</real>
 		</dict>
-		<key>COPY</key>
+		<key>RUN</key>
 		<dict>
 			<key>xpos</key>
-			<real>420.0</real>
+			<real>580.0</real>
 			<key>ypos</key>
-			<real>340.0</real>
-		</dict>
-		<key>BROWSE</key>
-		<dict>
-			<key>xpos</key>
-			<real>420.0</real>
-			<key>ypos</key>
-			<real>480.0</real>
-		</dict>
-		<key>FIX</key>
-		<dict>
-			<key>xpos</key>
 			<real>320.0</real>
-			<key>ypos</key>
-			<real>1600.0</real>
 		</dict>
-		<key>SOURCES</key>
+		<key>NOTIFY</key>
+		<dict>
+			<key>xpos</key>
+			<real>840.0</real>
+			<key>ypos</key>
+			<real>320.0</real>
+		</dict>
+		<key>KB</key>
 		<dict>
 			<key>xpos</key>
 			<real>60.0</real>
 			<key>ypos</key>
-			<real>1740.0</real>
+			<real>60.0</real>
 		</dict>
-		<key>IMPORT_RUN</key>
+		<key>PICKER</key>
 		<dict>
 			<key>xpos</key>
 			<real>320.0</real>
 			<key>ypos</key>
-			<real>1740.0</real>
-		</dict>
-		<key>DISPATCH</key>
-		<dict>
-			<key>xpos</key>
-			<real>240.0</real>
-			<key>ypos</key>
-			<real>60.0</real>
+			<real>320.0</real>
 		</dict>
 	</dict>
 	<key>version</key>

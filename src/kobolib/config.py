@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from kobolib.tags import TagStore
+from kobolib.genres import GenreStore
 
 
 def library_root() -> Path:
@@ -40,16 +40,12 @@ def covers_dir() -> Path:
     return data_dir() / "covers"
 
 
-def plan_path() -> Path:
-    return data_dir() / "plan.tsv"
-
-
 def journal_path() -> Path:
     return data_dir() / "journal.jsonl"
 
 
-def tag_store() -> TagStore:
-    return TagStore(data_dir() / "tags.tsv").load()
+def genre_store() -> GenreStore:
+    return GenreStore(data_dir() / "genres.tsv").load()
 
 
 def selected_book() -> str:

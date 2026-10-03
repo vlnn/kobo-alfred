@@ -74,11 +74,9 @@ def read_epub(path: Path, book: Book) -> Book:
         book.authors = texts_of(package, "opf:metadata/dc:creator")
         book.language = text_of(package, "opf:metadata/dc:language")
         book.year = text_of(package, "opf:metadata/dc:date")[:4]
-        book.publisher = text_of(package, "opf:metadata/dc:publisher")
         book.series = opf_meta(package, "calibre:series")
         book.series_index = opf_meta(package, "calibre:series_index").removesuffix(".0")
         book.cover = epub_cover(zf, opf, package)
-    book.source = "epub"
     return book
 
 
@@ -109,9 +107,7 @@ def read_fb2(path: Path, book: Book) -> Book:
         book.series = sequence.get("name", "")
         book.series_index = sequence.get("number", "")
     book.year = text_of(root, "fb:description/fb:publish-info/fb:year")
-    book.publisher = text_of(root, "fb:description/fb:publish-info/fb:publisher")
     book.cover = fb2_cover(root)
-    book.source = "fb2"
     return book
 
 
@@ -158,7 +154,6 @@ def from_filename(path: Path, book: Book) -> Book:
     book.series = book.series or guess.series
     book.series_index = book.series_index or guess.series_index
     book.year = book.year or guess.year
-    book.publisher = book.publisher or guess.publisher
     return book
 
 

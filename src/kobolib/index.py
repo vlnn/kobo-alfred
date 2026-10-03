@@ -11,14 +11,14 @@ from dataclasses import astuple, fields
 from pathlib import Path
 
 from kobolib.covers import THUMBNAIL_FORMATS, cover_key, ensure_cover
+from kobolib.languages import searchable_language
 from kobolib.metadata import is_sound, read_book
-from kobolib.model import Book, DuplicateGroup, Row, Tag
-from kobolib.query import SQL_CLAUSES, STATE_CLAUSES, Query
+from kobolib.model import Book, DuplicateGroup, Row
+from kobolib.query import fts_match
 from kobolib.scan import SKIP_FOLDERS, iter_books
-from kobolib.tags import TagStore
 
 COLUMNS = tuple(f.name for f in fields(Row))
-SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path"}
+SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path", "genre", "format", "language", "year"}
 SCHEMA = f"""
 CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
     {", ".join(c if c in SEARCHABLE else f"{c} UNINDEXED" for c in COLUMNS)},
@@ -26,7 +26,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 );
 """
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
 
@@ -49,17 +49,14 @@ def to_row(book: Book, cover: Path | None) -> Row:
         path=book.path,
         format=book.format,
         partial=book.partial,
-        language=book.language,
+        language=searchable_language(book.language),
         year=book.year,
-        publisher=book.publisher,
-        source=book.source,
         cover=str(cover) if cover else "",
         size=book.size,
         mtime=book.mtime,
         norm_title=normalize_title(book.title),
         fingerprint=book.fingerprint,
         genre="",
-        tags="",
     )
 
 
@@ -89,7 +86,6 @@ def source_records(roots: list[Path], cover_cache: Path, exclude: tuple[Path, ..
 @contextmanager
 def reading(db_path: Path) -> Iterator[sqlite3.Connection]:
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    conn.create_function("fold", 1, str.casefold, deterministic=True)
     try:
         yield conn
     finally:
@@ -195,13 +191,6 @@ def add_book(db_path: Path, path: Path, root: Path, cover_cache: Path) -> Book:
     return book
 
 
-TAG_SQL = "UPDATE books SET genre = ?, tags = ? WHERE fingerprint = ?"
-
-
-def tag_values(fingerprint: str, tag: Tag) -> tuple[str, str, str]:
-    return tag.genre, ",".join(tag.tags), fingerprint
-
-
 def row_factory(cursor, values) -> Row:
     data = dict(zip([c[0] for c in cursor.description], values))
     data["partial"] = bool(data["partial"])
@@ -236,11 +225,26 @@ class Index:
     def count(self) -> int:
         return self.values("SELECT count(*) FROM books")[0]
 
-    def search(self, query: Query, limit: int = 40) -> list[Row]:
-        clauses, params = where_clauses(query)
-        order = "rank, title" if query.fts_match() else "mtime DESC"
-        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-        return self.rows(f"{SELECT_ROWS}{where} ORDER BY {order} LIMIT :limit", {**params, "limit": limit})
+    def complete_count(self) -> int:
+        return self.values("SELECT count(*) FROM books WHERE partial = 0")[0]
+
+    def rel_paths(self, words: list[str]) -> set[str]:
+        return {row.rel_path for row in self.search(words, limit=100_000)}
+
+    def search(self, words: list[str], limit: int = 40) -> list[Row]:
+        order = "rank, title" if words else "mtime DESC"
+        return self.matching(words, "partial = 0", order, limit)
+
+    def partials(self, words: list[str], limit: int = 1000) -> list[Row]:
+        return self.matching(words, "partial = 1", "mtime", limit)
+
+    def matching(self, words: list[str], state: str, order: str, limit: int) -> list[Row]:
+        match = fts_match(words)
+        where = f"{state} AND books MATCH :match" if match else state
+        return self.rows(f"{SELECT_ROWS} WHERE {where} ORDER BY {order} LIMIT :limit", {"match": match, "limit": limit})
+
+    def everything(self) -> list[Row]:
+        return self.rows(f"{SELECT_ROWS} ORDER BY mtime DESC")
 
     def by_fingerprint(self, fingerprint: str) -> Row | None:
         return self.one("fingerprint = ?", fingerprint)
@@ -251,17 +255,14 @@ class Index:
     def one(self, condition: str, value: str) -> Row | None:
         return next(iter(self.rows(f"{SELECT_ROWS} WHERE {condition}", (value,))), None)
 
-    def unclassified(self, query: str = "") -> list[Row]:
-        return [r for r in self.rows(f"{SELECT_ROWS} WHERE genre = '' ORDER BY mtime") if matches(r, query)]
+    def unclassified(self, words: list[str], limit: int = 1000) -> list[Row]:
+        return self.matching(words, "partial = 0 AND genre = ''", "mtime", limit)
 
     def genres(self) -> list[str]:
         return self.distinct("genre")
 
     def folders(self) -> list[str]:
         return self.distinct("folder")
-
-    def tags(self) -> list[str]:
-        return self.distinct("tags")
 
     def distinct(self, column: str) -> list[str]:
         return self.values(f"SELECT DISTINCT {column} FROM books WHERE {column} != '' ORDER BY {column}")
@@ -274,12 +275,6 @@ class Index:
 
     def write_genres(self, genres: dict[str, str]) -> None:
         self.execute_many("UPDATE books SET genre = ? WHERE fingerprint = ?", [(g, fp) for fp, g in genres.items()])
-
-    def write_tags(self, store: TagStore) -> None:
-        self.execute_many(TAG_SQL, [tag_values(fp, tag) for fp, tag in store.entries.items()])
-
-    def write_tag(self, fingerprint: str, tag: Tag) -> None:
-        self.execute(TAG_SQL, tag_values(fingerprint, tag))
 
     def relocate(self, src: str, dst: str, root: Path) -> None:
         if set_aside(dst):
@@ -294,7 +289,7 @@ class Index:
 
     def duplicates(self) -> list[DuplicateGroup]:
         groups = defaultdict(list)
-        for row in self.rows(f"{SELECT_ROWS} WHERE norm_title != '' ORDER BY norm_title, rel_path"):
+        for row in self.rows(f"{SELECT_ROWS} WHERE partial = 0 AND norm_title != '' ORDER BY norm_title, rel_path"):
             groups[row.norm_title].append(row)
         return [DuplicateGroup(books[0].title, books) for books in groups.values() if len(books) > 1]
 
@@ -311,21 +306,3 @@ def carry_cover(cover: str, dst: str) -> str:
 
 def set_aside(rel_path: str) -> bool:
     return bool(SKIP_FOLDERS & set(Path(rel_path).parts))
-
-
-def matches(row: Row, query: str) -> bool:
-    return query.lower() in f"{row.title} {row.authors} {row.rel_path}".lower()
-
-
-def where_clauses(query: Query) -> tuple[list[str], dict]:
-    clauses, params = [], {}
-    if match := query.fts_match():
-        clauses.append("books MATCH :match")
-        params["match"] = match
-    for key, sql in SQL_CLAUSES.items():
-        if key in query.filters:
-            clauses.append(sql)
-            params[key] = query.filters[key]
-    if state := STATE_CLAUSES.get(query.filters.get("is", "")):
-        clauses.append(state)
-    return clauses, params

@@ -7,15 +7,10 @@ from kobolib.lint import (
     double_extensions,
     exact_duplicates,
     lint,
-    misfiled_series,
     noisy_names,
     opaque_names,
-    partials,
     title_duplicates,
-    unclassified,
 )
-from kobolib.model import Tag
-from kobolib.tags import TagStore
 from tests.test_alfred import row
 
 
@@ -84,11 +79,6 @@ def test_noisy_names(name, noisy):
     assert bool(noisy_names([named(name)])) is noisy, f"{name!r} noisy should be {noisy}"
 
 
-def test_partials_flag_unfinished_downloads():
-    rows = [named("a.epub.part", partial=True), named("b.epub")]
-    assert paths(partials(rows)) == [["00_Inbox/a.epub.part"]], "only .part files should be reported"
-
-
 def test_exact_duplicates_group_by_fingerprint():
     rows = [
         named("hlaskvyl.epub", folder="00_Inbox/bought", fingerprint="same"),
@@ -121,63 +111,13 @@ def test_title_duplicates_exclude_exact_copies_and_partials():
     assert found[0].detail == "Verdigris: fb2, epub", "detail should list the formats"
 
 
-def test_misfiled_series_points_at_existing_series_folder():
-    home = "01_Fiction/01_Sci-Fi_Fantasy/Series/Saltmarsh Cycle"
-    rows = [
-        named("[Світ Солончаків №5] x.fb2", folder=home, series="Saltmarsh Cycle"),
-        named("Saltmarsh Cycle Ansel B. Rooke.epub", series="Saltmarsh Cycle"),
-        named("Deepwater.epub", series="Tidewater Parallax"),
-    ]
-
-    found = misfiled_series(rows)
-
-    assert paths(found) == [["00_Inbox/Saltmarsh Cycle Ansel B. Rooke.epub"]], (
-        "a book whose series has a folder elsewhere should be flagged"
-    )
-    assert found[0].detail.endswith(home), "detail should name the series folder"
-
-
-def test_misfiled_series_matches_short_folder_names():
-    home = "01_Fiction/01_Sci-Fi_Fantasy/Standalone/Rowan Teague/Kestrel"
-    rows = [
-        named("Blade of Kestrel (Kestrel 02).epub", folder=home, series="Kestrel"),
-        named("[Kestrel in the Rain №1] Тіґ, Ровен.fb2", folder="01_Fiction/02_Adventure_Historical", series="Kestrel in the Rain"),
-        named("Tom 1.epub", folder="01_Fiction/01_Sci-Fi_Fantasy/Standalone/Rowan Teague/Grey Tide/1 Book of the Grey Tide", series="1"),
-    ]
-
-    found = misfiled_series(rows)
-
-    assert paths(found) == [["01_Fiction/02_Adventure_Historical/[Kestrel in the Rain №1] Тіґ, Ровен.fb2"]], (
-        "a folder name contained in the series name should count; tiny keys should not"
-    )
-
-
-def test_unclassified_lists_books_without_genre(tmp_path: Path):
-    store = TagStore(tmp_path / "t.tsv")
-    store.set("known", Tag(genre="fiction/sci-fi"))
-    rows = [named("a.epub", fingerprint="known"), named("b.epub", fingerprint="unknown")]
-
-    assert paths(unclassified(rows, store)) == [["00_Inbox/b.epub"]], "books with no genre should be reported"
-
-
 def test_lint_runs_all_rules_in_order(tmp_path: Path):
     (tmp_path / "FSCK0000.000").write_bytes(b"")
     rows = [named("2_1.epub", title="2_1", fingerprint="x"), named("b.epub.part", partial=True, fingerprint="y")]
-    store = TagStore(tmp_path / "t.tsv")
 
-    rules = [f.rule for f in lint(rows, store, tmp_path)]
+    rules = [f.rule for f in lint(rows, tmp_path)]
 
-    assert rules == ["junk", "partial", "noisy_name", "opaque", "unclassified", "unclassified"], "findings should follow the rule order"
-
-
-def test_series_matching_ignores_leading_articles():
-    home = "01_Fiction/01_Sci-Fi_Fantasy/Teague, Rowan/Grey Tide"
-    rows = [
-        named("a.epub", folder=home, series="Grey Tide"),
-        named("b.epub", series="The Grey Tide"),
-    ]
-
-    assert paths(misfiled_series(rows)) == [["00_Inbox/b.epub"]], "'The Grey Tide' should match the 'Grey Tide' folder"
+    assert rules == ["junk", "noisy_name", "opaque"], "findings should follow the rule order"
 
 
 def test_author_inversions_are_reported():
