@@ -127,18 +127,19 @@ def test_render_and_empty():
     assert empty_item("zzz")["valid"] is False, "no-match item should not be actionable"
 
 
-def test_finding_item_points_at_first_file_and_copies_all():
-    from kobolib.alfred import finding_item
+def test_problem_item_points_at_first_file_and_copies_all():
+    from kobolib.alfred import problem_item
 
     finding = Finding("exact_duplicate", "Glasswing ×2: identical files", ["00_Inbox/bought/a.epub", "00_Inbox/NOW/a.epub"])
 
-    item = finding_item(finding, "/lib")
+    item = problem_item(finding, "/lib")
 
     assert item["title"] == "Glasswing ×2: identical files", "title should be the finding detail"
     assert item["subtitle"] == "exact duplicate · 2 files · 00_Inbox/bought/a.epub", "subtitle should show rule, count and first path"
     assert item["arg"] == "/lib/00_Inbox/bought/a.epub", "arg should be the absolute path of the first file"
     assert item["text"]["copy"] == "00_Inbox/bought/a.epub\n00_Inbox/NOW/a.epub", "copy should give every path"
-    assert item["uid"] == "exact_duplicate:00_Inbox/bought/a.epub", "uid should be stable per finding"
+    assert item["uid"] == "problem:exact_duplicate:00_Inbox/bought/a.epub", "uid should be stable per finding"
+    assert item["variables"] == {"action": "reveal"}, "↩ on a problem should reveal the file"
 
 
 def test_inbox_item_shows_what_is_missing():

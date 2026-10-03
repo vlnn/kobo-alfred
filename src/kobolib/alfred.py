@@ -138,25 +138,20 @@ def inbox_item(row: Row) -> dict:
     return {**book_item(row), "subtitle": inbox_subtitle(row)}
 
 
-def finding_item(finding: Finding, root: str) -> dict:
+def problem_item(finding: Finding, root: str) -> dict:
     first = finding.rel_paths[0]
     path = f"{root}/{first}"
-    count = f"{len(finding.rel_paths)} file" + ("s" if len(finding.rel_paths) > 1 else "")
     return {
-        "uid": f"{finding.rule}:{first}",
+        "uid": f"problem:{finding.rule}:{first}",
         "title": finding.detail,
-        "subtitle": SEPARATOR.join([finding.rule.replace("_", " "), count, first]),
+        "subtitle": SEPARATOR.join([finding.rule.replace("_", " "), counted(len(finding.rel_paths), "file"), first]),
         "arg": path,
         "icon": {"type": "fileicon", "path": path},
         "quicklookurl": path,
-        "text": {"copy": "\n".join(finding.rel_paths), "largetype": "\n".join(finding.rel_paths)},
+        "text": {"copy": LINE.join(finding.rel_paths), "largetype": LINE.join(finding.rel_paths)},
         "mods": {"alt": reveal(path)},
+        "variables": {"action": "reveal"},
     }
-
-
-def problem_item(finding: Finding, root: str) -> dict:
-    item = finding_item(finding, root)
-    return {**item, "uid": f"problem:{item['uid']}", "variables": {"action": "reveal"}}
 
 
 def conflict_item(op: Operation, root: str) -> dict:
