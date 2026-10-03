@@ -102,7 +102,7 @@ def unclassified_rows(words: list[str]) -> list[Row]:
 
 def diagnosis() -> tuple[list[Finding], list[Operation]]:
     rows, store = all_rows(Index(db_path())), genre_store()
-    found = lint(rows, store, library_root(), exclude=(data_dir(),))
+    found = lint(rows, library_root(), exclude=(data_dir(),))
     return found, plan(rows, found, store)
 
 

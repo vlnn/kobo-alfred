@@ -6,15 +6,12 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from kobolib.filenames import BRACED_AUTHOR, strip_noise
-from kobolib.genres import GenreStore
-from kobolib.index import series_key
 from kobolib.model import Finding, Row
 from kobolib.paths import relative_path
 from kobolib.scan import BOOK_SUFFIXES, display_stem, iter_junk
 
 WORD_BREAK = re.compile(r"[\s_\-]+")
 JOINED_WORDS = re.compile(r"\w[_\-]\w")
-MIN_FOLDER_KEY = 4
 OPAQUE_STEMS = [
     re.compile(r"^\d+_\d+$"),
     re.compile(r"^smp\d+_[0-9a-f]+$", re.I),
@@ -64,10 +61,6 @@ def is_noisy(row: Row) -> bool:
         or bool(BRACED_AUTHOR.search(stem))
         or (" " not in stem and bool(JOINED_WORDS.search(stem)))
     )
-
-
-def partials(rows: list[Row]) -> list[Finding]:
-    return flag("partial", rows, lambda r: r.partial)
 
 
 def opaque_names(rows: list[Row]) -> list[Finding]:
@@ -123,21 +116,6 @@ def all_folders(rows: Iterable[Row]) -> set[str]:
     return {a for r in rows for a in ancestors(r.folder)}
 
 
-def names_overlap(series_key: str, folder_key: str) -> bool:
-    if not series_key or len(folder_key) < MIN_FOLDER_KEY:
-        return False
-    return series_key in folder_key or folder_key in series_key
-
-
-def folder_keys(folders: set[str]) -> dict[str, str]:
-    return {f: series_key(Path(f).name) for f in sorted(folders)}
-
-
-def series_folder(series: str, keys: dict[str, str]) -> str:
-    key = series_key(series)
-    return next((f for f, folder_key in keys.items() if names_overlap(key, folder_key)), "")
-
-
 def author_folders(rows: Iterable[Row]) -> Counter:
     return Counter(r.folder for r in rows if "," in Path(r.folder).name)
 
@@ -161,38 +139,17 @@ def author_inversions(rows: list[Row]) -> list[Finding]:
     ]
 
 
-def is_under(folder: str, home: str) -> bool:
-    return folder == home or folder.startswith(home + "/")
-
-
-def misfiled_series(rows: list[Row]) -> list[Finding]:
-    keys = folder_keys(all_folders(rows))
-    findings = []
-    for row in rows:
-        home = series_folder(row.series, keys) if row.series else ""
-        if home and not is_under(row.folder, home):
-            findings.append(single("misfiled_series", f"{row.title} → {home}", row))
-    return findings
-
-
-def unclassified(rows: list[Row], store: GenreStore) -> list[Finding]:
-    return flag("unclassified", rows, lambda r: not store.genre_of(r), lambda r: f"{r.title}: no genre yet")
-
-
 def junk(root: Path, exclude: tuple[Path, ...] = ()) -> list[Finding]:
     return [Finding("junk", f"{p.name}: not a book", [relative_path(p, root)]) for p in iter_junk(root, exclude)]
 
 
-def lint(rows: list[Row], store: GenreStore, root: Path, exclude: tuple[Path, ...] = ()) -> list[Finding]:
+def lint(rows: list[Row], root: Path, exclude: tuple[Path, ...] = ()) -> list[Finding]:
     return [
         *junk(root, exclude),
-        *partials(rows),
         *double_extensions(rows),
         *noisy_names(rows),
         *opaque_names(rows),
         *exact_duplicates(rows),
         *title_duplicates(rows),
-        *misfiled_series(rows),
         *author_inversions(rows),
-        *unclassified(rows, store),
     ]
