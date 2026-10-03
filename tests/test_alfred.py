@@ -115,6 +115,12 @@ def test_item_omits_empty_parts():
     assert item["subtitle"] == "EPUB · 02_NonFiction/x.epub", "empty metadata should not leave stray separators"
 
 
+def test_render_keeps_the_order_it_is_given():
+    output = json.loads(render([book_item(row())]))
+
+    assert output["skipknowledge"] is True, "Alfred must not reorder rows it has learned, so head rows and reminders stay on top"
+
+
 def test_render_and_empty():
     output = json.loads(render([book_item(row())]))
     assert len(output["items"]) == 1, "render should wrap items in Alfred JSON"

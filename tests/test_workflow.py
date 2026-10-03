@@ -13,11 +13,11 @@ OBJECT_VERSIONS = {
     "alfred.workflow.action.revealfile": 1,
     "alfred.workflow.utility.conditional": 1,
 }
-OBJECTS = {"SEARCH", "GENRES", "DISPATCH", "OPEN", "REVEAL", "RUN", "NOTIFY"}
+OBJECTS = {"KB", "PICKER", "DISPATCH", "OPEN", "REVEAL", "RUN", "NOTIFY"}
 RUNNER_ACTIONS = ("update", "fix", "trash", "undo", "import", "genre")
-ROUTES = {"update": "RUN", "fix": "RUN", "trash": "RUN", "undo": "RUN", "import": "RUN", "classify": "GENRES", "reveal": "REVEAL"}
+ROUTES = {"update": "RUN", "fix": "RUN", "trash": "RUN", "undo": "RUN", "import": "RUN", "classify": "PICKER", "reveal": "REVEAL"}
 MODIFIER_BITS = {"shift": 131072, "alt": 524288}
-MEANING = {"REVEAL": "reveal", "GENRES": "set genre"}
+MEANING = {"REVEAL": "reveal", "PICKER": "set genre"}
 
 
 @pytest.fixture(scope="module")
@@ -62,7 +62,7 @@ def test_kb_is_the_only_keyword(workflow):
     assert keywords == ["kb"], "everything starts with kb; there are no kb:x keywords"
 
 
-@pytest.mark.parametrize("uid, subcommand", [("SEARCH", 'search "$1"'), ("GENRES", 'genres "$1"')])
+@pytest.mark.parametrize("uid, subcommand", [("KB", 'search "$1"'), ("PICKER", 'genres "$1"')])
 def test_script_filters_call_their_subcommand(workflow, uid, subcommand):
     assert f"-m kobolib {subcommand}" in obj(workflow, uid)["config"]["script"], f"{uid} should run kobolib {subcommand}"
 
@@ -81,7 +81,7 @@ def route(workflow: dict, item: dict) -> str:
 
 
 def test_kb_keys_reach_dispatcher_reveal_and_picker(workflow):
-    assert targets(workflow, "SEARCH") == {0: "DISPATCH", 524288: "REVEAL", 131072: "GENRES"}, "↩ dispatches, ⌥↩ reveals, ⇧↩ sets genre"
+    assert targets(workflow, "KB") == {0: "DISPATCH", 524288: "REVEAL", 131072: "PICKER"}, "↩ dispatches, ⌥↩ reveals, ⇧↩ sets genre"
 
 
 def test_kb_enter_goes_through_an_action_dispatcher(workflow):
@@ -105,7 +105,7 @@ def test_dispatcher_else_opens_the_book(workflow):
 
 
 def test_genre_picker_runs_the_genre_step_on_enter_and_shift(workflow):
-    assert targets(workflow, "GENRES") == {0: "RUN", 131072: "RUN"}, "↩ applies a genre, ⇧↩ creates the typed one; both run the genre step"
+    assert targets(workflow, "PICKER") == {0: "RUN", 131072: "RUN"}, "↩ applies a genre, ⇧↩ creates the typed one; both run the genre step"
 
 
 def test_runner_notifies(workflow):
@@ -163,7 +163,7 @@ def indexed(library: Path, tmp_path: Path, monkeypatch):
         ("update", "RUN", ""),
         ("fix", "RUN", ""),
         ("trash", "RUN", "/"),
-        ("classify", "GENRES", ""),
+        ("classify", "PICKER", ""),
         ("inbox", "OPEN", "/"),
         ("rnd", "OPEN", "/"),
         ("deep", "OPEN", "/"),
@@ -205,7 +205,7 @@ def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkey
 def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_sources, query):
     from kobolib.commands import search_items
 
-    keys = targets(workflow, "SEARCH")
+    keys = targets(workflow, "KB")
     for item in search_items(query):
         for mod, spec in item.get("mods", {}).items():
             target = keys.get(MODIFIER_BITS[mod])

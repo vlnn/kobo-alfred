@@ -101,7 +101,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>type</key>
 			<string>alfred.workflow.input.scriptfilter</string>
 			<key>uid</key>
-			<string>SEARCH</string>
+			<string>KB</string>
 			<key>version</key>
 			<integer>3</integer>
 			<key>config</key>
@@ -225,7 +225,7 @@ esac</string>
 			<key>type</key>
 			<string>alfred.workflow.input.scriptfilter</string>
 			<key>uid</key>
-			<string>GENRES</string>
+			<string>PICKER</string>
 			<key>version</key>
 			<integer>3</integer>
 			<key>config</key>
@@ -383,62 +383,6 @@ esac</string>
 	</array>
 	<key>connections</key>
 	<dict>
-		<key>SEARCH</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>DISPATCH</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>REVEAL</string>
-				<key>modifiers</key>
-				<integer>524288</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>GENRES</string>
-				<key>modifiers</key>
-				<integer>131072</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>GENRES</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>RUN</string>
-				<key>modifiers</key>
-				<integer>131072</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
 		<key>DISPATCH</key>
 		<array>
 			<dict>
@@ -503,7 +447,7 @@ esac</string>
 			</dict>
 			<dict>
 				<key>destinationuid</key>
-				<string>GENRES</string>
+				<string>PICKER</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
@@ -551,16 +495,65 @@ esac</string>
 		</array>
 		<key>NOTIFY</key>
 		<array/>
+		<key>KB</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>DISPATCH</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>REVEAL</string>
+				<key>modifiers</key>
+				<integer>524288</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>PICKER</string>
+				<key>modifiers</key>
+				<integer>131072</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>PICKER</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>RUN</string>
+				<key>modifiers</key>
+				<integer>131072</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
 	</dict>
 	<key>uidata</key>
 	<dict>
-		<key>SEARCH</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>60.0</real>
-		</dict>
 		<key>DISPATCH</key>
 		<dict>
 			<key>xpos</key>
@@ -582,13 +575,6 @@ esac</string>
 			<key>ypos</key>
 			<real>160.0</real>
 		</dict>
-		<key>GENRES</key>
-		<dict>
-			<key>xpos</key>
-			<real>320.0</real>
-			<key>ypos</key>
-			<real>320.0</real>
-		</dict>
 		<key>RUN</key>
 		<dict>
 			<key>xpos</key>
@@ -600,6 +586,20 @@ esac</string>
 		<dict>
 			<key>xpos</key>
 			<real>840.0</real>
+			<key>ypos</key>
+			<real>320.0</real>
+		</dict>
+		<key>KB</key>
+		<dict>
+			<key>xpos</key>
+			<real>60.0</real>
+			<key>ypos</key>
+			<real>60.0</real>
+		</dict>
+		<key>PICKER</key>
+		<dict>
+			<key>xpos</key>
+			<real>320.0</real>
 			<key>ypos</key>
 			<real>320.0</real>
 		</dict>

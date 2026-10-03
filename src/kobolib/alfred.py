@@ -221,4 +221,4 @@ def message_item(title: str, subtitle: str = "") -> dict:
 
 
 def render(items: list[dict]) -> str:
-    return json.dumps({"items": items}, ensure_ascii=False)
+    return json.dumps({"skipknowledge": True, "items": items}, ensure_ascii=False)
