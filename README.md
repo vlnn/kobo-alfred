@@ -93,8 +93,7 @@ epub the set of its HTML files (whatever they are named or ordered), for an fb2 
 repacked epub, a swapped cover or edited metadata is still the same book and keeps its genre; other formats,
 partial downloads and unreadable files are hashed whole. `kb update` computes the fingerprint while reading each
 book, so a full update of a big card takes a minute or two longer; if a book's fingerprint has changed, its genre
-is carried over by path. An older `tags.tsv` is read once when `genres.tsv` does not exist yet; its tags are
-ignored.
+is carried over by path.
 
 Author folders are `Last, First`. A plain `First Last` name is inverted, except Cyrillic names, which are assumed
 `Фамилия Имя [Отчество]` as in libgen/flibusta filenames; an existing author folder (either form) wins over the
@@ -104,8 +103,8 @@ and unclassified books are never moved. Names are made exFAT-safe.
 
 ## Fix
 
-`kb fix` works out what is wrong and offers to fix it straight away. There is no plan file and no review step:
-the operations are computed when the list is shown and computed again when you press ↩.
+`kb fix` works out what is wrong and offers to fix it straight away. The operations are computed when the list is
+shown and computed again when you press ↩.
 
 1. **Fix all N** — the subtitle counts operations by kind (`12 moves · 3 to _trash · 2 to _dups`). ↩ applies
    everything, then rebuilds the index.
@@ -120,7 +119,8 @@ the operations are computed when the list is shown and computed again when you p
      azw3, azw, pdf, djvu; then newer, then larger)
 5. **Problems with no automatic remedy**, one row each; ↩ reveals the file so you can fix it by hand: conflicts
    (two books want one destination), an author folder that is the `First, Last` swap of a better-populated one,
-   and names that stay noisy or opaque on unclassified books (they resolve once the book has a genre).
+   and noisy, opaque or double-extension names on books that no move renames (they resolve once the book has a genre
+   and an author).
 
 Words narrow every part: `kb fix newport` shows only what concerns matching books, so it doubles as "fix this one
 book".
@@ -129,22 +129,19 @@ The findings behind it:
 
 | rule | what it catches |
 |---|---|
-| `junk` | `FSCK0000.*`, `.textClipping`, `.zip`, empty folders |
-| `partial` | `.part` downloads |
+| `junk` | anything that is not a book: `FSCK0000.*`, `.textClipping`, `.txt`, `.zip`, empty folders |
 | `double_extension` | `Book.fb2.mobi` |
 | `noisy_name` | leading spaces, `- libgen.li`, `-- Anna's Archive`, `&amp_`, `{Author}{id}` |
 | `opaque` | `7_815203.epub`, `smp…epub`, `annas-arch-…fb2`, single-word titles without an author |
 | `exact_duplicate` | identical files in several folders |
 | `title_duplicate` | same title in several formats or editions |
-| `misfiled_series` | a series book outside the folder that already holds its series (articles ignored) |
 | `author_inversion` | an author folder that is the `First, Last` swap of a better-populated one |
-| `unclassified` | no genre |
 
 Every apply:
 
 - moves the KOReader `.sdr` sidecar with its book;
-- rewrites the paths in KOReader's `collection.lua` and `history.lua` (keeping `.bak` copies) and in
-  path-mirrored `docsettings` sidecars;
+- rewrites the paths in KOReader's `collection.lua`, `history.lua` and `bookmarks.lua` (keeping `.bak` copies)
+  and in path-mirrored `docsettings` sidecars;
 - prunes folders left empty;
 - renames in place when the destination differs only by letter case or Unicode normalisation (the card is
   case-insensitive);
@@ -217,20 +214,22 @@ The terminal mirrors the words (`KOBO_ROOT=… KOBO_DATA=… uv run kobolib …`
 ```
 kobolib update [--no-thumbnails]
 kobolib search "<words>"           Alfred JSON; the same input as kb
+kobolib genres "<typed>"           Alfred JSON for the genre picker; the books come from $book, one per line
 kobolib fix [--dry-run] [<words>]  --dry-run prints one operation per line (kind, src, dst, reason)
 kobolib trash <path>…
 kobolib undo
 kobolib genre <path|fingerprint>… <genre>
-kobolib import <path>…
+kobolib import <path>
 ```
 
-Paths and fingerprints may also be given in one argument, one per line, which is how the head rows pass them.
+`trash` and `genre` take several paths or fingerprints; every command also accepts them in one argument, one per
+line, which is how the head rows pass them (`import` takes only that form).
 The commands that change something also take `--notify`, which posts the summary as a macOS notification.
 
 ## Metadata sources
 
-- **epub**: OPF (`dc:title`, `dc:creator`, `dc:language`, `dc:date`, `dc:publisher`, `calibre:series`), cover from `meta[name=cover]` / `properties=cover-image`.
-- **fb2**: `title-info` (book-title, author, lang, sequence), `publish-info`, cover from `coverpage` binary.
+- **epub**: OPF (`dc:title`, `dc:creator`, `dc:language`, `dc:date`, `calibre:series`), cover from `meta[name=cover]` / `properties=cover-image`.
+- **fb2**: `title-info` (book-title, author, lang, sequence), `publish-info` year, cover from `coverpage` binary.
 - **mobi / azw / azw3 / pdf / djvu / partial / corrupt files**: parsed from the filename — libgen (`Author - Title (Year, Publisher) - libgen.li`), Anna's Archive (`Title -- Author -- …`), `[Series №N]`, `(Series N)`, `Title{Author}(Year, Publisher){id}`, `NN Title - Author`, `Title, The - Author`.
 
 Filename parsing is a heuristic; `Author - Title` vs `Title - Author` is decided by which side looks more like a
@@ -244,9 +243,8 @@ uv run ruff check && uv run ruff format --check
 ```
 
 Modules, from the bottom up: `model` (the records), `paths`/`scan`/`identity`/`filenames`/`metadata` (reading the
-card), `languages` (language names), `index` (SQLite FTS5), `query` (words to FTS), `tags` (the genre store),
+card), `languages` (language names), `index` (SQLite FTS5), `query` (words to FTS), `genres` (the genre store),
 `lint`, `naming`, `plan`, `apply`/`koreader` (moving files), `alfred` (JSON items), `config` (paths from the
 environment), `library` (operations), `commands` (the `kb` lists and the genre picker) and `cli`.
 
-Not built yet: `kb index` as a browsable view of the whole index (until then `index` is an ordinary search word),
-and tags as KOReader collections.
+Not built yet: `kb index` as a browsable view of the whole index (until then `index` is an ordinary search word).
