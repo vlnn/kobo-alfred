@@ -1,4 +1,5 @@
 import plistlib
+import re
 from pathlib import Path
 
 import pytest
@@ -6,15 +7,17 @@ import pytest
 PLIST = Path(__file__).parent.parent / "workflow" / "info.plist"
 OBJECT_VERSIONS = {
     "alfred.workflow.input.scriptfilter": 3,
-    "alfred.workflow.input.keyword": 1,
     "alfred.workflow.action.script": 2,
     "alfred.workflow.output.notification": 1,
     "alfred.workflow.action.openfile": 1,
     "alfred.workflow.action.revealfile": 1,
-    "alfred.workflow.output.clipboard": 3,
-    "alfred.workflow.action.browseinalfred": 1,
     "alfred.workflow.utility.conditional": 1,
 }
+OBJECTS = {"SEARCH", "GENRES", "DISPATCH", "OPEN", "REVEAL", "RUN", "NOTIFY"}
+RUNNER_ACTIONS = ("update", "fix", "trash", "undo", "import", "genre")
+ROUTES = {"update": "RUN", "fix": "RUN", "trash": "RUN", "undo": "RUN", "import": "RUN", "classify": "GENRES", "reveal": "REVEAL"}
+MODIFIER_BITS = {"shift": 131072, "alt": 524288}
+MEANING = {"REVEAL": "reveal", "GENRES": "set genre"}
 
 
 @pytest.fixture(scope="module")
@@ -23,10 +26,18 @@ def workflow() -> dict:
         return plistlib.load(handle)
 
 
+def obj(workflow: dict, uid: str) -> dict:
+    return next(o for o in workflow["objects"] if o["uid"] == uid)
+
+
+def targets(workflow: dict, uid: str) -> dict[int, str]:
+    return {c["modifiers"]: c["destinationuid"] for c in workflow["connections"].get(uid, []) if "sourceoutputuid" not in c}
+
+
 def test_every_object_has_the_version_alfred_expects(workflow):
-    for obj in workflow["objects"]:
-        assert obj.get("version") == OBJECT_VERSIONS[obj["type"]], (
-            f"{obj['uid']} should carry its object type's version, or Alfred calls the workflow incompatible"
+    for o in workflow["objects"]:
+        assert o.get("version") == OBJECT_VERSIONS[o["type"]], (
+            f"{o['uid']} should carry its object type's version, or Alfred calls the workflow incompatible"
         )
 
 
@@ -39,87 +50,101 @@ def test_connections_point_at_existing_objects(workflow):
 
 
 def test_every_object_is_placed_on_the_canvas(workflow):
-    missing = {o["uid"] for o in workflow["objects"]} - set(workflow["uidata"])
-    assert not missing, f"objects without canvas position would be invisible: {missing}"
+    assert set(workflow["uidata"]) == {o["uid"] for o in workflow["objects"]}, "every object, and only those, should have a canvas position"
 
 
-@pytest.mark.parametrize("keyword", ["kb", "kb:src", "kb:index", "kb:classify"])
-def test_keywords_are_wired(workflow, keyword):
-    assert any(o["config"].get("keyword") == keyword for o in workflow["objects"]), f"{keyword} should be a workflow entry point"
+def test_the_workflow_is_one_filter_one_picker_and_their_actions(workflow):
+    assert {o["uid"] for o in workflow["objects"]} == OBJECTS, "kb, the genre picker, the dispatcher, open, reveal, runner, notification"
 
 
-def scripts(workflow) -> list[str]:
-    return [o["config"].get("script", "") for o in workflow["objects"]]
+def test_kb_is_the_only_keyword(workflow):
+    keywords = [o["config"]["keyword"] for o in workflow["objects"] if o["config"].get("keyword")]
+    assert keywords == ["kb"], "everything starts with kb; there are no kb:x keywords"
 
 
-def test_fix_rows_run_kobolib_fix(workflow):
-    script = next(o for o in workflow["objects"] if o["uid"] == "APPLY_ONE")["config"]["script"]
-    assert 'kobolib fix --notify "$1"' in script and '[ -z "$1" ]' in script, (
-        "↩ on a fix row should run kobolib fix on its paths, and on everything when the argument is empty"
-    )
-
-
-@pytest.mark.parametrize("retired", ["lint", "plan", "apply"])
-def test_retired_entry_points_are_gone(workflow, retired):
-    assert not any(o["config"].get("keyword") == f"kb:{retired}" for o in workflow["objects"]), f"kb:{retired} should be gone"
-    assert not any(f"kobolib {retired}" in script for script in scripts(workflow)), f"no script should call kobolib {retired}"
-
-
-ROUTES = {
-    "update": "INDEX_RUN",
-    "undo": "UNDO_RUN",
-    "fix": "APPLY_ONE",
-    "classify": "GENRES",
-    "import": "IMPORT_RUN",
-}
+@pytest.mark.parametrize("uid, subcommand", [("SEARCH", 'search "$1"'), ("GENRES", 'genres "$1"')])
+def test_script_filters_call_their_subcommand(workflow, uid, subcommand):
+    assert f"-m kobolib {subcommand}" in obj(workflow, uid)["config"]["script"], f"{uid} should run kobolib {subcommand}"
 
 
 def dispatch(workflow) -> tuple[dict, list[dict]]:
-    plain = next(c for c in workflow["connections"]["SEARCH"] if c["modifiers"] == 0)
-    obj = next(o for o in workflow["objects"] if o["uid"] == plain["destinationuid"])
-    return obj, workflow["connections"][obj["uid"]]
+    return obj(workflow, "DISPATCH"), workflow["connections"]["DISPATCH"]
+
+
+def route(workflow: dict, item: dict) -> str:
+    dispatcher, conns = dispatch(workflow)
+    action = item.get("variables", {}).get("action", "")
+    for condition in dispatcher["config"]["conditions"]:
+        if action.lower() == condition["matchstring"].lower():
+            return next(c["destinationuid"] for c in conns if c.get("sourceoutputuid") == condition["uid"])
+    return next(c["destinationuid"] for c in conns if "sourceoutputuid" not in c)
+
+
+def test_kb_keys_reach_dispatcher_reveal_and_picker(workflow):
+    assert targets(workflow, "SEARCH") == {0: "DISPATCH", 524288: "REVEAL", 131072: "GENRES"}, "↩ dispatches, ⌥↩ reveals, ⇧↩ sets genre"
 
 
 def test_kb_enter_goes_through_an_action_dispatcher(workflow):
-    obj, _ = dispatch(workflow)
-    assert obj["type"] == "alfred.workflow.utility.conditional", "↩ on a kb row should be routed by the item's action variable"
-    assert all(c["inputstring"] == "{var:action}" for c in obj["config"]["conditions"]), "every branch should test the action variable"
+    dispatcher, _ = dispatch(workflow)
+    assert dispatcher["type"] == "alfred.workflow.utility.conditional", "↩ on a kb row should be routed by the item's action variable"
+    assert all(c["inputstring"] == "{var:action}" for c in dispatcher["config"]["conditions"]), "every branch should test the action"
 
 
 @pytest.mark.parametrize("action, destination", ROUTES.items())
-def test_dispatcher_routes_each_command_action(workflow, action, destination):
-    obj, conns = dispatch(workflow)
-    branch = next(c for c in obj["config"]["conditions"] if c["matchstring"] == action)
-    targets = [c["destinationuid"] for c in conns if c.get("sourceoutputuid") == branch["uid"]]
-    assert targets == [destination], f"kb {action} should reach the same script as its kb:{action} keyword"
+def test_dispatcher_routes_each_action(workflow, action, destination):
+    dispatcher, conns = dispatch(workflow)
+    branch = next(c for c in dispatcher["config"]["conditions"] if c["matchstring"] == action)
+    assert [c["destinationuid"] for c in conns if c.get("sourceoutputuid") == branch["uid"]] == [destination], (
+        f"the {action} action should reach {destination}"
+    )
 
 
 def test_dispatcher_else_opens_the_book(workflow):
     _, conns = dispatch(workflow)
-    assert [c["destinationuid"] for c in conns if "sourceoutputuid" not in c] == ["OPEN"], (
-        "anything that is not a command still opens the book"
+    assert [c["destinationuid"] for c in conns if "sourceoutputuid" not in c] == ["OPEN"], "anything that is not a command opens the book"
+
+
+def test_genre_picker_runs_the_genre_step_on_enter_and_shift(workflow):
+    assert targets(workflow, "GENRES") == {0: "RUN", 131072: "RUN"}, "↩ applies a genre, ⇧↩ creates the typed one; both run the genre step"
+
+
+def test_runner_notifies(workflow):
+    assert targets(workflow, "RUN") == {0: "NOTIFY"}, "the runner's message should become a notification"
+
+
+def runner_branch(workflow: dict, action: str) -> str:
+    script = obj(workflow, "RUN")["config"]["script"]
+    match = re.search(rf"^\s*{action}\) (.+?);;", script, re.M)
+    assert match, f"the runner should have a branch for {action}"
+    return match.group(1)
+
+
+@pytest.mark.parametrize("action", RUNNER_ACTIONS)
+def test_runner_runs_each_action_in_the_background(workflow, action):
+    assert re.search(rf"run {action}\b", runner_branch(workflow, action)), f"the {action} branch should run kobolib {action}"
+    assert 'nohup /usr/bin/python3 -m kobolib "$@" --notify' in obj(workflow, "RUN")["config"]["script"], (
+        "every action should run detached and notify when done"
     )
 
 
+@pytest.mark.parametrize("action, args", [("fix", '"$1"'), ("trash", '"$1"'), ("import", '"$1"'), ("genre", '"$book" "$1"')])
+def test_runner_passes_the_row_argument(workflow, action, args):
+    assert runner_branch(workflow, action).startswith(f"run {action} {args}"), f"{action} should receive {args}"
+
+
 def test_sources_cannot_move_books(workflow):
-    assert not any(o["uid"] == "IMPORT_MOVE_RUN" for o in workflow["objects"]), "import copies; there is no move action to reach"
     assert not any("import --move" in o["config"].get("script", "") for o in workflow["objects"]), "no script should move a source book"
 
 
 def test_workflow_metadata_is_release_ready(workflow):
-    import re
-
     pyproject = (PLIST.parent.parent / "pyproject.toml").read_text()
     assert workflow["version"] == re.search(r'^version = "(.+)"', pyproject, re.M).group(1), (
         "Alfred shows the plist version; it should match the package"
     )
     assert workflow["webaddress"].startswith("https://github.com/"), "the About panel should link to the repository"
-    for keyword in ("kb:classify", "kb fix", "kb:src", "kb word"):
-        assert keyword in workflow["readme"], f"the install readme should mention {keyword}"
-
-
-def test_index_src_keyword_is_gone(workflow):
-    assert not any(o["config"].get("keyword") == "kb:index-src" for o in workflow["objects"]), "kb:index now covers the sources too"
+    for words in ("kb classify", "kb fix", "kb src", "kb update"):
+        assert words in workflow["readme"], f"the install readme should mention {words}"
+    assert ":" not in re.sub(r"https?://\S+", "", workflow["readme"]).replace(": ", " "), "the readme should not show kb:x keywords"
 
 
 @pytest.fixture
@@ -132,27 +157,19 @@ def indexed(library: Path, tmp_path: Path, monkeypatch):
     main(["update"])
 
 
-def route(workflow: dict, item: dict) -> str:
-    obj, conns = dispatch(workflow)
-    action = item.get("variables", {}).get("action", "")
-    for condition in obj["config"]["conditions"]:
-        if action.lower() == condition["matchstring"].lower():
-            return next(c["destinationuid"] for c in conns if c.get("sourceoutputuid") == condition["uid"])
-    return next(c["destinationuid"] for c in conns if "sourceoutputuid" not in c)
-
-
 @pytest.mark.parametrize(
     "query, destination, arg",
     [
-        ("update", "INDEX_RUN", ""),
-        ("fix", "APPLY_ONE", ""),
+        ("update", "RUN", ""),
+        ("fix", "RUN", ""),
+        ("trash", "RUN", "/"),
         ("classify", "GENRES", ""),
         ("inbox", "OPEN", "/"),
         ("rnd", "OPEN", "/"),
         ("deep", "OPEN", "/"),
     ],
 )
-def test_enter_on_a_kb_row_reaches_the_same_object_as_the_keyword(workflow, indexed, query, destination, arg):
+def test_enter_on_a_kb_row_reaches_its_action(workflow, indexed, query, destination, arg):
     from kobolib.commands import search_items
 
     first = next(i for i in search_items(query) if i.get("valid", True))
@@ -161,40 +178,12 @@ def test_enter_on_a_kb_row_reaches_the_same_object_as_the_keyword(workflow, inde
     assert first["arg"].startswith(arg), f"kb {query} should hand {arg!r}… to {destination}"
 
 
-KEYWORD_ACTIONS = {"kb:index": "update"}
+def test_enter_on_a_problem_row_reveals_it(workflow, indexed):
+    from kobolib.commands import search_items
 
+    problem = next(i for i in search_items("fix") if i.get("uid", "").startswith("problem:"))
 
-def test_keyword_entry_points_and_kb_words_share_their_targets(workflow):
-    by_keyword = {o["config"].get("keyword"): o["uid"] for o in workflow["objects"] if o["config"].get("keyword")}
-    for keyword, uid in by_keyword.items():
-        if keyword in ("kb:index", "kb:undo"):
-            target = workflow["connections"][uid][0]["destinationuid"]
-            assert target == ROUTES[KEYWORD_ACTIONS.get(keyword, keyword.removeprefix("kb:"))], (
-                f"{keyword} and kb {keyword.removeprefix('kb:')} should run the same script"
-            )
-
-
-MODIFIER_BITS = {"shift": 131072, "ctrl": 262144, "alt": 524288, "cmd": 1048576, "fn": 8388608, "alt+shift": 655360}
-MEANING = {
-    "REVEAL": ("reveal",),
-    "COPY": ("copy",),
-    "BROWSE": ("browse",),
-    "FIX": ("set genre",),
-    "APPLY_ONE": ("genre home", "apply all"),
-    "IMPORT_RUN": ("import all",),
-    "GENRES": ("classify all",),
-}
-
-
-def resolved(workflow: dict, target: str, item: dict, spec: dict) -> str:
-    if target != "DISPATCH":
-        return target
-    merged = {**item, "variables": {**item.get("variables", {}), **spec.get("variables", {})}}
-    return route(workflow, merged)
-
-
-def modifier_targets(workflow: dict, uid: str) -> dict:
-    return {c["modifiers"]: c["destinationuid"] for c in workflow["connections"][uid] if c["modifiers"]}
+    assert route(workflow, problem) == "REVEAL", "↩ on a problem with no automatic remedy should reveal the file"
 
 
 @pytest.fixture
@@ -212,36 +201,22 @@ def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkey
     main(["update"])
 
 
-@pytest.mark.parametrize(
-    "filter_uid, items",
-    [
-        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("")),
-        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("src slow")),
-        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("fix")),
-        ("SOURCES", lambda: __import__("kobolib.commands", fromlist=["sources_items"]).sources_items(["slow"])),
-        ("INBOX", lambda: __import__("kobolib.commands", fromlist=["inbox_items"]).inbox_items([])),
-        ("RANDOM", lambda: __import__("kobolib.commands", fromlist=["random_items"]).random_items([])),
-        ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("inbox")),
-    ],
-)
-def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_sources, filter_uid, items):
-    targets = modifier_targets(workflow, filter_uid)
-    rows = [i for i in items() if i.get("mods")]
-    assert rows, f"{filter_uid} should produce rows with modifiers for this check to mean anything"
-    for item in rows:
-        for mod, spec in item["mods"].items():
-            target = targets.get(MODIFIER_BITS[mod])
-            assert target, f"{filter_uid}: {item['title']!r} declares {mod} but the filter has no {mod} connection"
-            target = resolved(workflow, target, item, spec)
-            assert any(word in spec["subtitle"].lower() for word in MEANING[target]), (
-                f"{filter_uid}: {mod} on {item['title']!r} says {spec['subtitle']!r} but is wired to {target}"
-            )
+@pytest.mark.parametrize("query", ["", "src slow", "fix", "inbox", "classify", "trash inbox", "dups", "rnd"])
+def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_sources, query):
+    from kobolib.commands import search_items
+
+    keys = targets(workflow, "SEARCH")
+    for item in search_items(query):
+        for mod, spec in item.get("mods", {}).items():
+            target = keys.get(MODIFIER_BITS[mod])
+            assert target, f"kb {query}: {item['title']!r} declares {mod} but kb has no {mod} connection"
+            assert MEANING[target] in spec["subtitle"].lower(), f"kb {query}: {mod} says {spec['subtitle']!r} but reaches {target}"
 
 
-def test_import_all_head_row_reaches_the_import_script_from_kb(workflow, indexed_with_sources):
+def test_import_all_head_row_reaches_the_runner_from_kb(workflow, indexed_with_sources):
     from kobolib.commands import search_items
 
     head = next(i for i in search_items("src ") if i.get("valid", True))
 
     assert head["uid"] == "src:import-all", "kb src should start with the import-all row"
-    assert route(workflow, head) == "IMPORT_RUN", "↩ on it must run the import script"
+    assert route(workflow, head) == "RUN", "↩ on it must run the import in the background"

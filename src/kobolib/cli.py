@@ -11,15 +11,9 @@ from kobolib import alfred
 from kobolib.alfred import counted
 from kobolib.apply import Applied, apply, undo
 from kobolib.commands import (
-    all_stats_items,
-    classify_items,
-    dups_items,
     genre_picker_items,
-    inbox_items,
     index_problem,
-    random_items,
     search_items,
-    sources_items,
     without_index_items,
 )
 from kobolib.config import (
@@ -49,7 +43,6 @@ from kobolib.library import (
     trash_operations,
 )
 from kobolib.model import Book, Row
-from kobolib.query import query_words
 
 NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobo Library"', "end run")
 
@@ -93,30 +86,6 @@ def requires_index(command: Callable[[Namespace], int]) -> Callable[[Namespace],
         return without_index() if index_problem() else command(args)
 
     return guarded
-
-
-@requires_index
-def cmd_dups(args) -> int:
-    print(alfred.render(dups_items()))
-    return 0
-
-
-@requires_index
-def cmd_random(args) -> int:
-    print(alfred.render(random_items(query_words(args.query))))
-    return 0
-
-
-@requires_index
-def cmd_inbox(args) -> int:
-    print(alfred.render(inbox_items(query_words(args.query))))
-    return 0
-
-
-@requires_index
-def cmd_classify(args) -> int:
-    print(alfred.render(classify_items(query_words(args.query))))
-    return 0
 
 
 def refuse(message: str, should_notify: bool) -> int:
@@ -215,11 +184,6 @@ def cmd_genres(args) -> int:
     return 0
 
 
-def cmd_sources(args) -> int:
-    print(alfred.render(sources_items(query_words(args.query))))
-    return 0
-
-
 def import_one(path: str) -> tuple[Book | None, str]:
     src, dst = Path(path), inbox_folder() / Path(path).name
     if reason := import_blocked(src, dst):
@@ -250,12 +214,6 @@ def cmd_import(args) -> int:
     return 0 if books else 1
 
 
-@requires_index
-def cmd_stats(args) -> int:
-    print(alfred.render(all_stats_items()))
-    return 0
-
-
 def flag(name: str) -> argparse.ArgumentParser:
     parent = argparse.ArgumentParser(add_help=False)
     parent.add_argument(name, action="store_true")
@@ -274,13 +232,7 @@ def build_parser() -> argparse.ArgumentParser:
     notify, query = flag("--notify"), query_argument()
     sub.add_parser("update", parents=[notify, flag("--no-thumbnails")]).set_defaults(func=cmd_update)
     sub.add_parser("search", parents=[query]).set_defaults(func=cmd_search)
-    sub.add_parser("random", parents=[query]).set_defaults(func=cmd_random)
-    sub.add_parser("inbox", parents=[query]).set_defaults(func=cmd_inbox)
-    sub.add_parser("classify", parents=[query]).set_defaults(func=cmd_classify)
-    sub.add_parser("sources", parents=[query]).set_defaults(func=cmd_sources)
     sub.add_parser("genres", parents=[query]).set_defaults(func=cmd_genres)
-    sub.add_parser("dups").set_defaults(func=cmd_dups)
-    sub.add_parser("stats").set_defaults(func=cmd_stats)
     sub.add_parser("undo", parents=[notify]).set_defaults(func=cmd_undo)
     fix_cmd = sub.add_parser("fix", parents=[notify, flag("--dry-run")])
     fix_cmd.add_argument("targets", nargs="*")

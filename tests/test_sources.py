@@ -79,7 +79,7 @@ def test_update_builds_a_separate_sources_index(env, tmp_path, capsys):
 )
 def test_sources_search_uses_words(env, capsys, query, expected):
 
-    main(["sources", query])
+    main(["search", "src " + query])
 
     assert sorted(titles(capsys)) == expected, "the source folder is a word; books the library already holds are hidden"
 
@@ -87,7 +87,7 @@ def test_sources_search_uses_words(env, capsys, query, expected):
 @pytest.mark.parametrize("query", ["nova", "dead", "found", "part"])
 def test_sources_skip_partial_and_broken_files(env, capsys, query):
 
-    main(["sources", query])
+    main(["search", "src " + query])
 
     assert titles(capsys)[0].startswith("No books match"), f"{query}: unfinished and unreadable files are not worth importing"
 
@@ -99,13 +99,13 @@ def test_import_refuses_broken_file(env, downloads, capsys):
 
 def test_sources_search_before_index_explains(env, capsys, tmp_path):
     (tmp_path / "alfred-data" / "sources.db").unlink()
-    main(["sources", "slow"])
+    main(["search", "src slow"])
     assert output(capsys)["items"][0]["title"] == "No sources index yet", "searching sources without an index should tell how to build it"
 
 
 def test_sources_hides_books_already_in_library(env, capsys):
 
-    main(["sources", "deep"])
+    main(["search", "src deep"])
 
     item = output(capsys)["items"][0]
     assert item["title"].startswith("No books match"), "a book already in the library is not offered again"
@@ -113,7 +113,7 @@ def test_sources_hides_books_already_in_library(env, capsys):
 
 def test_sources_empty_query_hides_library_copies_too(env, capsys):
 
-    main(["sources", ""])
+    main(["search", "src "])
 
     assert "Deep Work" not in titles(capsys), "the newest-first listing should skip what the library already holds"
 
@@ -151,7 +151,7 @@ def test_update_reports_unmounted_sources_without_failing(env, capsys, monkeypat
 
 def test_sources_items_carry_import_actions(env, capsys):
 
-    main(["sources", "slow"])
+    main(["search", "src slow"])
 
     item = output(capsys)["items"][0]
     assert item["valid"] is True and item["arg"].endswith("Slow Productivity - Cal Newport.epub"), "↩ passes the absolute path to import"
@@ -161,14 +161,14 @@ def test_sources_items_carry_import_actions(env, capsys):
 
 def test_sources_rows_carry_no_bulk_modifier(env, capsys):
 
-    items = run_items(["sources", ""], capsys)
+    items = run_items(["search", "src"], capsys)
 
     assert not any("alt+shift" in i.get("mods", {}) for i in items), "importing everything is the head row's job, not a modifier"
 
 
 def test_sources_list_starts_with_import_all(env, capsys):
 
-    items = run_items(["sources", ""], capsys)
+    items = run_items(["search", "src"], capsys)
 
     head, *books = items
     assert head["title"] == f"Import all {len(books)} books" and head.get("valid", True), "the first row imports every book listed"
@@ -178,7 +178,7 @@ def test_sources_list_starts_with_import_all(env, capsys):
 
 def test_single_source_result_has_no_head_row(env, capsys):
 
-    items = run_items(["sources", "slow"], capsys)
+    items = run_items(["search", "src slow"], capsys)
 
     assert [i["title"] for i in items] == ["Slow Productivity"], "one book needs no 'import all' row"
 
@@ -229,7 +229,7 @@ def test_import_copies_into_inbox_and_indexes(env, library, calibre, capsys):
     assert src.exists(), "copying leaves the source in place"
     main(["search", "email"])
     assert titles(capsys) == ["A World Without Email"], "the imported book should be searchable without a full reindex"
-    main(["inbox"])
+    main(["search", "inbox"])
     assert "A World Without Email" in titles(capsys), "an imported book waits in the inbox for classification"
 
 
@@ -270,6 +270,6 @@ def test_import_is_refused_while_indexing(env, tmp_path, calibre, capsys):
 
 
 def test_stats_counts_sources(env, capsys):
-    main(["stats"])
+    main(["search", "stats"])
     row = next(i for i in output(capsys)["items"] if i["title"].startswith("3 books in 2 sources"))
     assert row["autocomplete"] == "src ", "the sources row should complete to kb src"

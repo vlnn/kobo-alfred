@@ -7,6 +7,12 @@ from kobolib.cli import main, notify
 from kobolib.index import IndexBusy
 
 
+def inbox_rows() -> list[dict]:
+    from kobolib.commands import inbox_items
+
+    return [i for i in inbox_items([]) if "quicklookurl" in i]
+
+
 def output(capsys) -> dict:
     return json.loads(capsys.readouterr().out)
 
@@ -52,11 +58,6 @@ def test_index_fails_when_root_missing(monkeypatch, tmp_path, capsys):
     assert main(["update"]) == 1, "index should fail when the volume is not mounted"
 
 
-@pytest.mark.parametrize("command", ["dups", "stats", "random"])
-def test_other_commands_emit_alfred_json(indexed, capsys, command):
-    assert "items" in run([command], capsys), f"{command} should emit Alfred items"
-
-
 def test_kobo_data_overrides_alfred_data_dir(env, tmp_path, monkeypatch):
     monkeypatch.setenv("KOBO_DATA", str(tmp_path / "custom"))
     main(["update"])
@@ -96,7 +97,7 @@ def test_no_thumbnails_flag_skips_second_pass(env, capsys, mocker):
 
 def test_index_bootstraps_tags_from_folders(indexed, tmp_path, capsys):
 
-    titles = [i["title"] for i in run(["inbox"], capsys)["items"]]
+    titles = [i["title"] for i in inbox_rows()]
     assert "Deep Work" not in titles, "a book in a genre folder should be classified by index"
     assert "Napkin" in titles, "an inbox book should wait for classification"
 
@@ -107,7 +108,7 @@ def test_genre_command_sets_genre_by_path(indexed, library, capsys):
     assert main(["genre", book, "reference"]) == 0, "setting a genre by path should succeed"
     assert capsys.readouterr().out.startswith("Napkin → reference"), "the result should be reported"
     assert [i["title"] for i in run(["search", "reference"], capsys)["items"]] == ["Napkin"], "the genre should be searchable"
-    assert "Napkin" not in [i["title"] for i in run(["inbox"], capsys)["items"]], "a classified book leaves the inbox"
+    assert "Napkin" not in [i["title"] for i in inbox_rows()], "a classified book leaves the inbox"
 
 
 def test_genre_command_accepts_a_fingerprint(indexed, capsys):
@@ -144,7 +145,7 @@ def test_index_writes_the_genre_store(indexed, tmp_path):
 
 def test_classify_lists_unclassified_with_book_variable(indexed, library, capsys):
 
-    items = run(["classify", "napkin"], capsys)["items"]
+    items = run(["search", "classify napkin"], capsys)["items"]
     assert [i["title"] for i in items] == ["Napkin"], "classify should filter the inbox by the query"
     assert items[0]["arg"] == "" and len(items[0]["variables"]["book"]) == 40, "the book travels as a variable, the query starts empty"
 
@@ -244,17 +245,17 @@ def fingerprints_of(items: list[dict]) -> list[str]:
 
 
 def test_genre_classifies_many_books_at_once(indexed, library, capsys):
-    books = "\n".join(fingerprints_of(run(["inbox", ""], capsys)["items"]))
+    books = "\n".join(fingerprints_of(inbox_rows()))
 
     assert main(["genre", books, "reference"]) == 0, "setting the genre of several books should succeed"
 
     assert capsys.readouterr().out.startswith("2 books → reference · 1 moved, 1 stayed put"), "the summary counts moved and unmoved books"
-    assert fingerprints_of(run(["inbox", ""], capsys)["items"]) == [], "both books leave the inbox; only the partial download stays"
+    assert fingerprints_of(inbox_rows()) == [], "both books leave the inbox; only the partial download stays"
     assert len(run(["search", "reference"], capsys)["items"]) == 2, "both books carry the genre"
 
 
 def test_genre_skips_unknown_references_in_a_batch(indexed, library, capsys):
-    known = fingerprints_of(run(["inbox", ""], capsys)["items"])[0]
+    known = fingerprints_of(inbox_rows())[0]
 
     assert main(["genre", f"{known}\nnope", "reference"]) == 0, "one unknown reference does not fail the batch"
     assert "skipped 1" in capsys.readouterr().out, "the unknown reference should be mentioned"
@@ -379,3 +380,9 @@ def test_genre_names_unknown_references_exactly(indexed, library, capsys):
 
     assert main(["genre", str(unknown), "reference"]) == 1, "nothing known to classify is a failure"
     assert capsys.readouterr().out == f"Not indexed: {unknown}\n", "the unknown path should be named exactly as given"
+
+
+@pytest.mark.parametrize("retired", ["dups", "random", "inbox", "classify", "sources", "stats"])
+def test_one_purpose_subcommands_are_gone(env, retired):
+    with pytest.raises(SystemExit):
+        main([retired])

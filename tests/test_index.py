@@ -343,7 +343,7 @@ def first_title(capsys) -> str:
     return json.loads(capsys.readouterr().out)["items"][0]["title"]
 
 
-@pytest.mark.parametrize("command", [["search", "deep"], ["inbox"], ["dups"], ["stats"], ["random", ""]])
+@pytest.mark.parametrize("command", [["search", w] for w in ("deep", "inbox", "dups", "stats", "rnd", "fix", "trash")])
 def test_index_from_an_older_version_asks_for_a_rebuild(indexed: Path, capsys, command):
     from kobolib.cli import main
 
