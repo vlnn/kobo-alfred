@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import argparse
 import subprocess
-from argparse import Namespace
-from collections.abc import Callable
-from functools import wraps
 from pathlib import Path
 
 from kobolib import alfred
@@ -73,19 +70,6 @@ def cmd_update(args) -> int:
 def cmd_search(args) -> int:
     print(alfred.render(search_items(args.query)))
     return 0
-
-
-def without_index() -> int:
-    print(alfred.render(without_index_items()))
-    return 0
-
-
-def requires_index(command: Callable[[Namespace], int]) -> Callable[[Namespace], int]:
-    @wraps(command)
-    def guarded(args: Namespace) -> int:
-        return without_index() if index_problem() else command(args)
-
-    return guarded
 
 
 def refuse(message: str, should_notify: bool) -> int:
@@ -178,9 +162,9 @@ def cmd_genre(args) -> int:
     return 0
 
 
-@requires_index
 def cmd_genres(args) -> int:
-    print(alfred.render(genre_picker_items(args.query.strip(), selected_books())))
+    items = without_index_items() if index_problem() else genre_picker_items(args.query.strip(), selected_books())
+    print(alfred.render(items))
     return 0
 
 
