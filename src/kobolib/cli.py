@@ -37,6 +37,7 @@ from kobolib.config import (
     journal_path,
     library_index,
     library_root,
+    model_on_update,
     selected_books,
     sources,
     suggestion_store,
@@ -103,7 +104,16 @@ def cmd_update(args) -> int:
         report(run_index_sources()[1], args.notify)
     if not args.no_thumbnails:
         report(f"Generated {fill_thumbnails(library_index(), covers_dir())} PDF covers", args.notify)
+    if model_on_update():
+        consult_models(args.notify)
     return 0
+
+
+def consult_models(should_notify: bool) -> None:
+    if oracle.configured():
+        ask_questions("", [], force=False, should_notify=should_notify, quiet=True)
+    if embed_model():
+        embed_books([], force=False, should_notify=should_notify, quiet=True)
 
 
 def cmd_search(args) -> int:
@@ -268,16 +278,27 @@ def dry_run_report(asked_blocks: list[str]) -> str:
     return "\n\n".join(asked_blocks) + "\n" if asked_blocks else ""
 
 
-def ask_about_authors(args, index, store) -> list[str]:
-    if args.question not in ("", "authors"):
-        return []
-    rows = index.everything()
-    if args.dry_run:
-        return [oracle.authors_evidence(author_folder_names(rows))]
-    asked = ask_authors(rows, store, args.force)
+def asks_authors(name: str) -> bool:
+    return name in ("", "authors")
+
+
+def evidence_report(name: str, words: list[str]) -> str:
+    index = library_index()
+    blocks = [block for question in questions(name) for block in collect_evidence(question, question.candidates(index, words)).evidence]
+    if asks_authors(name):
+        blocks.append(oracle.authors_evidence(author_folder_names(index.everything())))
+    return dry_run_report(blocks)
+
+
+def ask_questions(name: str, words: list[str], force: bool, should_notify: bool, quiet: bool = False) -> None:
+    index, store = library_index(), suggestion_store()
+    passes = [(q.noun, ask_all(q, q.candidates(index, words), store, force)) for q in questions(name)]
+    if asks_authors(name):
+        passes.append(("merge", ask_authors(index.everything(), store, force)))
     store.save()
-    report(summary("merge", asked), args.notify)
-    return []
+    for noun, asked in passes:
+        if asked.books or not quiet:
+            report(summary(noun, asked), should_notify)
 
 
 def cmd_ask(args) -> int:
@@ -285,18 +306,18 @@ def cmd_ask(args) -> int:
         return refuse("No model server: set KOBO_ORACLE_URL in the workflow configuration", args.notify)
     if problem := index_problem():
         return refuse(f"{problem}: run kb update", args.notify)
-    index, store, lines = library_index(), suggestion_store(), []
-    for question in questions(args.question):
-        rows = question.candidates(index, args.words)
-        if args.dry_run:
-            lines += collect_evidence(question, rows).evidence
-            continue
-        asked = ask_all(question, rows, store, args.force)
-        store.save()
-        report(summary(question.noun, asked), args.notify)
-    lines += ask_about_authors(args, index, store)
-    print(dry_run_report(lines), end="")
+    if args.dry_run:
+        print(evidence_report(args.question, args.words), end="")
+        return 0
+    ask_questions(args.question, args.words, args.force, args.notify)
     return 0
+
+
+def embed_books(words: list[str], force: bool, should_notify: bool, quiet: bool = False) -> None:
+    rows, store = library_index().search(words, limit=100_000), vector_store()
+    wanted = rows if force else store.missing(embed_model(), rows)
+    if wanted or not quiet:
+        report(embed_summary(embed_all(wanted, embed_model(), store), not wanted), should_notify)
 
 
 def cmd_embed(args) -> int:
@@ -304,10 +325,7 @@ def cmd_embed(args) -> int:
         return refuse("No embedding model: set KOBO_EMBED_MODEL, or ↩ on a model in kb model", args.notify)
     if problem := index_problem():
         return refuse(f"{problem}: run kb update", args.notify)
-    rows, store = library_index().search(args.words, limit=100_000), vector_store()
-    wanted = rows if args.force else store.missing(embed_model(), rows)
-    embedded = embed_all(wanted, embed_model(), store)
-    report(embed_summary(embedded, not wanted), args.notify)
+    embed_books(args.words, args.force, args.notify)
     return 0
 
 

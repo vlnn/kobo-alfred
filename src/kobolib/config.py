@@ -83,6 +83,10 @@ def embed_model() -> str:
     return os.environ.get("KOBO_EMBED_MODEL", "").strip()
 
 
+def model_on_update() -> bool:
+    return os.environ.get("KOBO_MODEL_ON_UPDATE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def oracle_log_path() -> Path:
     return data_dir() / "oracle.log"
 

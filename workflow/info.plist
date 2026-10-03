@@ -41,6 +41,8 @@ Set the library root (and optionally other sources and the index folder) in the 
 		<string></string>
 		<key>KOBO_EMBED_KEY</key>
 		<string></string>
+		<key>KOBO_MODEL_ON_UPDATE</key>
+		<string>0</string>
 	</dict>
 	<key>userconfigurationconfig</key>
 	<array>
@@ -232,6 +234,25 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<string>textfield</string>
 			<key>variable</key>
 			<string>KOBO_EMBED_KEY</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<false/>
+				<key>required</key>
+				<false/>
+				<key>text</key>
+				<string>after indexing, ask the model about new books and embed them</string>
+			</dict>
+			<key>description</key>
+			<string>With this on, kb update also asks the model about inbox books and unnamed files that have no answer yet, asks about author folders when they changed, and embeds books without a vector — each step a notification, nothing when there is nothing new. Off, kb update stays as fast as it is and you ask with the rows in kb classify, kb fix and kb model.</string>
+			<key>label</key>
+			<string>Ask and embed on update</string>
+			<key>type</key>
+			<string>checkbox</string>
+			<key>variable</key>
+			<string>KOBO_MODEL_ON_UPDATE</string>
 		</dict>
 	</array>
 	<key>objects</key>

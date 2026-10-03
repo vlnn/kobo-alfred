@@ -797,3 +797,61 @@ def test_embed_words_narrow_the_books(embed_env, tmp_path, capsys, mocker):
     main(["embed", "napkin"])
 
     assert vector_store(tmp_path).count("bge-m3") == 1, "only books matching the words are embedded"
+
+
+@pytest.fixture
+def both_models(env, monkeypatch, mocker):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+    ask = mocker.patch(
+        "kobolib.oracle.ask",
+        side_effect=lambda question, *_: {"name": NAPKIN_NAME, "authors": {"groups": []}}.get(question, {"genre": "none"}),
+    )
+    embed = mocker.patch("kobolib.embedder.embed", return_value=[1.0, 0.0])
+    return ask, embed
+
+
+def test_update_leaves_the_models_alone_by_default(both_models, capsys):
+    ask, embed = both_models
+
+    main(["update", "--no-thumbnails"])
+
+    assert not ask.called and not embed.called, "indexing stays as fast as it is unless asked otherwise"
+
+
+def test_update_asks_and_embeds_when_the_setting_is_on(both_models, monkeypatch, tmp_path, capsys):
+    ask, embed = both_models
+    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "1")
+
+    assert main(["update", "--no-thumbnails"]) == 0, "update should succeed"
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("Indexed 4 books"), "indexing comes first and is reported as before"
+    assert lines[1:] == ["Asked about 1 book: 1 name suggested", "The model had no suggestions", "Embedded 3 books"], (
+        "then names, genres and embeddings, each reported like any update step; no author folders, so no author question"
+    )
+    assert [c.args[0] for c in ask.call_args_list] == ["name", "genre", "genre"], "names before genres"
+    assert embed.call_count == 3, "every complete book is embedded"
+    assert vector_store(tmp_path).count("bge-m3") == 3 and oracle_store(tmp_path).answers("name"), "the stores are written"
+
+
+def test_update_with_the_setting_on_is_quiet_when_nothing_is_new(both_models, monkeypatch, capsys):
+    ask, embed = both_models
+    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "1")
+    main(["update", "--no-thumbnails"])
+    capsys.readouterr()
+
+    main(["update", "--no-thumbnails"])
+
+    assert capsys.readouterr().out.splitlines()[1:] == [], "answered and embedded books cost nothing on the next update"
+    assert ask.call_count == 3 and embed.call_count == 3, "no request is repeated"
+
+
+def test_update_with_the_setting_on_skips_what_is_not_configured(both_models, monkeypatch, capsys):
+    ask, embed = both_models
+    monkeypatch.setenv("KOBO_MODEL_ON_UPDATE", "true")
+    monkeypatch.delenv("KOBO_EMBED_MODEL")
+
+    main(["update", "--no-thumbnails"])
+
+    assert ask.called and not embed.called, "without an embedding model only the questions run; no refusal"

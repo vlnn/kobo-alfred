@@ -328,9 +328,9 @@ TDD, each step a green commit, each step useful without the next.
 ## Later
 
 - `kb next`: rank unread books against the last ten entries of KOReader's `history.lua`, using the vectors `kb like` already has. Mostly a question of what "unread" means on the Kobo side.
-- Embedding during `kb update` for new books, behind a setting, once the per-book cost is known on real libraries.
+- ~~Embedding during `kb update` for new books, behind a setting, once the per-book cost is known on real libraries.~~ Done: `KOBO_MODEL_ON_UPDATE`.
 - A text sample for PDFs if a dependency-free extractor turns out to be good enough; until then PDFs get metadata and filename only.
-- Asking during `kb update` behind a setting, once the pass is known to be fast enough on real libraries.
+- ~~Asking during `kb update` behind a setting, once the pass is known to be fast enough on real libraries.~~ Done: the same setting.
 
 ## Not doing
 
@@ -348,4 +348,5 @@ TDD, each step a green commit, each step useful without the next.
 - The `genre` command takes `fingerprint<TAB>genre` lines so *Accept N suggested genres* reuses it; every genre set by one call is now one journaled batch, so *Undo last batch* covers all of them.
 - A suggested rename or merge is hidden for a file that already has a certain operation: the planner wins. After a merge, the planner derives author folders from embedded metadata, so a book whose metadata still carries the alias spelling may be offered a move back.
 - A new vector is scored against every stored one and slotted into the lists of the books it is near, so every neighbour list stays exact at one pass per new book; there is no lazy pickup.
+- `KOBO_MODEL_ON_UPDATE` (a checkbox, off by default) makes `kb update` run the name, genre and author questions and the embedding pass after indexing, reporting only steps that did something.
 - `kb model`'s *Embeddings* header counts embedded books and, while some are missing, is itself the ↩-embeds row; the embedding server's reachability shows as a *Model not reachable* row in the list when it differs from the oracle's.

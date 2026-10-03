@@ -167,6 +167,8 @@ kb like                       seed = the book KOReader opened last (history.lua)
 
 Vectors live in `vectors.db` keyed by model, so switching the embedding model keeps the old set until the new one is complete. Similarity is cosine over stored vectors, computed when a vector is stored, never while you type.
 
+Turn on **Ask and embed on update** in the configuration and `kb update` does all of this by itself after indexing: the name and genre questions for books without an answer, the author question when the folders changed, and embedding for books without a vector — a notification per step, none when there is nothing new. Off by default, so indexing stays as fast as it is.
+
 Nothing in the UI mentions the model until **Model server** is set; a server that does not answer shows as *Model not reachable at …* in `kb classify`, `kb fix` and `kb model`.
 
 ## KOReader users

@@ -255,3 +255,9 @@ def test_the_oracle_is_configured_from_the_workflow_panel(workflow, variable):
 def test_the_readme_mentions_the_oracle_commands(workflow):
     for words in ("kb like", "kb model"):
         assert words in workflow["readme"], f"the install readme should mention {words}"
+
+
+def test_asking_and_embedding_on_update_is_an_optional_checkbox(workflow):
+    assert workflow["variables"].get("KOBO_MODEL_ON_UPDATE") == "0", "off by default: kb update stays as fast as it is"
+    field = next(c for c in workflow["userconfigurationconfig"] if c["variable"] == "KOBO_MODEL_ON_UPDATE")
+    assert field["type"] == "checkbox" and field["config"]["default"] is False, "a checkbox in the configuration panel"
