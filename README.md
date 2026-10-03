@@ -149,6 +149,8 @@ The folder tree is what the Kobo shows, so the tool keeps it meaning exactly one
 
 Index (`library.db`, `sources.db`), `covers/`, `genres.tsv` and the undo journal (`journal.jsonl`) live in Alfred's workflow data folder, `~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib`, which survives workflow updates and cache clears. Override with **Index folder**.
 
+The index stores paths relative to the library root, so if the same tree exists in two places (the card and a synced folder, say) you can switch **Library root** between them without rebuilding.
+
 Format support: epub and fb2 are read for metadata and cover; mobi, azw, azw3, pdf and djvu are described from their filename (libgen, Anna's Archive, `[Series №N]`, `Title - Author` and friends). `.part` files are indexed, flagged as unfinished downloads, and only ever offered to `kb trash`.
 
 ## From a terminal
