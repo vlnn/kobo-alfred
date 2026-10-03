@@ -18,6 +18,7 @@ from kobolib.config import (
     mounted_sources,
     sources,
     sources_db_path,
+    suggestion_store,
 )
 from kobolib.genres import GenreStore, folder_slug, genre_from_folder
 from kobolib.index import Index, IndexBusy, build_index, build_sources_index
@@ -39,6 +40,12 @@ def bootstrap_genres() -> int:
     store.save()
     index.write_genres({fingerprint: entry.genre for fingerprint, entry in store.entries.items()})
     return added
+
+
+def prune_suggestions(index: Index) -> None:
+    store = suggestion_store()
+    if store.prune({row.fingerprint for row in all_rows(index)}):
+        store.save()
 
 
 def is_path(reference: str) -> bool:
@@ -84,6 +91,7 @@ def run_index() -> tuple[int, str]:
     if count == 0:
         return 1, f"No books found: {probe_root(root) or f'no ebook files under {root}'}"
     bootstrap_genres()
+    prune_suggestions(library_index())
     return 0, f"Indexed {count} books from {root}"
 
 
@@ -153,6 +161,7 @@ def refresh_index(result: Applied) -> None:
     for src in result.removed:
         index.remove(src)
     store.save()
+    prune_suggestions(index)
 
 
 def skip_reasons(skipped: list[str]) -> str:

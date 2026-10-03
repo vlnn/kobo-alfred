@@ -5,6 +5,7 @@ from pathlib import Path
 
 from kobolib.genres import GenreStore
 from kobolib.index import Index
+from kobolib.suggestions import SuggestionStore
 
 
 def library_root() -> Path:
@@ -55,6 +56,10 @@ def journal_path() -> Path:
 
 def genre_store() -> GenreStore:
     return GenreStore(data_dir() / "genres.tsv").load()
+
+
+def suggestion_store() -> SuggestionStore:
+    return SuggestionStore(data_dir() / "oracle.tsv").load()
 
 
 def selected_books() -> list[str]:

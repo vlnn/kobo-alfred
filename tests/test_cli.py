@@ -379,3 +379,37 @@ def test_genre_names_unknown_references_exactly(indexed, library, capsys):
 def test_one_purpose_subcommands_are_gone(env, retired):
     with pytest.raises(SystemExit):
         main([retired])
+
+
+def oracle_store(tmp_path: Path):
+    from kobolib.suggestions import SuggestionStore
+
+    return SuggestionStore(tmp_path / "alfred-data" / "oracle.tsv").load()
+
+
+def test_update_prunes_suggestions_for_books_that_left(indexed, library, tmp_path, capsys):
+    napkin = run(["search", "napkin"], capsys)["items"][0]["variables"]["book"]
+    store = oracle_store(tmp_path)
+    store.set(napkin, "genre", {"genre": "none"}, "h")
+    store.set("vanished", "genre", {"genre": "none"}, "h")
+    store.save()
+
+    main(["update"])
+
+    store = oracle_store(tmp_path)
+    assert store.get("vanished", "genre") is None and store.get(napkin, "genre") is not None, "only answers about absent books are pruned"
+
+
+def test_trash_prunes_the_books_suggestions(indexed, library, tmp_path, capsys):
+    napkin = run(["search", "napkin"], capsys)["items"][0]["variables"]["book"]
+    store = oracle_store(tmp_path)
+    store.set(napkin, "genre", {"genre": "reference"}, "h")
+    store.save()
+
+    main(["trash", str(library / "00_Inbox" / "Napkin.pdf")])
+
+    assert oracle_store(tmp_path).get(napkin, "genre") is None, "a book set aside takes its suggestions with it"
+
+
+def test_update_does_not_create_an_empty_oracle_store(indexed, tmp_path):
+    assert not (tmp_path / "alfred-data" / "oracle.tsv").exists(), "nothing mentions the oracle until there is something to store"

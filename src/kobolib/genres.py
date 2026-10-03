@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import csv
 import re
 from dataclasses import replace
 from pathlib import Path
 
 from kobolib.model import GenreEntry, Row
+from kobolib.store import TsvStore
 
 GENRE_DEPTH = 2
 ORDER_PREFIX = re.compile(r"^\d+_")
 UNCLASSIFIED_FOLDERS = {"inbox", "archives", "system_files", "_inbox", "_dups", "_trash", "_broken"}
-FIELDS = ("fingerprint", "genre", "rel_path")
 
 
 def folder_slug(name: str) -> str:
@@ -24,41 +23,14 @@ def genre_from_folder(folder: str) -> str:
     return "/".join(parts[:GENRE_DEPTH])
 
 
-def to_fields(fingerprint: str, entry: GenreEntry) -> dict:
-    return {"fingerprint": fingerprint, "genre": entry.genre, "rel_path": entry.rel_path}
+class GenreStore(TsvStore):
+    fields = ("fingerprint", "genre", "rel_path")
 
+    def to_fields(self, key: str, entry: GenreEntry) -> dict:
+        return {"fingerprint": key, "genre": entry.genre, "rel_path": entry.rel_path}
 
-def from_fields(record: dict) -> tuple[str, GenreEntry]:
-    return record["fingerprint"], GenreEntry(genre=record["genre"], rel_path=record["rel_path"])
-
-
-def read_entries(path: Path) -> dict[str, GenreEntry]:
-    with path.open(newline="", encoding="utf-8") as handle:
-        return dict(from_fields(r) for r in csv.DictReader(handle, delimiter="\t"))
-
-
-class GenreStore:
-    def __init__(self, path: Path):
-        self.path = path
-        self.entries: dict[str, GenreEntry] = {}
-
-    def load(self) -> GenreStore:
-        if self.path.exists():
-            self.entries = read_entries(self.path)
-        return self
-
-    def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, FIELDS, delimiter="\t")
-            writer.writeheader()
-            writer.writerows(to_fields(fp, entry) for fp, entry in sorted(self.entries.items()))
-
-    def get(self, fingerprint: str) -> GenreEntry | None:
-        return self.entries.get(fingerprint)
-
-    def set(self, fingerprint: str, entry: GenreEntry) -> None:
-        self.entries[fingerprint] = entry
+    def from_fields(self, record: dict) -> tuple[str, GenreEntry]:
+        return record["fingerprint"], GenreEntry(genre=record["genre"], rel_path=record["rel_path"])
 
     def genre_of(self, row: Row) -> str:
         entry = self.get(row.fingerprint)
