@@ -318,3 +318,24 @@ def test_sources_paths_are_trimmed(monkeypatch, tmp_path):
 
     monkeypatch.setenv("KOBOLD_SOURCES", f" {tmp_path / 'a'} : {tmp_path / 'b'}")
     assert sources() == [tmp_path / "a", tmp_path / "b"], "spaces around ':' should not become part of a path"
+
+
+@pytest.fixture
+def many_new(env, elsewhere, capsys) -> Path:
+    pile = elsewhere / "pile"
+    for n in range(45):
+        write_epub(pile / ("a" if n % 2 else "b") / f"Book {n:02d}.epub", f"Book {n:02d}")
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("KOBOLD_SOURCES", str(pile))
+        main(["update"])
+        capsys.readouterr()
+        yield pile
+
+
+def test_src_lists_every_new_book_without_paging(many_new, capsys):
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("KOBOLD_SOURCES", str(many_new))
+        head, *books = run_items(["search", "src"], capsys)
+
+    assert len(books) == 45, "kb src is not cut to a page: every new book from every source is listed"
+    assert head["title"] == "Import all 45 books" and len(head["arg"].splitlines()) == 45, "↩ imports all of them"

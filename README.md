@@ -133,6 +133,8 @@ kb src heinlein             books in the sources that are NOT already in the lib
    ↩ on Import all          every row shown
 ```
 
+Unlike other listings, `kb src` is not cut to 40 rows: every new book from every source is listed, newest first, so **Import all** really is all.
+
 Books already in the library (by content fingerprint, not by name) are hidden, so `kb src` is always "what am I missing"; when every match is a library copy the row says so instead of "no books match", and `kb stats` shows one row per source with how many of its books are new. Import *copies*; the source keeps its file. The destination is your existing inbox folder (any top-level folder whose name is `inbox` after the `NN_` prefix, e.g. `00_Inbox`), or `_inbox/` if there is none. Unreadable and `.part` files are refused.
 
 ## Walkthrough 4: let a local model do the reading

@@ -28,7 +28,7 @@ from kobold.config import (
 )
 from kobold.genres import GenreStore
 from kobold.history import last_opened
-from kobold.index import EVERYTHING, PAGE, Index, index_busy, is_current
+from kobold.index import EVERYTHING, Index, index_busy, is_current
 from kobold.library import (
     SourceCount,
     concerning,
@@ -265,9 +265,9 @@ def nothing_new_item(words: list[str], held: int) -> dict:
 
 def source_items(words: list[str]) -> list[dict]:
     found = sources_index().search(words, limit=EVERYTHING)
-    rows = not_in_library(found)[:PAGE]
-    items = [alfred.source_item(r) for r in rows]
-    return headed([alfred.import_all_item(rows)], items, len(rows)) or [nothing_new_item(words, len(found))]
+    fresh = not_in_library(found)
+    items = [alfred.source_item(r) for r in fresh]
+    return headed([alfred.import_all_item(fresh)], items, len(fresh)) or [nothing_new_item(words, len(found))]
 
 
 def sources_items(words: list[str]) -> list[dict]:
