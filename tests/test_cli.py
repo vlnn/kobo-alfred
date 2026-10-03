@@ -239,6 +239,13 @@ def test_genres_forwards_the_book_variable(indexed, library, capsys, monkeypatch
     assert out["items"][0]["variables"] == {"book": "abc123"}, "each genre item must carry the book on to the tag step"
 
 
+@pytest.mark.parametrize("book", ["one", "one\ntwo"])
+def test_genres_before_any_index_explains(env, capsys, monkeypatch, book):
+    monkeypatch.setenv("book", book)
+
+    assert run(["genres", ""], capsys)["items"][0]["title"] == "No index yet", "the genre picker without an index should explain"
+
+
 def test_genres_without_book_explains(indexed, library, capsys, monkeypatch):
     monkeypatch.delenv("book", raising=False)
 

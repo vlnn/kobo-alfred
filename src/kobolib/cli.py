@@ -234,13 +234,13 @@ def cmd_fix(args) -> int:
     return 0
 
 
-@requires_index
 def batch_header(books: list[str]) -> list[dict]:
     if len(books) < 2:
         return []
     return [alfred.message_item(f"Genre for {len(books)} books", "↩ on a genre applies it to all of them")]
 
 
+@requires_index
 def cmd_genres(args) -> int:
     books = selected_books()
     if not books:
