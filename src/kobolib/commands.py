@@ -169,7 +169,7 @@ def sources_items(query: str) -> list[dict]:
 
 def stats_items() -> list[dict]:
     index = Index(db_path())
-    partial = len(index.search(parse_query("is:partial"), limit=5000))
+    partial = len(index.partials(parse_query("")))
     return [
         alfred.message_item(f"{index.count()} books indexed", str(library_root())),
         alfred.message_item(f"{partial} incomplete downloads", "kb is:partial"),

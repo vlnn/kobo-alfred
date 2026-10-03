@@ -6,7 +6,7 @@ FTS_COLUMNS = {"author": "authors", "series": "series"}
 SQL_CLAUSES = {
     "fmt": "format = :fmt",
     "in": "fold(folder) LIKE '%' || :in || '%'",
-    "lang": "fold(language) = :lang",
+    "lang": "' ' || fold(language) || ' ' LIKE '% ' || :lang || ' %'",
     "year": "year = :year",
     "genre": "(genre = :genre OR genre LIKE :genre || '/%')",
 }

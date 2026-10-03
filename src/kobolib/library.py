@@ -23,13 +23,12 @@ from kobolib.metadata import is_sound, read_book
 from kobolib.model import Operation, Row, Tag
 from kobolib.paths import relative_path
 from kobolib.plan import plan, read_plan, relocation
-from kobolib.query import parse_query
 from kobolib.scan import probe_root
 from kobolib.tags import GenreStore, folder_slug, genre_from_folder
 
 
-def all_rows(index: Index) -> list:
-    return index.search(parse_query(""), limit=100_000)
+def all_rows(index: Index) -> list[Row]:
+    return index.everything()
 
 
 def bootstrap_genres() -> int:

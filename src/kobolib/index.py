@@ -11,13 +11,14 @@ from dataclasses import astuple, fields
 from pathlib import Path
 
 from kobolib.covers import THUMBNAIL_FORMATS, cover_key, ensure_cover
+from kobolib.languages import searchable_language
 from kobolib.metadata import is_sound, read_book
 from kobolib.model import Book, DuplicateGroup, Row
 from kobolib.query import SQL_CLAUSES, STATE_CLAUSES, Query
 from kobolib.scan import SKIP_FOLDERS, iter_books
 
 COLUMNS = tuple(f.name for f in fields(Row))
-SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path"}
+SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path", "genre", "format", "language", "year"}
 SCHEMA = f"""
 CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
     {", ".join(c if c in SEARCHABLE else f"{c} UNINDEXED" for c in COLUMNS)},
@@ -25,7 +26,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 );
 """
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
 
@@ -48,7 +49,7 @@ def to_row(book: Book, cover: Path | None) -> Row:
         path=book.path,
         format=book.format,
         partial=book.partial,
-        language=book.language,
+        language=searchable_language(book.language),
         year=book.year,
         publisher=book.publisher,
         source=book.source,
@@ -228,10 +229,19 @@ class Index:
         return self.values("SELECT count(*) FROM books")[0]
 
     def search(self, query: Query, limit: int = 40) -> list[Row]:
-        clauses, params = where_clauses(query)
         order = "rank, title" if query.fts_match() else "mtime DESC"
-        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-        return self.rows(f"{SELECT_ROWS}{where} ORDER BY {order} LIMIT :limit", {**params, "limit": limit})
+        return self.matching(query, "partial = 0", order, limit)
+
+    def partials(self, query: Query, limit: int = 1000) -> list[Row]:
+        return self.matching(query, "partial = 1", "mtime", limit)
+
+    def matching(self, query: Query, state: str, order: str, limit: int) -> list[Row]:
+        clauses, params = where_clauses(query)
+        where = " AND ".join([state, *clauses])
+        return self.rows(f"{SELECT_ROWS} WHERE {where} ORDER BY {order} LIMIT :limit", {**params, "limit": limit})
+
+    def everything(self) -> list[Row]:
+        return self.rows(f"{SELECT_ROWS} ORDER BY mtime DESC")
 
     def by_fingerprint(self, fingerprint: str) -> Row | None:
         return self.one("fingerprint = ?", fingerprint)

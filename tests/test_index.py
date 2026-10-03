@@ -30,8 +30,7 @@ def test_build_indexes_all_books(index: Index):
         ("оперант", ["Оперантное поведение"]),
         ("скинн", ["Оперантное поведение"]),
         ("fmt:fb2", ["Оперантное поведение"]),
-        ("in:inbox fmt:epub", ["Nova"]),
-        ("is:partial", ["Nova"]),
+        ("in:inbox fmt:fb2", ["Оперантное поведение"]),
         ("lang:en", ["Deep Work"]),
         ("series:focus", ["Deep Work"]),
         ("year:2016", ["Deep Work"]),
@@ -41,6 +40,55 @@ def test_build_indexes_all_books(index: Index):
 )
 def test_search(index: Index, raw, expected):
     assert titles(index.search(parse_query(raw))) == expected, f"{raw!r} should find {expected}"
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("epub", ["Deep Work"]),
+        ("fb2", ["Оперантное поведение"]),
+        ("english", ["Deep Work"]),
+        ("russian", ["Оперантное поведение"]),
+        ("ru", ["Оперантное поведение"]),
+        ("1971", ["Оперантное поведение"]),
+        ("inbox fb2", ["Оперантное поведение"]),
+        ("nonfiction epub 2016", ["Deep Work"]),
+    ],
+)
+def test_search_words_match_format_language_and_year(index: Index, raw, expected):
+    assert titles(index.search(parse_query(raw))) == expected, f"the words {raw!r} should find {expected}"
+
+
+def test_search_words_match_any_segment_of_the_genre(index: Index):
+    index.write_genres({index.by_rel_path("00_Inbox/Napkin.pdf").fingerprint: "games/go_strategy"})
+
+    for word in ("games", "strat"):
+        assert titles(index.search(parse_query(word))) == ["Napkin"], f"{word!r} should match a segment of the book's genre"
+
+
+@pytest.mark.parametrize("raw", ["", "nova", "delany", "inbox"])
+def test_search_leaves_out_unfinished_downloads(index: Index, raw):
+    assert "Nova" not in titles(index.search(parse_query(raw))), f"a .part download should never be listed by {raw!r}"
+
+
+@pytest.mark.parametrize("raw, expected", [("", ["Nova"]), ("delany", ["Nova"]), ("inbox epub", ["Nova"]), ("deep", [])])
+def test_partials_lists_only_unfinished_downloads(index: Index, raw, expected):
+    assert titles(index.partials(parse_query(raw))) == expected, f"partials({raw!r}) should list {expected}"
+
+
+def test_partials_lists_oldest_first(index: Index, library: Path):
+    import os
+
+    older = library / "00_Inbox" / "Older Download.pdf.part"
+    older.write_bytes(b"")
+    os.utime(older, (1, 1))
+    build_index(library, index.db_path, cover_cache=library / "c")
+
+    assert titles(index.partials(parse_query(""))) == ["Older Download", "Nova"], "unfinished downloads should be listed oldest first"
+
+
+def test_everything_includes_unfinished_downloads(index: Index):
+    assert len(index.everything()) == 4 and "Nova" in titles(index.everything()), "lint and fix still see every indexed file"
 
 
 def test_empty_query_lists_recent_first(index: Index, library: Path):
