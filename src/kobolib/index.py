@@ -26,7 +26,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 );
 """
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
 
@@ -59,6 +59,7 @@ def to_row(book: Book, cover: Path | None, root: str = "") -> Row:
         genre="",
         subjects="; ".join(book.subjects),
         description=book.description,
+        guessed=book.guessed,
     )
 
 
@@ -192,7 +193,8 @@ def add_book(db_path: Path, path: Path, root: Path, cover_cache: Path) -> Book:
 def row_reader(root: str):
     def read(cursor, values) -> Row:
         data = dict(zip([c[0] for c in cursor.description], values))
-        return Row(**{**data, "partial": bool(data["partial"]), "root": data["root"] or root})
+        flags = {"partial": bool(data["partial"]), "guessed": bool(data["guessed"])}
+        return Row(**{**data, **flags, "root": data["root"] or root})
 
     return read
 

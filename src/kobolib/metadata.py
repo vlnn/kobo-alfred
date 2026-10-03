@@ -157,6 +157,7 @@ def is_sound(book: Book) -> bool:
 
 def from_filename(path: Path, book: Book) -> Book:
     guess = guess_from_stem(display_stem(path))
+    book.guessed = bool((not book.title and guess.title) or (not book.authors and guess.authors))
     book.title = book.title or guess.title
     book.authors = book.authors or guess.authors
     book.series = book.series or guess.series

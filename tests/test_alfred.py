@@ -25,6 +25,7 @@ BASE_ROW = {
     "genre": "",
     "subjects": "",
     "description": "",
+    "guessed": False,
 }
 
 

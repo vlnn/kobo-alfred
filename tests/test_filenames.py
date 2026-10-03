@@ -1,6 +1,6 @@
 import pytest
 
-from kobolib.filenames import guess_from_stem
+from kobolib.filenames import guess_from_stem, usable_title
 
 
 @pytest.mark.parametrize(
@@ -140,3 +140,20 @@ def test_annas_archive_names(stem, title, authors, series, index, year):
     assert (guess.title, guess.authors, guess.series, guess.series_index, guess.year) == (title, authors, series, index, year), (
         f"{stem!r} should parse fully"
     )
+
+
+@pytest.mark.parametrize(
+    "title, usable",
+    [
+        ("vorlak", False),
+        ("ZYX", False),
+        ("quiet-lantern", False),
+        ("7_815203", False),
+        ("Learn_Ferrite_in_a_Month_of_Evenings", True),
+        ("pisnia-dlya-mandrivnyka", True),
+        ("Orbital Gardening", True),
+        ("Learning Quill", True),
+    ],
+)
+def test_usable_title_needs_a_space_or_three_words(title, usable):
+    assert usable_title(title) is usable, f"{title!r} as a title taken from a filename should be usable={usable}"

@@ -32,6 +32,35 @@ def test_fb2_genres_and_annotation(fb2_file: Path):
     assert book.description == "Что такое оперантное поведение. Вторая глава.", "fb2 description should flatten the annotation paragraphs"
 
 
+@pytest.mark.parametrize("fixture", ["epub_file", "fb2_file"])
+def test_books_with_embedded_title_and_authors_are_not_guessed(request, fixture):
+    path = request.getfixturevalue(fixture)
+    assert read_book(path, path.parent).guessed is False, "title and authors from inside the file are not a guess"
+
+
+def test_an_author_taken_from_the_filename_makes_the_book_guessed(tmp_path: Path):
+    import zipfile
+
+    from tests.conftest import CONTAINER, OPF
+
+    path = tmp_path / "Newport, Cal - Deep Work.epub"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("META-INF/container.xml", CONTAINER)
+        zf.writestr("OEBPS/content.opf", "\n".join(line for line in OPF.splitlines() if "dc:creator" not in line))
+
+    book = read_book(path, tmp_path)
+
+    assert book.authors == ["Newport, Cal"] and book.guessed is True, "an author the file does not name is a guess from the filename"
+
+
+@pytest.mark.parametrize("name", ["Napkin.pdf", "Make It Stick - Peter C. Brown.mobi", "Greg Bear - Dead Lines.epub"])
+def test_books_described_from_their_filename_are_guessed(tmp_path: Path, name):
+    path = tmp_path / name
+    path.write_bytes(b"")
+
+    assert read_book(path, tmp_path).guessed is True, f"{name} gets its title or authors from the filename"
+
+
 def test_books_without_embedded_metadata_have_no_subjects(tmp_path: Path):
     path = tmp_path / "Napkin.pdf"
     path.write_bytes(b"%PDF-1.4")

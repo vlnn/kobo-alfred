@@ -24,6 +24,7 @@ class Book:
     fingerprint: str = ""
     subjects: list[str] = field(default_factory=list)
     description: str = ""
+    guessed: bool = False
 
 
 @dataclass
@@ -47,6 +48,7 @@ class Row:
     genre: str
     subjects: str
     description: str
+    guessed: bool
 
     @property
     def path(self) -> str:
