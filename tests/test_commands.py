@@ -828,3 +828,97 @@ def test_model_header_is_quiet_when_everything_is_embedded(served, tmp_path):
     embed_row = command_rows("model")[1]
 
     assert embed_row["subtitle"] == "3 books embedded" and embed_row["valid"] is False, "nothing left to embed"
+
+
+def test_like_without_an_embedding_model_points_at_kb_model(indexed, monkeypatch):
+    monkeypatch.delenv("KOBO_EMBED_MODEL", raising=False)
+
+    row = command_rows("like deep")[0]
+
+    assert (row["title"], row["subtitle"], row["autocomplete"]) == ("No embedding model", "↩ opens kb model", "model "), (
+        "kb like needs an embedding model"
+    )
+
+
+@pytest.fixture
+def embeddings(indexed, tmp_path, monkeypatch):
+    from kobolib.vectors import VectorStore
+
+    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+    store = VectorStore(tmp_path / "alfred-data" / "vectors.db")
+    store.put("bge-m3", fingerprint_of("deep"), [1.0, 0.0])
+    store.put("bge-m3", fingerprint_of("оперантное"), [1.0, 0.3])
+    store.put("bge-m3", fingerprint_of("napkin"), [0.0, 1.0])
+    return store
+
+
+def test_like_without_vectors_offers_to_embed(indexed, monkeypatch):
+    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+
+    (row,) = command_rows("like deep")
+
+    assert row["title"] == "No embeddings yet" and action_of(row) == "embed", "↩ embeds in the background"
+
+
+def test_like_lists_the_seeds_neighbours_with_their_similarity(embeddings, library):
+    header, first, second = command_rows("like deep")
+
+    assert header["title"] == "Like Deep Work" and header["valid"] is False and header["icon"], (
+        "the seed heads the list and is not actionable"
+    )
+    assert header["subtitle"].startswith("Cal Newport; Someone Else · Focus #2 · "), "with its usual subtitle"
+    assert titles([first, second]) == ["Оперантное поведение", "Napkin"], "nearest first"
+    assert first["subtitle"].startswith("96% · ") and second["subtitle"].startswith("0% · "), "the subtitle leads with the similarity"
+    assert first["arg"] == str(library / "00_Inbox" / "Скиннер - Оперантное поведение.fb2") and "mods" in first, (
+        "rows are ordinary book rows"
+    )
+
+
+def test_like_takes_the_top_search_match_as_the_seed(embeddings):
+    assert command_rows("like napkin")[0]["title"] == "Like Napkin", "the words pick the seed"
+    assert titles(command_rows("like")[:1]) == ["Like Napkin"], "without words and without KOReader history, the newest book"
+
+
+def test_like_seeds_from_the_book_koreader_opened_last(embeddings, library):
+    from tests.test_history import write_history
+
+    write_history(
+        library, 'return { { ["file"] = "/mnt/onboard/02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub", ["time"] = 5 } }'
+    )
+
+    assert command_rows("like")[0]["title"] == "Like Deep Work", "the last book read on the Kobo is the seed"
+
+
+def test_like_leaves_out_other_editions_of_the_seed(embeddings, library, capsys, tmp_path):
+    (library / "00_Inbox" / "Newport, Cal - Deep Work.pdf").write_bytes(b"%PDF-1.4")
+    main(["update"])
+    capsys.readouterr()
+    other = next(i for i in search_items("deep pdf") if "quicklookurl" in i)["variables"]["book"]
+    embeddings.put("bge-m3", other, [1.0, 0.0])
+
+    assert "Deep Work" not in titles(command_rows("like deep epub")[1:]), "another file of the same title is not a book like it"
+
+
+def test_like_offers_to_embed_new_books(embeddings, library, capsys):
+    (library / "00_Inbox" / "Fresh.pdf").write_bytes(b"%PDF-1.4 fresh")
+    main(["update"])
+    capsys.readouterr()
+
+    rows = command_rows("like deep")
+
+    assert rows[-1]["title"] == "Embed 1 new book" and action_of(rows[-1]) == "embed", "books without a vector can be embedded from here"
+
+
+def test_like_on_an_unembedded_seed_says_so(embeddings, library, capsys):
+    (library / "00_Inbox" / "Fresh.pdf").write_bytes(b"%PDF-1.4 fresh")
+    main(["update"])
+    capsys.readouterr()
+
+    header, note, embed = command_rows("like fresh")
+
+    assert note["title"] == "Fresh is not embedded yet" and note["valid"] is False, "a seed without a vector has no neighbours yet"
+    assert embed["title"] == "Embed 1 new book", "and the embed row follows"
+
+
+def test_like_with_no_match_says_so(embeddings):
+    assert titles(command_rows("like zzz")) == ["No books match ‘zzz’"], "no seed, no list"

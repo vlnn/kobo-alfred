@@ -28,6 +28,7 @@ from kobolib.config import (
     vector_store,
 )
 from kobolib.genres import GenreStore
+from kobolib.history import last_opened
 from kobolib.index import Index, index_busy, is_current
 from kobolib.library import (
     concerning,
@@ -43,6 +44,7 @@ from kobolib.library import (
 from kobolib.model import Finding, Operation, Row
 from kobolib.query import query_words
 from kobolib.suggestions import SuggestionStore
+from kobolib.vectors import VectorStore
 
 
 def index_problem(path: Path | None = None, what: str = "Index") -> str:
@@ -286,6 +288,39 @@ def all_stats_items(words: list[str]) -> list[dict]:
     return stats_items() + sources_stats_items()
 
 
+def like_seed(index: Index, words: list[str]) -> Row | None:
+    if words:
+        return next(iter(index.search(words, limit=1)), None)
+    opened = last_opened(library_root())
+    return (index.by_rel_path(opened) if opened else None) or next(iter(index.search([], limit=1)), None)
+
+
+def neighbour_rows(seed: Row, index: Index, store: VectorStore) -> list[dict]:
+    scored = ((index.by_fingerprint(other), score) for other, score in store.neighbours(embed_model(), seed.fingerprint))
+    return [alfred.like_item(row, score) for row, score in scored if row is not None and row.norm_title != seed.norm_title]
+
+
+def embed_rows(store: VectorStore) -> list[dict]:
+    missing = missing_embeddings()
+    return (
+        [alfred.action_item(f"Embed {counted(missing, 'new book')}", "↩ runs in the background, then notifies", "embed")] if missing else []
+    )
+
+
+def like_items(words: list[str]) -> list[dict]:
+    if not embed_model():
+        return [alfred.navigation_item("No embedding model", "↩ opens kb model", "model ")]
+    index, store = library_index(), vector_store()
+    seed = like_seed(index, words)
+    if seed is None:
+        return nothing(words, "No books yet", "kb update indexes the library")
+    if not store.count(embed_model()):
+        return [alfred.action_item("No embeddings yet", "↩ embeds in the background, then notifies", "embed")]
+    rows = neighbour_rows(seed, index, store)
+    unembedded = [alfred.message_item(f"{seed.title} is not embedded yet")] if store.get(embed_model(), seed.fingerprint) is None else []
+    return [alfred.like_header(seed), *rows, *unembedded, *embed_rows(store)]
+
+
 def served_models() -> dict[str, list[str] | None]:
     return {url: embedder.models(url) for url in dict.fromkeys([oracle_url(), embed_url()])}
 
@@ -493,6 +528,7 @@ COMMAND_LIST = [
     Command("trash", trash_items, "trash", "unfinished downloads; with words, any book · ↩ moves it to _trash/"),
     Command("src", sources_items, "import", "search the other sources · ↩ imports into the inbox", needs_index=False),
     Command("update", update_items, "update", "rebuild the library and sources index", needs_index=False),
+    Command("like", like_items, "open", "books like one: the top match for the words, or the one KOReader opened last"),
     Command(
         "model",
         model_items,

@@ -76,6 +76,14 @@ def book_item(row: Row) -> dict:
     }
 
 
+def like_header(row: Row) -> dict:
+    return {**message_item(f"Like {row.title}", subtitle(row)), "icon": icon(row)}
+
+
+def like_item(row: Row, score: float) -> dict:
+    return {**book_item(row), "subtitle": f"{score:.0%}{SEPARATOR}{subtitle(row)}"}
+
+
 def copy_item(row: Row, copies: int) -> dict:
     return {**book_item(row), "subtitle": f"×{copies}{SEPARATOR}{subtitle(row)}"}
 
