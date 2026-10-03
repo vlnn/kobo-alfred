@@ -9,7 +9,7 @@ from pathlib import Path
 from kobolib import alfred
 from kobolib.alfred import counted
 from kobolib.apply import EXECUTABLE, last_batch, read_journal
-from kobolib.config import db_path, genre_store, journal_path, library_root, sources, sources_db_path
+from kobolib.config import db_path, genre_store, journal_path, library_index, library_root, sources, sources_db_path, sources_index
 from kobolib.genres import GenreStore
 from kobolib.index import Index, index_busy, is_current
 from kobolib.library import concerning, diagnosis, known_genres, not_in_library, pending_operations, unclassified_rows
@@ -51,7 +51,7 @@ def book_rows(rows: list[Row]) -> list[dict]:
 def plain_items(words: list[str]) -> list[dict]:
     if index_problem():
         return without_index_items()
-    index = Index(db_path())
+    index = library_index()
     if index.count() == 0:
         return [alfred.action_item(EMPTY_INDEX, "↩ rebuilds it", "update")]
     if not words:
@@ -60,7 +60,7 @@ def plain_items(words: list[str]) -> list[dict]:
 
 
 def matching_books(words: list[str]) -> list[dict]:
-    return [] if index_problem() else book_rows(Index(db_path()).search(words))
+    return [] if index_problem() else book_rows(library_index().search(words))
 
 
 def unlisted(books: list[dict], rows: list[dict]) -> list[dict]:
@@ -113,13 +113,13 @@ def duplicate_groups(index: Index, words: list[str]) -> list[list[Row]]:
 
 
 def dups_items(words: list[str]) -> list[dict]:
-    groups = duplicate_groups(Index(db_path()), words)
+    groups = duplicate_groups(library_index(), words)
     rows = [alfred.copy_item(book, len(g)) for g in groups for book in g]
     return rows or [alfred.message_item("No duplicate titles")]
 
 
 def random_items(words: list[str]) -> list[dict]:
-    rows = Index(db_path()).search(words, limit=5000)
+    rows = library_index().search(words, limit=5000)
     picks = random.sample(rows, min(5, len(rows)))
     return book_rows(picks) or [alfred.empty_item(" ".join(words))]
 
@@ -134,7 +134,7 @@ def headed(head: dict, items: list[dict], batch_size: int) -> list[dict]:
 
 
 def classify_rows(words: list[str]) -> list[Row]:
-    index = Index(db_path())
+    index = library_index()
     return index.search(words, limit=CLASSIFY_LIMIT) if words else index.unclassified([])
 
 
@@ -164,7 +164,7 @@ def picker_header(rows: list[Row], store: GenreStore) -> dict:
 
 
 def genre_picker_items(typed: str, books: list[str]) -> list[dict]:
-    index, store = Index(db_path()), genre_store()
+    index, store = library_index(), genre_store()
     rows = [row for fingerprint in books if (row := index.by_fingerprint(fingerprint))]
     if not rows:
         return [alfred.message_item("No book selected", "Press ⇧↩ on a book in kb, or ↩ in kb classify")]
@@ -177,7 +177,7 @@ def genre_picker_items(typed: str, books: list[str]) -> list[dict]:
 
 
 def source_items(words: list[str]) -> list[dict]:
-    rows = not_in_library(Index(sources_db_path()).search(words))
+    rows = not_in_library(sources_index().search(words))
     items = [alfred.source_item(r) for r in rows]
     return headed(alfred.import_all_item(rows), items, len(rows)) or [alfred.empty_item(" ".join(words))]
 
@@ -191,7 +191,7 @@ def sources_items(words: list[str]) -> list[dict]:
 
 
 def stats_items() -> list[dict]:
-    index = Index(db_path())
+    index = library_index()
     return [
         alfred.navigation_item(counted(index.complete_count(), "book"), str(library_root()), ""),
         alfred.navigation_item(f"{counted(len(index.unclassified([])), 'book')} without a genre", "↩ shows the inbox", "inbox "),
@@ -204,7 +204,7 @@ def stats_items() -> list[dict]:
 def sources_stats_items() -> list[dict]:
     if index_problem(sources_db_path()):
         return []
-    count = Index(sources_db_path()).count()
+    count = sources_index().count()
     return [alfred.navigation_item(f"{counted(count, 'book')} in {counted(len(sources()), 'source')}", "↩ searches them", "src ")]
 
 
@@ -233,7 +233,7 @@ def update_items(words: list[str]) -> list[dict]:
 
 
 def trash_rows(words: list[str]) -> list[Row]:
-    index = Index(db_path())
+    index = library_index()
     return index.partials(words) + (index.search(words, limit=LIST_LIMIT) if words else [])
 
 
@@ -286,7 +286,7 @@ def reminder_item(key: str, title: str, subtitle: str, completes: str) -> dict:
 
 
 def fix_reminders(words: list[str]) -> list[dict]:
-    index = Index(db_path())
+    index = library_index()
     waiting, partial = len(index.unclassified(words)), len(index.partials(words))
     inbox = reminder_item("inbox", f"{counted(waiting, 'book')} without a genre", "↩ lists them", completion("classify", words))
     downloads = reminder_item("partials", counted(partial, "unfinished download"), "↩ lists them", completion("trash", words))

@@ -10,7 +10,7 @@ from kobolib.query import query_words
 def index(library: Path, tmp_path: Path) -> Index:
     db = tmp_path / "cache" / "library.db"
     build_index(library, db, cover_cache=tmp_path / "cache" / "covers")
-    return Index(db)
+    return Index(db, library)
 
 
 def titles(rows) -> list[str]:
@@ -171,11 +171,19 @@ def test_fill_thumbnails_updates_pdf_rows(index: Index, library: Path, mocker):
     mocker.patch("kobolib.covers.shutil.which", return_value="/usr/bin/qlmanage")
     mocker.patch("kobolib.covers.subprocess.run", side_effect=fake_qlmanage)
 
-    made = fill_thumbnails(index.db_path, library / "c")
+    made = fill_thumbnails(index, library / "c")
 
     (napkin,) = index.search(query_words("napkin"))
     assert made == 1, "only the pdf without a cover should get a thumbnail"
     assert napkin.cover.endswith(".png"), "the pdf row should now carry its thumbnail path"
+
+
+def test_path_follows_the_index_root_not_the_root_at_build_time(index: Index, tmp_path: Path):
+    moved = Index(index.db_path, tmp_path / "synced")
+
+    (row,) = moved.search(query_words("deep"))
+
+    assert row.path == str(tmp_path / "synced" / row.rel_path), "the absolute path should be derived from the root the index is opened with"
 
 
 def test_fingerprint_stored_per_book(index: Index):
@@ -196,7 +204,7 @@ def test_relocate_moves_a_row_to_its_new_path(index: Index, library: Path):
     src = "02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
     dst = "02_NonFiction/Shelved/Newport, Cal - Deep Work (2016).epub"
 
-    index.relocate(src, dst, library)
+    index.relocate(src, dst)
 
     row = index.by_rel_path(dst)
     assert row is not None and row.folder == "02_NonFiction/Shelved", "the moved row should carry its new path and folder"
@@ -209,7 +217,7 @@ def test_relocate_moves_a_row_to_its_new_path(index: Index, library: Path):
 def test_relocate_into_a_set_aside_folder_drops_the_row(index: Index, library: Path, aside):
     src = "00_Inbox/Napkin.pdf"
 
-    index.relocate(src, f"{aside}/{src}", library)
+    index.relocate(src, f"{aside}/{src}")
 
     assert index.by_rel_path(src) is None and index.count() == 3, f"a book moved to {aside} leaves the index like the scanner would skip it"
 
@@ -303,7 +311,7 @@ def test_relocate_carries_the_cover_to_the_new_key(index: Index, library: Path):
     dst = "02_NonFiction/Shelved/Newport, Cal - Deep Work (2016).epub"
     old_cover = Path(index.by_rel_path(src).cover)
 
-    index.relocate(src, dst, library)
+    index.relocate(src, dst)
 
     new_cover = Path(index.by_rel_path(dst).cover)
     assert new_cover.name == f"{cover_key(dst)}{old_cover.suffix}" and new_cover.exists(), (

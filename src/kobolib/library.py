@@ -13,6 +13,7 @@ from kobolib.config import (
     db_path,
     genre_store,
     journal_path,
+    library_index,
     library_root,
     mounted_sources,
     sources,
@@ -33,7 +34,7 @@ def all_rows(index: Index) -> list[Row]:
 
 
 def bootstrap_genres() -> int:
-    store, index = genre_store(), Index(db_path())
+    store, index = genre_store(), library_index()
     added = store.bootstrap(all_rows(index))
     store.save()
     index.write_genres({fingerprint: entry.genre for fingerprint, entry in store.entries.items()})
@@ -68,7 +69,7 @@ def known_genres(index: Index, store: GenreStore) -> list[str]:
 
 
 def inbox_note() -> str:
-    waiting = len(Index(db_path()).unclassified([]))
+    waiting = len(library_index().unclassified([]))
     return f" · {counted(waiting, 'book')} without a genre" if waiting else ""
 
 
@@ -101,11 +102,11 @@ def run_index_sources() -> tuple[int, str]:
 
 
 def unclassified_rows(words: list[str]) -> list[Row]:
-    return Index(db_path()).unclassified(words)
+    return library_index().unclassified(words)
 
 
 def diagnosis() -> tuple[list[Finding], list[Operation]]:
-    rows, store = all_rows(Index(db_path())), genre_store()
+    rows, store = all_rows(library_index()), genre_store()
     found = lint(rows, library_root(), exclude=(data_dir(),))
     return found, plan(rows, found, store)
 
@@ -117,7 +118,7 @@ def current_plan() -> list[Operation]:
 def concerning(words: list[str]) -> Callable[[str], bool]:
     if not words:
         return lambda rel_path: True
-    return Index(db_path()).rel_paths(words).__contains__
+    return library_index().rel_paths(words).__contains__
 
 
 def targeted(targets: list[str]) -> Callable[[str], bool]:
@@ -144,11 +145,11 @@ def operation_line(op: Operation) -> str:
 
 
 def refresh_index(result: Applied) -> None:
-    index, store = Index(db_path()), genre_store()
+    index, store = library_index(), genre_store()
     for src, dst in result.moved.items():
         if (row := index.by_rel_path(src)) and (entry := store.get(row.fingerprint)):
             store.set(row.fingerprint, replace(entry, rel_path=dst))
-        index.relocate(src, dst, library_root())
+        index.relocate(src, dst)
     for src in result.removed:
         index.remove(src)
     store.save()
@@ -190,7 +191,7 @@ def import_blocked(src: Path, dst: Path) -> str:
     book = read_book(src, src.parent)
     if not is_sound(book):
         return f"unreadable or unfinished file: {src.name}"
-    if (copy := Index(db_path()).by_fingerprint(book.fingerprint)) is not None:
+    if (copy := library_index().by_fingerprint(book.fingerprint)) is not None:
         return f"already in library: {copy.rel_path}"
     return ""
 
@@ -201,5 +202,5 @@ def transfer(src: Path, dst: Path) -> None:
 
 
 def not_in_library(rows: list[Row]) -> list[Row]:
-    copies = Index(db_path()).fingerprints_among([r.fingerprint for r in rows]) if db_path().exists() else set()
+    copies = library_index().fingerprints_among([r.fingerprint for r in rows]) if db_path().exists() else set()
     return [r for r in rows if r.fingerprint not in copies]

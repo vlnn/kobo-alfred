@@ -26,7 +26,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 );
 """
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
 
@@ -38,7 +38,7 @@ def series_key(series: str) -> str:
     return LEADING_ARTICLE.sub("", normalize_title(series))
 
 
-def to_row(book: Book, cover: Path | None) -> Row:
+def to_row(book: Book, cover: Path | None, root: str = "") -> Row:
     return Row(
         title=book.title,
         authors="; ".join(book.authors),
@@ -46,7 +46,7 @@ def to_row(book: Book, cover: Path | None) -> Row:
         series_index=book.series_index,
         folder=str(Path(book.rel_path).parent),
         rel_path=book.rel_path,
-        path=book.path,
+        root=root,
         format=book.format,
         partial=book.partial,
         language=searchable_language(book.language),
@@ -60,8 +60,8 @@ def to_row(book: Book, cover: Path | None) -> Row:
     )
 
 
-def to_record(book: Book, cover: Path | None) -> tuple:
-    return astuple(to_row(book, cover))
+def to_record(book: Book, cover: Path | None, root: str = "") -> tuple:
+    return astuple(to_row(book, cover, root))
 
 
 def books(root: Path, exclude: tuple[Path, ...], base: Path | None = None) -> Iterator[Book]:
@@ -69,9 +69,9 @@ def books(root: Path, exclude: tuple[Path, ...], base: Path | None = None) -> It
         yield read_book(path, base or root)
 
 
-def to_records(found: Iterable[Book], cover_cache: Path) -> Iterator[tuple]:
+def to_records(found: Iterable[Book], cover_cache: Path, root: str = "") -> Iterator[tuple]:
     for book in found:
-        yield to_record(book, ensure_cover(book, cover_cache, thumbnails=False))
+        yield to_record(book, ensure_cover(book, cover_cache, thumbnails=False), root)
 
 
 def records(root: Path, cover_cache: Path, exclude: tuple[Path, ...]) -> Iterator[tuple]:
@@ -80,7 +80,7 @@ def records(root: Path, cover_cache: Path, exclude: tuple[Path, ...]) -> Iterato
 
 def source_records(roots: list[Path], cover_cache: Path, exclude: tuple[Path, ...]) -> Iterator[tuple]:
     for root in roots:
-        yield from to_records(filter(is_sound, books(root, exclude, base=root.parent)), cover_cache)
+        yield from to_records(filter(is_sound, books(root, exclude, base=root.parent)), cover_cache, str(root.parent))
 
 
 @contextmanager
@@ -102,23 +102,19 @@ def writing(db_path: Path) -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
-def thumbnail_candidates(db_path: Path) -> list[Book]:
+def thumbnail_candidates(index: Index) -> list[Book]:
     formats = ", ".join(f"'{f}'" for f in sorted(THUMBNAIL_FORMATS))
-    with reading(db_path) as conn:
-        found = conn.execute(
-            f"SELECT path, rel_path, format FROM books WHERE cover = '' AND partial = 0 AND format IN ({formats})"
-        ).fetchall()
-    return [Book(path=path, rel_path=rel_path, format=fmt, partial=False) for path, rel_path, fmt in found]
+    rows = index.rows(f"{SELECT_ROWS} WHERE cover = '' AND partial = 0 AND format IN ({formats})")
+    return [Book(path=row.path, rel_path=row.rel_path, format=row.format, partial=False) for row in rows]
 
 
-def fill_thumbnails(db_path: Path, cover_cache: Path) -> int:
+def fill_thumbnails(index: Index, cover_cache: Path) -> int:
     made = 0
-    for book in thumbnail_candidates(db_path):
+    for book in thumbnail_candidates(index):
         cover = ensure_cover(book, cover_cache)
         if cover is None:
             continue
-        with writing(db_path) as conn:
-            conn.execute("UPDATE books SET cover = ? WHERE rel_path = ?", (str(cover), book.rel_path))
+        index.execute("UPDATE books SET cover = ? WHERE rel_path = ?", (str(cover), book.rel_path))
         made += 1
     return made
 
@@ -191,23 +187,26 @@ def add_book(db_path: Path, path: Path, root: Path, cover_cache: Path) -> Book:
     return book
 
 
-def row_factory(cursor, values) -> Row:
-    data = dict(zip([c[0] for c in cursor.description], values))
-    data["partial"] = bool(data["partial"])
-    return Row(**data)
+def row_reader(root: str):
+    def read(cursor, values) -> Row:
+        data = dict(zip([c[0] for c in cursor.description], values))
+        return Row(**{**data, "partial": bool(data["partial"]), "root": data["root"] or root})
+
+    return read
 
 
 SELECT_ROWS = f"SELECT {', '.join(COLUMNS)} FROM books"
 
 
 class Index:
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, root: Path):
         self.db_path = db_path
+        self.root = str(root)
 
     def rows(self, sql: str, params: tuple | dict = ()) -> list[Row]:
         with reading(self.db_path) as conn:
             cursor = conn.execute(sql, params)
-            cursor.row_factory = row_factory
+            cursor.row_factory = row_reader(self.root)
             return cursor.fetchall()
 
     def values(self, sql: str, params: tuple | list = ()) -> list:
@@ -276,13 +275,13 @@ class Index:
     def write_genres(self, genres: dict[str, str]) -> None:
         self.execute_many("UPDATE books SET genre = ? WHERE fingerprint = ?", [(g, fp) for fp, g in genres.items()])
 
-    def relocate(self, src: str, dst: str, root: Path) -> None:
+    def relocate(self, src: str, dst: str) -> None:
         if set_aside(dst):
             return self.remove(src)
         row = self.by_rel_path(src)
         cover = carry_cover(row.cover, dst) if row else ""
-        moved = (dst, str(root / dst), str(Path(dst).parent), cover, src)
-        self.execute("UPDATE books SET rel_path = ?, path = ?, folder = ?, cover = ? WHERE rel_path = ?", moved)
+        moved = (dst, str(Path(dst).parent), cover, src)
+        self.execute("UPDATE books SET rel_path = ?, folder = ?, cover = ? WHERE rel_path = ?", moved)
 
     def remove(self, rel_path: str) -> None:
         self.execute("DELETE FROM books WHERE rel_path = ?", (rel_path,))

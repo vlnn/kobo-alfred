@@ -15,7 +15,7 @@ from tests.test_alfred import row
 
 
 def named(name: str, folder: str = "00_Inbox", **overrides):
-    return row(rel_path=f"{folder}/{name}", folder=folder, path=f"/lib/{folder}/{name}", **overrides)
+    return row(rel_path=f"{folder}/{name}", folder=folder, **overrides)
 
 
 def paths(findings: list[Finding]) -> list[list[str]]:

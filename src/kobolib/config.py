@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from kobolib.genres import GenreStore
+from kobolib.index import Index
 
 
 def library_root() -> Path:
@@ -34,6 +35,14 @@ def db_path() -> Path:
 
 def sources_db_path() -> Path:
     return data_dir() / "sources.db"
+
+
+def library_index() -> Index:
+    return Index(db_path(), library_root())
+
+
+def sources_index() -> Index:
+    return Index(sources_db_path(), library_root())
 
 
 def covers_dir() -> Path:

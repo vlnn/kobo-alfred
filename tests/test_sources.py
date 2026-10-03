@@ -149,12 +149,12 @@ def test_update_reports_unmounted_sources_without_failing(env, capsys, monkeypat
     assert f"skipped 1 unmounted: {tmp_path / 'absent'}" in capsys.readouterr().out, "the unmounted source should be named"
 
 
-def test_sources_items_carry_import_actions(env, capsys):
+def test_sources_items_carry_import_actions(env, capsys, calibre):
 
     main(["search", "src slow"])
 
     item = output(capsys)["items"][0]
-    assert item["valid"] is True and item["arg"].endswith("Slow Productivity - Cal Newport.epub"), "↩ passes the absolute path to import"
+    assert item["valid"] is True and item["arg"].startswith(str(calibre)), "↩ passes the absolute path inside the source"
     assert "reveal" in item["mods"]["alt"]["subtitle"].lower(), "⌥↩ reveals the source file, as in kb"
     assert item["mods"]["alt"]["arg"] == item["arg"], "⌥↩ acts on the source file itself"
 

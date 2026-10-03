@@ -12,7 +12,7 @@ BASE_ROW = {
     "series_index": "2",
     "folder": "02_NonFiction",
     "rel_path": "02_NonFiction/x.epub",
-    "path": "/lib/02_NonFiction/x.epub",
+    "root": "/lib",
     "format": "epub",
     "partial": False,
     "language": "en",

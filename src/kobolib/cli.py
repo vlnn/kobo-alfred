@@ -13,16 +13,8 @@ from kobolib.commands import (
     search_items,
     without_index_items,
 )
-from kobolib.config import (
-    covers_dir,
-    db_path,
-    genre_store,
-    journal_path,
-    library_root,
-    selected_books,
-    sources,
-)
-from kobolib.index import Index, add_book, fill_thumbnails, index_busy
+from kobolib.config import covers_dir, db_path, genre_store, journal_path, library_index, library_root, selected_books, sources
+from kobolib.index import add_book, fill_thumbnails, index_busy
 from kobolib.library import (
     apply_summary,
     fix_operations,
@@ -63,7 +55,7 @@ def cmd_update(args) -> int:
     if sources():
         report(run_index_sources()[1], args.notify)
     if not args.no_thumbnails:
-        report(f"Generated {fill_thumbnails(db_path(), covers_dir())} PDF covers", args.notify)
+        report(f"Generated {fill_thumbnails(library_index(), covers_dir())} PDF covers", args.notify)
     return 0
 
 
@@ -121,7 +113,7 @@ def trashed_summary(result: Applied, missing: list[str]) -> str:
 def cmd_trash(args) -> int:
     if reason := not_writable():
         return refuse(reason, args.notify)
-    index = Index(db_path())
+    index = library_index()
     found = {ref: row_by_reference(ref, index) for ref in references(args.paths)}
     rows = [row for row in found.values() if row is not None]
     unknown = [ref for ref, row in found.items() if row is None]
@@ -148,7 +140,7 @@ def references(values: list[str]) -> list[str]:
 def cmd_genre(args) -> int:
     if reason := not_writable():
         return refuse(reason, args.notify)
-    genre, index, store = genre_text(args.genre), Index(db_path()), genre_store()
+    genre, index, store = genre_text(args.genre), library_index(), genre_store()
     if not genre:
         return refuse("No genre given", args.notify)
     found = {ref: row_by_reference(ref, index) for ref in references(args.books)}

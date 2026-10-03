@@ -32,7 +32,7 @@ class Row:
     series_index: str
     folder: str
     rel_path: str
-    path: str
+    root: str
     format: str
     partial: bool
     language: str
@@ -43,6 +43,10 @@ class Row:
     norm_title: str
     fingerprint: str
     genre: str
+
+    @property
+    def path(self) -> str:
+        return f"{self.root}/{self.rel_path}"
 
 
 @dataclass
