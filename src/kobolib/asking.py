@@ -7,7 +7,7 @@ from pathlib import Path
 from kobolib import embedder, oracle
 from kobolib.alfred import counted
 from kobolib.evidence import evidence_for, evidence_hash
-from kobolib.index import Index
+from kobolib.index import EVERYTHING, Index
 from kobolib.lint import is_noisy, looks_opaque
 from kobolib.metadata import READERS
 from kobolib.model import Row
@@ -48,7 +48,7 @@ class Question:
 
 
 def genre_rows(index: Index, words: list[str]) -> list[Row]:
-    return index.unclassified(words, limit=100_000)
+    return index.unclassified(words, limit=EVERYTHING)
 
 
 def genre_question(genres: list[str]) -> Question:
@@ -64,7 +64,7 @@ def name_is_a_guess(row: Row) -> bool:
 
 
 def name_rows(index: Index, words: list[str]) -> list[Row]:
-    return [row for row in index.search(words, limit=100_000) if name_is_a_guess(row)]
+    return [row for row in index.search(words, limit=EVERYTHING) if name_is_a_guess(row)]
 
 
 def name_question() -> Question:

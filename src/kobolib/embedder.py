@@ -4,18 +4,15 @@ import json
 from http.client import HTTPException
 from urllib.request import Request, urlopen
 
-from kobolib.config import embed_key, embed_model, embed_url, oracle_key, oracle_url
+from kobolib.config import embed_key, embed_model, embed_url, oracle_key
+from kobolib.server import headers
 
 LIST_TIMEOUT = 0.5
 EMBED_TIMEOUT = 60
 
 
 def key_for(url: str) -> str:
-    return embed_key() if url == embed_url() and url != oracle_url() else oracle_key()
-
-
-def headers(key: str) -> dict[str, str]:
-    return {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})}
+    return embed_key() if url == embed_url() else oracle_key()
 
 
 def fetch(url: str, timeout: float, body: dict | None = None) -> dict | None:

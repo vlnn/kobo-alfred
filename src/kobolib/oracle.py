@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 
 from kobolib.config import oracle_key, oracle_lock_base, oracle_log_path, oracle_model, oracle_status_path, oracle_url
 from kobolib.index import acquire_lock, index_busy
+from kobolib.server import headers
 
 TIMEOUT = 60
 LOG_ENTRIES = 500
@@ -65,10 +66,6 @@ def request_body(question: str, evidence: str, schema: dict) -> dict:
     return {**body, "model": oracle_model()} if oracle_model() else body
 
 
-def headers(key: str) -> dict[str, str]:
-    return {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})}
-
-
 def post(url: str, body: dict, timeout: float) -> dict:
     request = Request(url, data=json.dumps(body).encode(), headers=headers(oracle_key()))
     with urlopen(request, timeout=timeout) as response:
@@ -117,7 +114,8 @@ def note_reachability(reachable: bool) -> None:
 
 def unreachable() -> str:
     status = oracle_status_path()
-    return status.read_text(encoding="utf-8").strip() if status.exists() else ""
+    noted = status.read_text(encoding="utf-8").strip() if status.exists() else ""
+    return noted if noted == oracle_url() else ""
 
 
 def ask(question: str, evidence: str, schema: dict) -> dict | None:

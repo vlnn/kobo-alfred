@@ -88,6 +88,25 @@ def test_embed_and_models_send_the_embedding_servers_key(embedding_server, monke
     assert urlopen.call_args.args[0].get_header("Authorization") == "Bearer sk-oracle", "the oracle server's list uses the oracle key"
 
 
+@pytest.mark.parametrize(
+    ("url", "key"),
+    [("http://127.0.0.1:8081", "sk-embed"), ("http://127.0.0.1:8080", "sk-oracle"), ("http://127.0.0.1:7070", "sk-oracle")],
+)
+def test_key_for_is_the_embedding_key_only_on_the_embedding_server(embedding_server, monkeypatch, url, key):
+    monkeypatch.setenv("KOBO_ORACLE_KEY", "sk-oracle")
+    monkeypatch.setenv("KOBO_EMBED_KEY", "sk-embed")
+
+    assert embedder.key_for(url) == key, f"{url} should be sent {key}"
+
+
+def test_the_oracle_and_the_embedder_build_the_same_headers():
+    from kobolib import oracle, server
+
+    assert oracle.headers is embedder.headers is server.headers, "one place decides how a key is sent"
+    assert server.headers("") == {"Content-Type": "application/json"}, "no key, no Authorization header"
+    assert server.headers("sk")["Authorization"] == "Bearer sk", "a key goes as a bearer token"
+
+
 def test_embed_key_falls_back_to_the_oracle_key(embedding_server, monkeypatch, mocker):
     monkeypatch.setenv("KOBO_ORACLE_KEY", "sk-one")
     monkeypatch.delenv("KOBO_EMBED_KEY", raising=False)

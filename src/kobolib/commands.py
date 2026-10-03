@@ -10,7 +10,7 @@ from pathlib import Path
 from kobolib import alfred, embedder, oracle
 from kobolib.alfred import counted
 from kobolib.apply import EXECUTABLE, last_batch, read_journal
-from kobolib.asking import name_rows
+from kobolib.asking import genre_rows, name_rows
 from kobolib.config import (
     db_path,
     embed_model,
@@ -29,7 +29,7 @@ from kobolib.config import (
 )
 from kobolib.genres import GenreStore
 from kobolib.history import last_opened
-from kobolib.index import Index, index_busy, is_current
+from kobolib.index import EVERYTHING, Index, index_busy, is_current
 from kobolib.library import (
     concerning,
     diagnosis,
@@ -183,7 +183,7 @@ def oracle_rows(index: Index, store: SuggestionStore, words: list[str]) -> list[
     if oracle.busy():
         return [alfred.busy_item("Asking the model… a notification follows")]
     down = [alfred.unreachable_item(url)] if (url := oracle.unreachable()) else []
-    inbox, unnamed = len(unasked(index.unclassified(words), "genre", store)), len(unasked(name_rows(index, words), "name", store))
+    inbox, unnamed = len(unasked(genre_rows(index, words), "genre", store)), len(unasked(name_rows(index, words), "name", store))
     return down + ([alfred.ask_item(ask_title(inbox, unnamed, words), " ".join(words))] if inbox or unnamed else [])
 
 
@@ -360,7 +360,7 @@ def embedded_count() -> int:
 
 
 def missing_embeddings() -> int:
-    return len(vector_store().missing(embed_model(), library_index().search([], limit=100_000))) if not index_problem() else 0
+    return len(vector_store().missing(embed_model(), library_index().search([], limit=EVERYTHING))) if not index_problem() else 0
 
 
 def embeddings_item() -> dict:

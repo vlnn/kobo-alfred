@@ -27,6 +27,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 """
 
 SCHEMA_VERSION = 7
+EVERYTHING = 100_000
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
 
@@ -232,7 +233,7 @@ class Index:
         return self.values("SELECT count(*) FROM books WHERE partial = 0")[0]
 
     def rel_paths(self, words: list[str]) -> set[str]:
-        return {row.rel_path for row in self.search(words, limit=100_000)}
+        return {row.rel_path for row in self.search(words, limit=EVERYTHING)}
 
     def search(self, words: list[str], limit: int = 40) -> list[Row]:
         order = "rank, title" if words else "mtime DESC"

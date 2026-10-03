@@ -556,6 +556,18 @@ def oracle_on(indexed, monkeypatch):
     monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
 
 
+def test_the_ask_row_counts_every_candidate_the_pass_would_ask_about(oracle_on, mocker):
+    from kobolib.index import EVERYTHING, Index
+
+    unclassified = mocker.spy(Index, "unclassified")
+    search = mocker.spy(Index, "search")
+
+    command_rows("classify")
+
+    counted = [c.kwargs.get("limit") for c in unclassified.call_args_list + search.call_args_list if c.kwargs.get("limit")]
+    assert EVERYTHING in counted and 1000 not in counted, "the row counts with the same limit the pass asks with"
+
+
 @pytest.mark.parametrize("query", ["classify", "fix"])
 def test_ask_the_model_row_appears_when_books_are_unasked(oracle_on, query):
     (ask,) = [i for i in command_rows(query) if i.get("uid") == "oracle:ask"]

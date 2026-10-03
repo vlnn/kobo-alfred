@@ -111,6 +111,14 @@ def test_connection_failure_is_remembered_until_the_next_answer(server, mocker, 
     assert oracle.unreachable() == "", "an answer clears the note"
 
 
+def test_a_note_about_another_server_is_not_shown(server, mocker, monkeypatch):
+    mocker.patch("kobolib.oracle.urlopen", side_effect=URLError("connection refused"))
+    oracle.ask("genre", "x", {})
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:9090")
+
+    assert oracle.unreachable() == "", "changing the server forgets that the old one was down"
+
+
 def test_genre_of_accepts_only_known_genres_or_none(server, mocker):
     ask = mocker.patch("kobolib.oracle.ask", side_effect=[{"genre": "fiction/spy"}, {"genre": "none"}, {"genre": "made/up"}, None])
 
