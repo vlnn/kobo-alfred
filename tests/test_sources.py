@@ -146,7 +146,7 @@ def test_update_reports_unmounted_sources_without_failing(env, capsys, monkeypat
 
     assert main(["update"]) == 0, "an unmounted source should not fail the library index"
 
-    assert "skipped 1 unmounted" in capsys.readouterr().out, "the unmounted source should be mentioned"
+    assert f"skipped 1 unmounted: {tmp_path / 'absent'}" in capsys.readouterr().out, "the unmounted source should be named"
 
 
 def test_sources_items_carry_import_actions(env, capsys):

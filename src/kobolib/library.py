@@ -92,7 +92,7 @@ def run_index_sources() -> tuple[int, str]:
         count = build_sources_index(found, sources_db_path(), covers_dir(), exclude=(data_dir(),))
     except IndexBusy:
         return 1, "Indexing is already running"
-    skipped = f", skipped {len(missing)} unmounted" if missing else ""
+    skipped = f", skipped {len(missing)} unmounted: {', '.join(map(str, missing))}" if missing else ""
     return 0, f"Indexed {count} books from {len(found)} sources{skipped}"
 
 
