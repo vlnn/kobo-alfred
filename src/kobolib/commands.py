@@ -11,7 +11,7 @@ from kobolib.alfred import counted
 from kobolib.apply import EXECUTABLE, last_batch, read_journal
 from kobolib.config import db_path, genre_store, journal_path, library_root, sources, sources_db_path
 from kobolib.index import Index, is_current
-from kobolib.library import diagnosis, findings, known_genres, not_in_library, pending_operations, unclassified_rows
+from kobolib.library import concerning, diagnosis, known_genres, not_in_library, pending_operations, unclassified_rows
 from kobolib.model import DuplicateGroup, Finding, Operation, Row
 from kobolib.query import query_words
 from kobolib.tags import GenreStore
@@ -146,19 +146,6 @@ def classify_items(words: list[str]) -> list[dict]:
     return headed(alfred.classify_all_item(rows), items, len(rows)) or nothing(words, "Nothing to classify", "Every book has a genre")
 
 
-def lint_items(words: list[str] = ()) -> list[dict]:
-    return [alfred.finding_item(f, str(library_root())) for f in findings()] or [
-        alfred.message_item("Nothing to fix", "The library is clean")
-    ]
-
-
-def plan_items(ops) -> list[dict]:
-    if not ops:
-        return [alfred.message_item("Nothing to do", "Every classified book is where it belongs")]
-    rows = [alfred.plan_item(o, str(library_root())) for o in ops]
-    return [alfred.apply_all_item(len(ops)), *rows]
-
-
 def contains(fragment: str, text: str) -> bool:
     return fragment.casefold() in text.casefold()
 
@@ -261,12 +248,6 @@ def trash_items(words: list[str]) -> list[dict]:
     rows = trash_rows(words)
     items = [alfred.trash_item(r) for r in rows]
     return headed(trash_all_item(rows), items, len(rows)) or nothing(words, "Nothing to trash", "No unfinished downloads")
-
-
-def concerning(words: list[str]) -> Callable[[str], bool]:
-    if not words:
-        return lambda rel_path: True
-    return Index(db_path()).rel_paths(words).__contains__
 
 
 def by_hand(found: list[Finding], ops: list[Operation]) -> list[Finding]:

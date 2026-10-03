@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import csv
 from collections import Counter
-from dataclasses import astuple, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 from kobolib.index import series_key
@@ -14,7 +13,6 @@ from kobolib.tags import GenreStore, genre_from_folder
 FORMAT_RANK = ("epub", "kepub", "fb2", "mobi", "azw3", "azw", "pdf", "djvu")
 TRASH = "_trash"
 DUPS = "_dups"
-FIELDS = ("kind", "src", "dst", "reason")
 
 
 def format_rank(fmt: str) -> int:
@@ -123,18 +121,3 @@ def plan(rows: list[Row], findings: list[Finding], store: GenreStore) -> list[Op
     ops = trash_junk(findings) + set_aside_duplicates(findings, by_path)
     settled = {o.src for o in ops}
     return ops + relocations(rows, store, settled)
-
-
-def write_plan(ops: list[Operation], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
-        writer.writerow(FIELDS)
-        writer.writerows(astuple(o) for o in ops)
-
-
-def read_plan(path: Path) -> list[Operation]:
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.reader(handle, delimiter="\t")
-        next(reader, None)
-        return [Operation(*fields) for fields in reader if fields]

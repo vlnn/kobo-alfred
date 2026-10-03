@@ -14,9 +14,9 @@
 	<string>Productivity</string>
 	<key>readme</key>
 	<string>kb &lt;query&gt; searches the library: every word must match title, authors, series, folder, filename, genre, format, language or year, by prefix: kb delany epub 1975.
-Every command works as a kb word too: kb stats, kb dups, kb rnd, kb lint, kb inbox, kb classify, kb plan, kb src, kb index, kb apply, kb undo (the kb:x keywords are the same commands).
-kb:classify picks an inbox book, then a genre, and moves the book to its genre home at once; ⇧↩ on any book sets its genre the same way. kb:lint reports problems, kb:plan proposes bulk moves, renames and trash — ↩ on a row applies that row, ↩ on the head row applies all; kb:undo moves the last batch back.
-A list with several books starts with an "Import all" / "Classify all" / "Apply all" row; ↩ there (or ⌥⇧↩ on any row) does it for every row shown.
+Every command works as a kb word too: kb stats, kb dups, kb rnd, kb inbox, kb classify, kb fix, kb trash, kb src, kb update.
+kb:classify picks an inbox book, then a genre, and moves the book to its genre home at once; ⇧↩ on any book sets its genre the same way. kb fix shows what is wrong and how to fix it — ↩ on a row applies that row, ↩ on Fix all applies everything, Undo moves the last batch back; kb trash sets unfinished downloads and other books aside in _trash/.
+A list with several books starts with an "Import all" / "Set genre for all" / "Trash all" row; ↩ there does it for every row shown.
 kb:src searches other sources (a Calibre library, a downloads folder) and ↩ copies the book into the library inbox; books already in the library, unfinished downloads and unreadable files are not offered.
 Set the library root (and optionally other sources and the index folder) in the workflow configuration, then run kb:index once; rerun after adding books. The index lives in Alfred's workflow data folder. Needs only macOS's /usr/bin/python3.</string>
 	<key>variables</key>
@@ -363,51 +363,6 @@ echo "Indexing started… you will get a notification when it finishes"</string>
 			<key>type</key>
 			<string>alfred.workflow.input.scriptfilter</string>
 			<key>uid</key>
-			<string>LINT</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:lint</string>
-				<key>title</key>
-				<string>Library problems</string>
-				<key>subtext</key>
-				<string>junk · partial downloads · noisy names · duplicates · misfiled series · unclassified</string>
-				<key>runningsubtext</key>
-				<string>Checking…</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-				<key>argumenttrimmode</key>
-				<integer>0</integer>
-				<key>alfredfiltersresults</key>
-				<true/>
-				<key>alfredfiltersresultsmatchmode</key>
-				<integer>0</integer>
-				<key>queuedelaycustom</key>
-				<integer>1</integer>
-				<key>queuedelayimmediatelyinitially</key>
-				<true/>
-				<key>queuedelaymode</key>
-				<integer>0</integer>
-				<key>queuemode</key>
-				<integer>1</integer>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib lint</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
 			<string>INBOX</string>
 			<key>version</key>
 			<integer>3</integer>
@@ -447,95 +402,6 @@ echo "Indexing started… you will get a notification when it finishes"</string>
 				<integer>0</integer>
 				<key>script</key>
 				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib inbox</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>PLAN</string>
-			<key>version</key>
-			<integer>3</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:plan</string>
-				<key>title</key>
-				<string>Proposed moves and renames</string>
-				<key>subtext</key>
-				<string>nothing is changed yet · ⌘C copies the plan line · plan.tsv lives next to the index</string>
-				<key>runningsubtext</key>
-				<string>Planning…</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-				<key>argumenttrimmode</key>
-				<integer>0</integer>
-				<key>alfredfiltersresults</key>
-				<true/>
-				<key>alfredfiltersresultsmatchmode</key>
-				<integer>0</integer>
-				<key>queuedelaycustom</key>
-				<integer>1</integer>
-				<key>queuedelayimmediatelyinitially</key>
-				<true/>
-				<key>queuedelaymode</key>
-				<integer>0</integer>
-				<key>queuemode</key>
-				<integer>1</integer>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib plan</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.input.keyword</string>
-			<key>uid</key>
-			<string>APPLY_KW</string>
-			<key>version</key>
-			<integer>1</integer>
-			<key>config</key>
-			<dict>
-				<key>keyword</key>
-				<string>kb:apply</string>
-				<key>text</key>
-				<string>Apply the plan</string>
-				<key>subtext</key>
-				<string>Move, rename and trash as listed in kb:plan; the index is rebuilt afterwards</string>
-				<key>withspace</key>
-				<false/>
-				<key>argumenttype</key>
-				<integer>2</integer>
-			</dict>
-		</dict>
-		<dict>
-			<key>type</key>
-			<string>alfred.workflow.action.script</string>
-			<key>uid</key>
-			<string>APPLY_RUN</string>
-			<key>version</key>
-			<integer>2</integer>
-			<key>config</key>
-			<dict>
-				<key>concurrently</key>
-				<true/>
-				<key>escaping</key>
-				<integer>102</integer>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>type</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string>export PYTHONPATH="$PWD"
-nohup /usr/bin/python3 -m kobolib apply --notify &gt;/dev/null 2&gt;&amp;1 &amp;
-echo "Applying the plan… you will get a notification when it finishes"</string>
 			</dict>
 		</dict>
 		<dict>
@@ -601,8 +467,8 @@ echo "Undoing… you will get a notification when it finishes"</string>
 				<integer>0</integer>
 				<key>script</key>
 				<string>export PYTHONPATH="$PWD"
-nohup /usr/bin/python3 -m kobolib apply --only "$1" --notify &gt;/dev/null 2&gt;&amp;1 &amp;
-if [ -z "$1" ]; then echo "Applying the plan… you will get a notification when it finishes"; else echo "Moving one book… you will get a notification when it finishes"; fi</string>
+nohup /usr/bin/python3 -m kobolib fix --notify "$1" &gt;/dev/null 2&gt;&amp;1 &amp;
+if [ -z "$1" ]; then echo "Fixing everything… you will get a notification when it finishes"; else echo "Fixing… you will get a notification when it finishes"; fi</string>
 			</dict>
 		</dict>
 		<dict>
@@ -854,20 +720,6 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 						<key>matchmode</key>
 						<integer>0</integer>
 						<key>matchstring</key>
-						<string>apply</string>
-						<key>outputlabel</key>
-						<string>apply</string>
-						<key>uid</key>
-						<string>DF061D5B-FCB1-4569-9868-D3F9BA7465CD</string>
-					</dict>
-					<dict>
-						<key>inputstring</key>
-						<string>{var:action}</string>
-						<key>matchcasesensitive</key>
-						<false/>
-						<key>matchmode</key>
-						<integer>0</integer>
-						<key>matchstring</key>
 						<string>undo</string>
 						<key>outputlabel</key>
 						<string>undo</string>
@@ -1091,29 +943,6 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 				<false/>
 			</dict>
 		</array>
-		<key>LINT</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>OPEN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>REVEAL</string>
-				<key>modifiers</key>
-				<integer>524288</integer>
-				<key>modifiersubtext</key>
-				<string>Reveal in Finder</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
 		<key>INBOX</key>
 		<array>
 			<dict>
@@ -1183,65 +1012,6 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 				<integer>655360</integer>
 				<key>modifiersubtext</key>
 				<string>Classify all shown</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>PLAN</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>APPLY_ONE</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>REVEAL</string>
-				<key>modifiers</key>
-				<integer>524288</integer>
-				<key>modifiersubtext</key>
-				<string>Reveal in Finder</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
-				<string>APPLY_ONE</string>
-				<key>modifiers</key>
-				<integer>655360</integer>
-				<key>modifiersubtext</key>
-				<string>Apply all</string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>APPLY_KW</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>APPLY_RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
-		<key>APPLY_RUN</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>INDEX_NOTIFY</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
 				<key>vitoclose</key>
 				<false/>
 			</dict>
@@ -1455,18 +1225,6 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 			</dict>
 			<dict>
 				<key>destinationuid</key>
-				<string>APPLY_RUN</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-				<key>sourceoutputuid</key>
-				<string>DF061D5B-FCB1-4569-9868-D3F9BA7465CD</string>
-			</dict>
-			<dict>
-				<key>destinationuid</key>
 				<string>UNDO_RUN</string>
 				<key>modifiers</key>
 				<integer>0</integer>
@@ -1576,40 +1334,12 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 			<key>ypos</key>
 			<real>620.0</real>
 		</dict>
-		<key>LINT</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>760.0</real>
-		</dict>
 		<key>INBOX</key>
 		<dict>
 			<key>xpos</key>
 			<real>60.0</real>
 			<key>ypos</key>
 			<real>900.0</real>
-		</dict>
-		<key>PLAN</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>1040.0</real>
-		</dict>
-		<key>APPLY_KW</key>
-		<dict>
-			<key>xpos</key>
-			<real>60.0</real>
-			<key>ypos</key>
-			<real>1180.0</real>
-		</dict>
-		<key>APPLY_RUN</key>
-		<dict>
-			<key>xpos</key>
-			<real>320.0</real>
-			<key>ypos</key>
-			<real>1180.0</real>
 		</dict>
 		<key>UNDO_KW</key>
 		<dict>

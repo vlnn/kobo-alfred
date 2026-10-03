@@ -11,14 +11,10 @@ kb update                    rebuild the library index and, if sources are confi
 kb:dups                      every copy of a title that exists in several files, side by side, subtitle ×N
 kb:rnd epub                  five random books, drawn from those matching the words
 kb:stats                     books · inbox · duplicate titles · pending fixes · unfinished downloads · sources (↩ goes there)
-kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
 kb:inbox                     books without a genre yet, oldest first
 kb fix newport               what is wrong and how to fix it: fix all, undo, reminders, operations, problems by hand
 kb trash                     unfinished downloads; with words, any matching book too — ↩ moves it to _trash/
 kb stats · kb fix · kb update…  every command works as `kb x [words]`: its rows come first, then books matching all words
-kb:plan                      proposed moves/renames/trash, written to plan.tsv — ↩ on a row applies that line, ↩ on the head row applies all
-kb:apply                     apply plan.tsv, then rebuild the index
-kb:undo                      move the last batch back
 kb:classify                  pick an inbox book, then a genre; the inbox shrinks as you go
 kb:src cal newport           search the other sources (same filters) — ↩ copies the book into the library inbox
 kb:src eur                   two or more results start with "Import all N books"; kb:classify likewise starts with
@@ -84,10 +80,14 @@ once when `genres.tsv` does not exist yet; its tags are ignored.
 Setting a genre (`kb:classify`, or ⇧↩ on any book) moves the book to its genre home right away —
 `genre/author[/series]/` with a normalised filename — and updates that book's row in the index (no full
 reindex); `kb:undo` reverses the move.
-Books without a recognisable author stay put. `kb:plan` / `kb:apply`
-remain for bulk work: junk, duplicates and anything classified before this behaviour existed.
+Books without a recognisable author stay put. `kb fix` does the bulk work: junk, duplicates and anything
+classified before this behaviour existed.
 
-`kb:lint` reports, never changes anything:
+`kb fix` works out what is wrong and offers to fix it straight away; nothing is written to a plan file, and the
+operations are computed again when you press ↩. It lists, in order: "Fix all N" (its subtitle counts operations by
+kind), "Undo last batch" when the journal holds one, reminders for books without a genre and unfinished downloads,
+one row per operation (↩ applies it), then problems with no automatic remedy (↩ reveals the file). Words narrow
+every part: `kb fix newport` is "fix this one book". It draws on these findings:
 
 | rule | what it catches |
 |---|---|
@@ -102,28 +102,28 @@ remain for bulk work: junk, duplicates and anything classified before this behav
 | `author_inversion` | an author folder that is the `First, Last` swap of a better-populated one |
 | `unclassified` | no genre |
 
-From a terminal: `kobolib lint --text` prints one finding per line (`rule<TAB>detail<TAB>paths`).
-`kobolib genre <path|fingerprint>… fiction/sci-fi` sets the genre and moves the books.
+From a terminal: `kobolib fix --dry-run [words]` prints one operation per line (`kind<TAB>src<TAB>dst<TAB>reason`),
+`kobolib fix [words]` applies them, `kobolib trash <path>…` sets books aside in `_trash/`, `kobolib undo` reverses
+the last batch, and `kobolib genre <path|fingerprint>… fiction/sci-fi` sets the genre and moves the books.
 
-`kb:plan` turns findings and genres into operations and writes them to `plan.tsv` next to the index
-(`kobolib plan --text` prints it). Review it, delete lines you disagree with; nothing is applied yet.
+The operations:
 
 | kind | meaning |
 |---|---|
 | `move` | relocate and/or rename a classified book to `<genre folder>/<Last, First>/[<Series>/]<Last, First> - <Title> (<Series> NN) (<Year>).<ext>` |
 | `trash` | junk or a byte-identical copy → `_trash/<original path>` |
 | `dups` | a less preferred edition of a title → `_dups/<original path>` (format order: epub, kepub, fb2, mobi, azw3, azw, pdf, djvu; then newer, then larger) |
-| `skip` | two books want the same destination; resolved by hand |
+| conflict | two books want the same destination; resolved by hand |
 
-`kb:apply` executes the plan with same-volume renames (`os.replace`), carries a KOReader `Book.sdr` sidecar
+Applying uses same-volume renames (`os.replace`), carries a KOReader `Book.sdr` sidecar
 along with its book, rewrites the moved paths in KOReader's `collection.lua` / `history.lua` (keeping `.bak`
 copies) and in path-mirrored `docsettings` sidecars, prunes folders left empty, journals every move to
-`journal.jsonl`, and rebuilds the index. The card is case-insensitive, so a
+`journal.jsonl`, and updates the index. The card is case-insensitive, so a
 destination that differs from the source only by letter case (or Unicode normalization) is the same file: such
 a move is done as an in-place rename, folder by folder, never treated as a duplicate. When the destination
 already exists as a different entry and the source is redundant (an
 empty folder, or a byte-identical copy of the file already there) the source is removed instead, journaled as
-a `delete`; a destination holding different content leaves the operation skipped, and the notification says so. A plan older than the index is refused. `kb:undo` reverses the last
+a `delete`; a destination holding different content leaves the operation skipped, and the notification says so. Undo reverses the last
 batch (an undo is itself a batch, so undoing twice re-applies); a deleted copy comes back from the kept file. Nothing is ever deleted: `_trash/` and `_dups/`
 are left for you, and both are ignored by the scanner.
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import shutil
-from dataclasses import replace
+from collections.abc import Callable
+from dataclasses import astuple, replace
 from pathlib import Path
 
 from kobolib.alfred import counted
@@ -14,7 +15,6 @@ from kobolib.config import (
     journal_path,
     library_root,
     mounted_sources,
-    plan_path,
     sources,
     sources_db_path,
 )
@@ -23,7 +23,7 @@ from kobolib.lint import lint
 from kobolib.metadata import is_sound, read_book
 from kobolib.model import Finding, Operation, Row, Tag
 from kobolib.paths import relative_path
-from kobolib.plan import plan, read_plan, relocation
+from kobolib.plan import TRASH, aside, plan, relocation
 from kobolib.scan import probe_root
 from kobolib.tags import GenreStore, folder_slug, genre_from_folder
 
@@ -96,14 +96,6 @@ def run_index_sources() -> tuple[int, str]:
     return 0, f"Indexed {count} books from {len(found)} sources{skipped}"
 
 
-def findings() -> list:
-    return lint(all_rows(Index(db_path())), genre_store(), library_root(), exclude=(data_dir(),))
-
-
-def text_report(findings) -> str:
-    return "\n".join(f"{f.rule}\t{f.detail}\t{' | '.join(f.rel_paths)}" for f in findings)
-
-
 def unclassified_rows(words: list[str]) -> list[Row]:
     return Index(db_path()).unclassified(words)
 
@@ -118,24 +110,37 @@ def current_plan() -> list[Operation]:
     return diagnosis()[1]
 
 
+def concerning(words: list[str]) -> Callable[[str], bool]:
+    if not words:
+        return lambda rel_path: True
+    return Index(db_path()).rel_paths(words).__contains__
+
+
+def is_path(target: str) -> bool:
+    return target.startswith("/")
+
+
+def targeted(targets: list[str]) -> Callable[[str], bool]:
+    paths = {relative_path(Path(t), library_root()) for t in targets if is_path(t)}
+    by_words = concerning([t for t in targets if not is_path(t)])
+    return lambda rel_path: (not paths or rel_path in paths) and by_words(rel_path)
+
+
+def fix_operations(targets: list[str]) -> list[Operation]:
+    wanted = targeted(targets)
+    return [o for o in current_plan() if o.kind in EXECUTABLE and wanted(o.src)]
+
+
 def pending_operations() -> list[Operation]:
-    return [o for o in current_plan() if o.kind in EXECUTABLE]
+    return fix_operations([])
 
 
-def plan_is_stale() -> bool:
-    return plan_path().stat().st_mtime < db_path().stat().st_mtime
+def trash_operations(rows: list[Row]) -> list[Operation]:
+    return [aside("trash", TRASH, row, "set aside by hand") for row in rows]
 
 
-def fresh_plan() -> list[Operation]:
-    if not plan_path().exists() or plan_is_stale():
-        return []
-    return read_plan(plan_path())
-
-
-def ops_for_one(path: str) -> list[Operation]:
-    rel = relative_path(Path(path), library_root())
-    planned = [o for o in fresh_plan() if o.src == rel]
-    return planned or [o for o in current_plan() if o.src == rel]
+def operation_line(op: Operation) -> str:
+    return "\t".join(astuple(op))
 
 
 def refresh_index(result: Applied) -> None:
@@ -165,7 +170,6 @@ def rehome(row: Row, index: Index, store: GenreStore) -> tuple[bool, str]:
     if op is None or op.kind != "move":
         return False, "stays put (no author or already home)"
     result = apply([op], library_root(), journal_path())
-    plan_path().unlink(missing_ok=True)
     refresh_index(result)
     if result.skipped:
         return False, f"not moved: {skip_reasons(result.skipped)}"

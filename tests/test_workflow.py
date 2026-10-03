@@ -48,16 +48,25 @@ def test_keywords_are_wired(workflow, keyword):
     assert any(o["config"].get("keyword") == keyword for o in workflow["objects"]), f"{keyword} should be a workflow entry point"
 
 
-def test_plan_row_action_tells_apart_one_row_from_apply_all(workflow):
+def scripts(workflow) -> list[str]:
+    return [o["config"].get("script", "") for o in workflow["objects"]]
+
+
+def test_fix_rows_run_kobolib_fix(workflow):
     script = next(o for o in workflow["objects"] if o["uid"] == "APPLY_ONE")["config"]["script"]
-    assert 'apply --only "$1"' in script and '[ -z "$1" ]' in script, (
-        "the plan row action should run the whole plan on an empty argument and say so"
+    assert 'kobolib fix --notify "$1"' in script and '[ -z "$1" ]' in script, (
+        "↩ on a fix row should run kobolib fix on its paths, and on everything when the argument is empty"
     )
+
+
+@pytest.mark.parametrize("retired", ["lint", "plan", "apply"])
+def test_retired_entry_points_are_gone(workflow, retired):
+    assert not any(o["config"].get("keyword") == f"kb:{retired}" for o in workflow["objects"]), f"kb:{retired} should be gone"
+    assert not any(f"kobolib {retired}" in script for script in scripts(workflow)), f"no script should call kobolib {retired}"
 
 
 ROUTES = {
     "update": "INDEX_RUN",
-    "apply": "APPLY_RUN",
     "undo": "UNDO_RUN",
     "fix": "APPLY_ONE",
     "classify": "GENRES",
@@ -105,7 +114,7 @@ def test_workflow_metadata_is_release_ready(workflow):
         "Alfred shows the plist version; it should match the package"
     )
     assert workflow["webaddress"].startswith("https://github.com/"), "the About panel should link to the repository"
-    for keyword in ("kb:classify", "kb:lint", "kb:plan", "kb:src", "kb word"):
+    for keyword in ("kb:classify", "kb fix", "kb:src", "kb word"):
         assert keyword in workflow["readme"], f"the install readme should mention {keyword}"
 
 
@@ -158,7 +167,7 @@ KEYWORD_ACTIONS = {"kb:index": "update"}
 def test_keyword_entry_points_and_kb_words_share_their_targets(workflow):
     by_keyword = {o["config"].get("keyword"): o["uid"] for o in workflow["objects"] if o["config"].get("keyword")}
     for keyword, uid in by_keyword.items():
-        if keyword in ("kb:index", "kb:apply", "kb:undo"):
+        if keyword in ("kb:index", "kb:undo"):
             target = workflow["connections"][uid][0]["destinationuid"]
             assert target == ROUTES[KEYWORD_ACTIONS.get(keyword, keyword.removeprefix("kb:"))], (
                 f"{keyword} and kb {keyword.removeprefix('kb:')} should run the same script"
@@ -211,15 +220,8 @@ def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkey
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("fix")),
         ("SOURCES", lambda: __import__("kobolib.commands", fromlist=["sources_items"]).sources_items(["slow"])),
         ("INBOX", lambda: __import__("kobolib.commands", fromlist=["inbox_items"]).inbox_items([])),
-        ("LINT", lambda: __import__("kobolib.commands", fromlist=["lint_items"]).lint_items()),
         ("RANDOM", lambda: __import__("kobolib.commands", fromlist=["random_items"]).random_items([])),
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("inbox")),
-        (
-            "PLAN",
-            lambda: __import__("kobolib.commands", fromlist=["plan_items"]).plan_items(
-                __import__("kobolib.library", fromlist=["current_plan"]).current_plan()
-            ),
-        ),
     ],
 )
 def test_declared_modifiers_do_what_their_subtitle_says(workflow, indexed_with_sources, filter_uid, items):

@@ -179,11 +179,6 @@ def classify_all_item(rows: list[Row]) -> dict:
     return head_row("classify:all", title, "↩ picks one genre for every book listed below", variables={"book": books})
 
 
-def apply_all_item(count: int) -> dict:
-    subtitle = "↩ runs the whole plan, then rebuilds the index · ↩ on a row below applies that row only"
-    return head_row("plan:apply-all", f"Apply all {count} operations", subtitle)
-
-
 def plan_item(op: Operation, root: str) -> dict:
     src = f"{root}/{op.src}"
     skipped = op.kind == "skip"

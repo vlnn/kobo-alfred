@@ -332,7 +332,7 @@ def test_fix_rows_carry_their_own_actions(indexed):
 
 
 def test_fix_offers_undo_after_a_batch(indexed, library, capsys):
-    main(["apply", "--only", str(library / DEEP)])
+    main(["fix", str(library / DEEP)])
     capsys.readouterr()
 
     (undo,) = by_uid(search_items("fix"), "undo")

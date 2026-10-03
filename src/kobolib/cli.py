@@ -9,7 +9,7 @@ from pathlib import Path
 
 from kobolib import alfred
 from kobolib.alfred import counted
-from kobolib.apply import apply, undo
+from kobolib.apply import Applied, apply, undo
 from kobolib.commands import (
     all_stats_items,
     classify_items,
@@ -17,8 +17,6 @@ from kobolib.commands import (
     genre_picker_items,
     inbox_items,
     index_problem,
-    lint_items,
-    plan_items,
     random_items,
     search_items,
     sources_items,
@@ -30,31 +28,27 @@ from kobolib.config import (
     genre_store,
     journal_path,
     library_root,
-    plan_path,
     selected_books,
     sources,
 )
 from kobolib.index import Index, add_book, fill_thumbnails, index_busy
 from kobolib.library import (
     apply_summary,
-    current_plan,
-    findings,
+    fix_operations,
     genre_text,
     import_blocked,
     inbox_folder,
     inbox_note,
-    ops_for_one,
-    plan_is_stale,
+    operation_line,
     refresh_index,
     row_by_reference,
     run_index,
     run_index_sources,
     set_genre,
-    text_report,
     transfer,
+    trash_operations,
 )
 from kobolib.model import Book, Row
-from kobolib.plan import read_plan, write_plan
 from kobolib.query import query_words
 
 NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobo Library"', "end run")
@@ -125,26 +119,6 @@ def cmd_classify(args) -> int:
     return 0
 
 
-@requires_index
-def cmd_lint(args) -> int:
-    if args.text:
-        print(text_report(findings()))
-        return 0
-    print(alfred.render(lint_items()))
-    return 0
-
-
-@requires_index
-def cmd_plan(args) -> int:
-    ops = current_plan()
-    write_plan(ops, plan_path())
-    if args.text:
-        print(plan_path().read_text(encoding="utf-8"), end="")
-        return 0
-    print(alfred.render(plan_items(ops)))
-    return 0
-
-
 def refuse(message: str, should_notify: bool) -> int:
     report(message, should_notify)
     return 1
@@ -164,34 +138,47 @@ def finish_with_reindex(message: str, should_notify: bool) -> int:
     return code
 
 
-def cmd_apply(args) -> int:
-    if reason := not_writable():
-        return refuse(reason, args.notify)
-    if not args.only and not plan_path().exists():
-        return refuse("No plan: run kb:plan first", args.notify)
-    if not args.only and plan_is_stale():
-        return refuse("Plan is stale (index changed since): run kb:plan again", args.notify)
-    if args.only:
-        return apply_one(args.only, args.notify)
-    result = apply(read_plan(plan_path()), library_root(), journal_path())
-    plan_path().unlink(missing_ok=True)
-    return finish_with_reindex(apply_summary(result), args.notify)
-
-
-def apply_one(path: str, should_notify: bool) -> int:
-    result = apply(ops_for_one(path), library_root(), journal_path())
-    plan_path().unlink(missing_ok=True)
-    refresh_index(result)
-    report(apply_summary(result), should_notify)
-    return 0
-
-
 def cmd_undo(args) -> int:
     if index_busy(db_path()):
         return refuse("Indexing is running, try again later", args.notify)
     undone = undo(library_root(), journal_path())
-    plan_path().unlink(missing_ok=True)
     return finish_with_reindex(f"Undid {undone}", args.notify)
+
+
+def cmd_fix(args) -> int:
+    if reason := not_writable():
+        return refuse(reason, args.notify)
+    targets = references(args.targets)
+    ops = fix_operations(targets)
+    if args.dry_run:
+        print("".join(f"{operation_line(o)}\n" for o in ops), end="")
+        return 0
+    result = apply(ops, library_root(), journal_path())
+    if not targets:
+        return finish_with_reindex(apply_summary(result), args.notify)
+    refresh_index(result)
+    report(apply_summary(result), args.notify)
+    return 0
+
+
+def trashed_summary(result: Applied, missing: list[str]) -> str:
+    return f"Moved {counted(result.done, 'book')} to _trash/{skipped_summary([*result.skipped, *missing])}"
+
+
+def cmd_trash(args) -> int:
+    if reason := not_writable():
+        return refuse(reason, args.notify)
+    index = Index(db_path())
+    found = {ref: row_by_reference(ref, index) for ref in references(args.paths)}
+    rows = [row for row in found.values() if row is not None]
+    unknown = [ref for ref, row in found.items() if row is None]
+    missing = [f"not indexed: {ref}" for ref in unknown]
+    if not rows:
+        return refuse(f"Not indexed: {'; '.join(unknown)}", args.notify)
+    result = apply(trash_operations(rows), library_root(), journal_path())
+    refresh_index(result)
+    report(trashed_summary(result, missing), args.notify)
+    return 0
 
 
 def genre_summary(rows: list[Row], genre: str, outcomes: list[tuple[bool, str]], missing: list[str]) -> str:
@@ -213,9 +200,10 @@ def cmd_genre(args) -> int:
         return refuse("No genre given", args.notify)
     found = {ref: row_by_reference(ref, index) for ref in references(args.books)}
     rows = [row for row in found.values() if row is not None]
-    missing = [f"not indexed: {ref}" for ref, row in found.items() if row is None]
+    unknown = [ref for ref, row in found.items() if row is None]
+    missing = [f"not indexed: {ref}" for ref in unknown]
     if not rows:
-        return refuse("; ".join(missing).capitalize(), args.notify)
+        return refuse(f"Not indexed: {'; '.join(unknown)}", args.notify)
     outcomes = [set_genre(row, genre, index, store) for row in rows]
     report(genre_summary(rows, genre, outcomes, missing), args.notify)
     return 0
@@ -283,7 +271,7 @@ def query_argument() -> argparse.ArgumentParser:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="kobolib")
     sub = parser.add_subparsers(dest="command", required=True)
-    notify, text, query = flag("--notify"), flag("--text"), query_argument()
+    notify, query = flag("--notify"), query_argument()
     sub.add_parser("update", parents=[notify, flag("--no-thumbnails")]).set_defaults(func=cmd_update)
     sub.add_parser("search", parents=[query]).set_defaults(func=cmd_search)
     sub.add_parser("random", parents=[query]).set_defaults(func=cmd_random)
@@ -293,12 +281,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("genres", parents=[query]).set_defaults(func=cmd_genres)
     sub.add_parser("dups").set_defaults(func=cmd_dups)
     sub.add_parser("stats").set_defaults(func=cmd_stats)
-    sub.add_parser("lint", parents=[text]).set_defaults(func=cmd_lint)
-    sub.add_parser("plan", parents=[text]).set_defaults(func=cmd_plan)
     sub.add_parser("undo", parents=[notify]).set_defaults(func=cmd_undo)
-    apply_cmd = sub.add_parser("apply", parents=[notify])
-    apply_cmd.add_argument("--only")
-    apply_cmd.set_defaults(func=cmd_apply)
+    fix_cmd = sub.add_parser("fix", parents=[notify, flag("--dry-run")])
+    fix_cmd.add_argument("targets", nargs="*")
+    fix_cmd.set_defaults(func=cmd_fix)
+    trash_cmd = sub.add_parser("trash", parents=[notify])
+    trash_cmd.add_argument("paths", nargs="+")
+    trash_cmd.set_defaults(func=cmd_trash)
     genre_cmd = sub.add_parser("genre", parents=[notify])
     genre_cmd.add_argument("books", nargs="+")
     genre_cmd.add_argument("genre")

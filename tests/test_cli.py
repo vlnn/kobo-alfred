@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 
 import pytest
 
@@ -101,89 +101,6 @@ def test_index_bootstraps_tags_from_folders(indexed, tmp_path, capsys):
     assert "Napkin" in titles, "an inbox book should wait for classification"
 
 
-def test_lint_emits_findings_as_items(indexed, capsys):
-
-    rules = {i["subtitle"].split(" · ")[0] for i in run(["lint"], capsys)["items"]}
-    assert {"partial", "unclassified"} <= rules, "lint should report the partial download and unclassified inbox books"
-
-
-def test_lint_text_report_for_terminal(indexed, capsys):
-
-    main(["lint", "--text"])
-
-    out = capsys.readouterr().out
-    assert "partial\t" in out and "00_Inbox/Delany, Samuel R - Nova - 2014.epub.part" in out, (
-        "text report should list rule and path per line"
-    )
-
-
-def test_lint_without_index_explains(env, capsys):
-    assert run(["lint"], capsys)["items"][0]["title"] == "No index yet", "lint without index should tell how to build it"
-
-
-def test_plan_writes_file_and_emits_items(indexed, tmp_path, capsys):
-
-    items = run(["plan"], capsys)["items"]
-    plan_file = tmp_path / "alfred-data" / "plan.tsv"
-    assert plan_file.exists(), "plan should be written next to the index"
-    assert any(i["subtitle"].startswith("move") for i in items), "the misnamed epub in a genre folder should be planned for renaming"
-    assert plan_file.read_text(encoding="utf-8").count("\n") == len(items), (
-        "every operation should be in the file (header line stands in for the head row)"
-    )
-
-
-def test_plan_text_prints_tsv(indexed, capsys):
-
-    main(["plan", "--text"])
-
-    assert capsys.readouterr().out.startswith("kind\tsrc\tdst\treason\n"), "text plan should be the TSV itself"
-
-
-def test_apply_runs_plan_and_reindexes(indexed, library, tmp_path, capsys):
-    main(["plan"])
-    capsys.readouterr()
-
-    assert main(["apply"]) == 0, "apply should succeed"
-
-    out = capsys.readouterr().out
-    assert out.startswith("Applied 1"), "the misnamed epub should be moved"
-    assert (library / "02_NonFiction" / "Newport, Cal" / "Newport, Cal - Deep Work (Focus 02) (2016).epub").exists(), (
-        "the book should be renamed into its author folder"
-    )
-    assert (tmp_path / "alfred-data" / "journal.jsonl").exists(), "the move should be journaled"
-    assert "Newport, Cal/" in run(["search", "deep"], capsys)["items"][0]["subtitle"], "the index should be rebuilt after applying"
-
-
-def test_apply_refuses_stale_plan(indexed, tmp_path, capsys):
-    main(["plan"])
-    os.utime(tmp_path / "alfred-data" / "plan.tsv", (0, 0))
-    capsys.readouterr()
-
-    assert main(["apply"]) == 1, "a plan older than the index must not be applied"
-    assert "stale" in capsys.readouterr().out, "the reason should be printed"
-
-
-def test_apply_only_one_path(indexed, library, capsys):
-    book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
-
-    assert main(["apply", "--only", str(book)]) == 0, "a single book can be applied without a plan file"
-    assert not book.exists(), "the book should have moved"
-
-
-def test_undo_restores_and_reindexes(indexed, library, capsys):
-    main(["plan"])
-    main(["apply"])
-    capsys.readouterr()
-
-    assert main(["undo"]) == 0, "undo should succeed"
-    assert (library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub").exists(), "the original name should be back"
-    assert capsys.readouterr().out.startswith("Undid 1"), "undo should report what it reversed"
-
-
-def test_apply_without_plan_explains(indexed, capsys):
-    assert main(["apply"]) == 1 and "kb:plan" in capsys.readouterr().out, "apply without a plan should point at kb:plan"
-
-
 def test_genre_command_sets_genre_by_path(indexed, library, capsys):
     book = str(library / "00_Inbox" / "Napkin.pdf")
 
@@ -253,31 +170,6 @@ def test_search_items_offer_fix_on_shift(indexed, capsys):
     assert item["variables"]["book"] == item["mods"]["shift"]["variables"]["book"], "the fingerprint must travel with the shift action"
 
 
-def test_plan_list_starts_with_apply_all(indexed, capsys):
-
-    items = run(["plan"], capsys)["items"]
-    assert items[0]["title"] == "Apply all 1 operations" and items[0]["arg"] == "", "↩ on the head row should apply the whole plan"
-    assert all(i["subtitle"].startswith(("move", "trash", "dups", "skip")) for i in items[1:]), "the operations follow the head row"
-
-
-def test_apply_with_empty_only_applies_the_whole_plan(indexed, capsys):
-    main(["plan"])
-    capsys.readouterr()
-
-    assert main(["apply", "--only", ""]) == 0, "an empty --only (the plan list's head row) means the whole plan"
-    assert capsys.readouterr().out.startswith("Applied 1"), "the plan should have been applied"
-
-
-def test_apply_summary_names_the_skip_reason(indexed, library, tmp_path, capsys):
-    main(["plan"])
-    (library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub").unlink()
-    capsys.readouterr()
-
-    main(["apply"])
-
-    assert capsys.readouterr().out.startswith("Applied 0, skipped 1 (source missing)"), "the summary should say why operations were skipped"
-
-
 def test_genre_moves_the_book_to_its_genre_home(indexed, library, capsys):
     book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
 
@@ -306,17 +198,6 @@ def test_single_book_moves_update_the_index_in_place(indexed, library, capsys, m
     assert "No books match" in run(["search", "nonfiction"], capsys)["items"][0]["title"], "the old path should be gone from the index"
 
 
-def test_apply_only_moves_one_book_without_a_full_rebuild(indexed, library, capsys, mocker):
-    rebuild = mocker.patch("kobolib.library.build_index")
-    book = library / "02_NonFiction" / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
-
-    assert main(["apply", "--only", str(book)]) == 0, "a single book can be moved home without a plan file"
-    capsys.readouterr()
-
-    rebuild.assert_not_called()
-    assert run(["search", "deep"], capsys)["items"][0]["subtitle"].count("Newport, Cal/") == 1, "the index should know the new path"
-
-
 def test_single_book_move_updates_the_genre_store_path(indexed, library, tmp_path, capsys):
     import csv
 
@@ -327,25 +208,6 @@ def test_single_book_move_updates_the_genre_store_path(indexed, library, tmp_pat
     assert "productivity/Newport, Cal/Newport, Cal - Deep Work (Focus 02) (2016).epub" in paths, (
         "genres.tsv should name the book's new path right away"
     )
-
-
-def test_apply_only_runs_a_plan_row_even_when_the_plan_went_stale(indexed, library, capsys):
-    (library / "00_Inbox" / "FSCK0000.000").write_bytes(b"")
-    main(["plan"])
-    main(["genre", str(library / "00_Inbox" / "Napkin.pdf"), "reference"])
-    capsys.readouterr()
-
-    assert main(["apply", "--only", str(library / "00_Inbox" / "FSCK0000.000")]) == 0, "↩ on a row still works after the index changed"
-    assert (library / "_trash" / "00_Inbox" / "FSCK0000.000").exists(), "the row's own operation runs, recomputed from the current library"
-
-
-def test_apply_only_follows_a_fresh_plan_row(indexed, library, capsys):
-    (library / "00_Inbox" / "FSCK0000.000").write_bytes(b"")
-    main(["plan"])
-    capsys.readouterr()
-
-    assert main(["apply", "--only", str(library / "00_Inbox" / "FSCK0000.000")]) == 0, "↩ on a plan row applies that row"
-    assert (library / "_trash" / "00_Inbox" / "FSCK0000.000").exists(), "the trash row from the plan is what runs, not a genre move"
 
 
 def test_genre_reports_when_there_is_no_home_yet(indexed, library, capsys):
@@ -396,3 +258,124 @@ def test_genre_skips_unknown_references_in_a_batch(indexed, library, capsys):
 
     assert main(["genre", f"{known}\nnope", "reference"]) == 0, "one unknown reference does not fail the batch"
     assert "skipped 1" in capsys.readouterr().out, "the unknown reference should be mentioned"
+
+
+DEEP_WORK = "02_NonFiction/Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
+DEEP_WORK_HOME = "02_NonFiction/Newport, Cal/Newport, Cal - Deep Work (Focus 02) (2016).epub"
+NOVA = "00_Inbox/Delany, Samuel R - Nova - 2014.epub.part"
+
+
+@pytest.mark.parametrize("retired", ["lint", "plan", "apply", "tag"])
+def test_lint_plan_and_apply_are_gone(indexed, retired):
+    with pytest.raises(SystemExit):
+        main([retired])
+
+
+def test_fix_dry_run_prints_one_operation_per_line(indexed, library, capsys):
+    assert main(["fix", "--dry-run"]) == 0, "a dry run should succeed"
+
+    assert capsys.readouterr().out == f"move\t{DEEP_WORK}\t{DEEP_WORK_HOME}\trelocate + rename\n", (
+        "one line per operation: kind, src, dst, reason"
+    )
+    assert (library / DEEP_WORK).exists(), "a dry run must not move anything"
+
+
+def test_fix_applies_everything_then_rebuilds_the_index(indexed, library, tmp_path, capsys):
+    assert main(["fix"]) == 0, "fix should succeed"
+
+    assert capsys.readouterr().out.startswith("Applied 1"), "the summary should count what was applied"
+    assert (library / DEEP_WORK_HOME).exists(), "the misnamed epub should be renamed into its author folder"
+    assert (tmp_path / "alfred-data" / "journal.jsonl").exists(), "the move should be journaled"
+    assert "Newport, Cal/" in run(["search", "deep"], capsys)["items"][0]["subtitle"], "the index should know the new path"
+
+
+@pytest.fixture
+def junk(library: Path) -> Path:
+    path = library / "00_Inbox" / "FSCK0000.000"
+    path.write_bytes(b"")
+    return path
+
+
+def test_fix_with_a_path_applies_only_that_operation_without_a_full_rebuild(indexed, library, junk, capsys, mocker):
+    rebuild = mocker.patch("kobolib.library.build_index")
+
+    assert main(["fix", str(library / DEEP_WORK)]) == 0, "fixing one book should succeed"
+    capsys.readouterr()
+
+    rebuild.assert_not_called()
+    assert (library / DEEP_WORK_HOME).exists() and junk.exists(), "only the named book's operation should run"
+    assert run(["search", "deep"], capsys)["items"][0]["subtitle"].endswith(DEEP_WORK_HOME), "the index row should follow the move"
+
+
+def test_fix_takes_paths_one_per_line(indexed, library, junk, capsys):
+    assert main(["fix", f"{library / DEEP_WORK}\n{junk}"]) == 0, "the narrowed Fix all row passes its paths one per line"
+
+    assert (library / DEEP_WORK_HOME).exists() and (library / "_trash" / "00_Inbox" / "FSCK0000.000").exists(), "both should be fixed"
+
+
+def test_fix_with_words_applies_only_what_concerns_matching_books(indexed, library, junk, capsys):
+    assert main(["fix", "newport"]) == 0, "fixing by words should succeed"
+
+    assert (library / DEEP_WORK_HOME).exists() and junk.exists(), "only operations on books matching the words should run"
+
+
+def test_fix_computes_operations_when_it_runs(indexed, library, junk, capsys):
+    main(["genre", str(library / "00_Inbox" / "Napkin.pdf"), "reference"])
+    capsys.readouterr()
+
+    assert main(["fix", str(junk)]) == 0, "↩ on a row still works after the library changed"
+    assert (library / "_trash" / "00_Inbox" / "FSCK0000.000").exists(), "the operation is recomputed from the current library"
+
+
+def test_fix_summary_names_the_skip_reason(indexed, library, capsys):
+    (library / DEEP_WORK).unlink()
+
+    main(["fix", str(library / DEEP_WORK)])
+
+    assert capsys.readouterr().out.startswith("Applied 0, skipped 1 (source missing)"), "the summary should say why it skipped"
+
+
+def test_undo_reverses_the_last_fix(indexed, library, capsys):
+    main(["fix"])
+    capsys.readouterr()
+
+    assert main(["undo"]) == 0, "undo should succeed"
+    assert (library / DEEP_WORK).exists(), "the original name should be back"
+    assert capsys.readouterr().out.startswith("Undid 1"), "undo should report what it reversed"
+
+
+def test_fix_is_refused_without_an_index(env, capsys):
+    assert main(["fix"]) == 1 and "No index yet" in capsys.readouterr().out, "fix needs a current index"
+
+
+def test_trash_sets_an_unfinished_download_aside(indexed, library, tmp_path, capsys):
+    assert main(["trash", str(library / NOVA)]) == 0, "trashing a download should succeed"
+
+    assert capsys.readouterr().out.startswith("Moved 1 book to _trash/"), "the summary should count the books"
+    assert (library / "_trash" / NOVA).exists() and not (library / NOVA).exists(), "the file should move to _trash/<original path>"
+    assert [i["title"] for i in run(["search", "trash"], capsys)["items"]] == ["Nothing to trash"], "it should leave the index"
+    assert (tmp_path / "alfred-data" / "journal.jsonl").exists(), "the move should be journaled"
+
+
+def test_trash_takes_several_books_and_undo_brings_them_back(indexed, library, capsys):
+    napkin = library / "00_Inbox" / "Napkin.pdf"
+
+    assert main(["trash", f"{library / NOVA}\n{napkin}"]) == 0, "the Trash all row passes its paths one per line"
+    assert capsys.readouterr().out.startswith("Moved 2 books to _trash/"), "both books should be counted"
+
+    main(["undo"])
+    assert napkin.exists() and (library / NOVA).exists(), "undo should bring both back"
+
+
+def test_trash_reports_unknown_paths(indexed, library, capsys):
+    unknown = library / "00_Inbox" / "Nope.epub"
+
+    assert main(["trash", str(unknown)]) == 1, "nothing known to trash is a failure"
+    assert capsys.readouterr().out == f"Not indexed: {unknown}\n", "the unknown path should be named exactly as given"
+
+
+def test_genre_names_unknown_references_exactly(indexed, library, capsys):
+    unknown = library / "00_Inbox" / "Nope.epub"
+
+    assert main(["genre", str(unknown), "reference"]) == 1, "nothing known to classify is a failure"
+    assert capsys.readouterr().out == f"Not indexed: {unknown}\n", "the unknown path should be named exactly as given"

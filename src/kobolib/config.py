@@ -40,10 +40,6 @@ def covers_dir() -> Path:
     return data_dir() / "covers"
 
 
-def plan_path() -> Path:
-    return data_dir() / "plan.tsv"
-
-
 def journal_path() -> Path:
     return data_dir() / "journal.jsonl"
 
