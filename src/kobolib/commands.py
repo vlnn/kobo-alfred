@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -152,6 +153,16 @@ def genre_choices(current: str, known: list[str]) -> list[str]:
     return [current, *(g for g in known if g != current)] if current else known
 
 
+def words_of(text: str) -> set[str]:
+    return set(WORD.findall(text.casefold()))
+
+
+def subject_likely_first(known: list[str], subjects: str) -> list[str]:
+    wanted = words_of(subjects)
+    likely = [g for g in known if words_of(g) & wanted]
+    return likely + [g for g in known if g not in likely]
+
+
 def genre_row(genre: str, book: str, typed: str, current: str) -> dict:
     item = alfred.genre_item(genre, book, typed)
     return alfred.keep_genre_item(item) if genre == current else item
@@ -170,7 +181,8 @@ def genre_picker_items(typed: str, books: list[str]) -> list[dict]:
         return [alfred.message_item("No book selected", "Press ⇧↩ on a book in kb, or ↩ in kb classify")]
     book = alfred.LINE.join(books)
     current = store.genre_of(rows[0]) if len(rows) == 1 else ""
-    genres = [g for g in genre_choices(current, known_genres(index, store)) if contains(typed, g)]
+    likely = subject_likely_first(known_genres(index, store), "; ".join(r.subjects for r in rows))
+    genres = [g for g in genre_choices(current, likely) if contains(typed, g)]
     choices = [genre_row(g, book, typed, current) for g in genres]
     fallback = [alfred.new_genre_item(typed, book)] if typed else []
     return [picker_header(rows, store), *(choices or fallback)]
@@ -330,6 +342,7 @@ COMMAND_LIST = [
 COMMANDS = {name: command for command in COMMAND_LIST for name in command.names}
 
 MIN_SUGGESTION_PREFIX = 2
+WORD = re.compile(r"\w+")
 CLASSIFY_LIMIT = 200
 LIST_LIMIT = 200
 FIX_KINDS = ("move", "trash", "dups")

@@ -23,7 +23,7 @@ If your library root is on a removable volume and `kb` shows *Index is empty —
 
 ## Search
 
-Every word you type must match, by prefix, one of: title, authors, series, series number, folder, path, genre, format, language (code or English name: `uk` and `ukrainian` both work), year. Case and diacritics are ignored.
+Every word you type must match, by prefix, one of: title, authors, series, series number, folder, path, genre, subjects (`dc:subject` in an epub, `genre` in an fb2), format, language (code or English name: `uk` and `ukrainian` both work), year. Case and diacritics are ignored.
 
 ```
 kb dhalgren              one book

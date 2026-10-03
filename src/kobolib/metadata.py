@@ -66,6 +66,10 @@ def epub_cover(zf: zipfile.ZipFile, opf: str, package: ET.Element) -> Cover | No
         return None
 
 
+def flat_text(node: ET.Element | None) -> str:
+    return " ".join(" ".join(node.itertext()).split()) if node is not None else ""
+
+
 def read_epub(path: Path, book: Book) -> Book:
     with zipfile.ZipFile(path) as zf:
         opf = opf_path(zf)
@@ -76,6 +80,8 @@ def read_epub(path: Path, book: Book) -> Book:
         book.year = text_of(package, "opf:metadata/dc:date")[:4]
         book.series = opf_meta(package, "calibre:series")
         book.series_index = opf_meta(package, "calibre:series_index").removesuffix(".0")
+        book.subjects = texts_of(package, "opf:metadata/dc:subject")
+        book.description = flat_text(package.find("opf:metadata/dc:description", NS))
         book.cover = epub_cover(zf, opf, package)
     return book
 
@@ -107,6 +113,8 @@ def read_fb2(path: Path, book: Book) -> Book:
         book.series = sequence.get("name", "")
         book.series_index = sequence.get("number", "")
     book.year = text_of(root, "fb:description/fb:publish-info/fb:year")
+    book.subjects = texts_of(info, "fb:genre")
+    book.description = flat_text(info.find("fb:annotation", NS))
     book.cover = fb2_cover(root)
     return book
 

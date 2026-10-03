@@ -13,7 +13,7 @@
 	<key>category</key>
 	<string>Productivity</string>
 	<key>readme</key>
-	<string>kb &lt;words&gt; searches the library: every word must match, by prefix, one of title, authors, series, folder, path, genre, format, language or year (kb delany epub 1975). Empty kb lists the newest books after a reminder of books without a genre.
+	<string>kb &lt;words&gt; searches the library: every word must match, by prefix, one of title, authors, series, folder, path, genre, subjects, format, language or year (kb delany epub 1975). Empty kb lists the newest books after a reminder of books without a genre.
 A first word that names a command adds its rows above the books matching all the words: kb rnd, kb inbox, kb classify, kb dups, kb stats, kb fix, kb trash, kb src, kb update. Typing two letters of a command offers to complete it.
 ↩ does a list's main thing, ⌥↩ reveals in Finder, ⇧↩ sets the genre of a book. A list with several books starts with a head row (Import all, Set genre for all, Fix all, Trash all) that does it for every row shown.
 kb classify lists the inbox; ↩ picks a genre and moves the book to its genre home at once. In the genre picker ⇧↩ creates the typed text as a new genre.
@@ -111,7 +111,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<key>title</key>
 				<string>Search library</string>
 				<key>subtext</key>
-				<string>words match title, author, series, path, genre, format, language, year · rnd inbox classify dups stats fix trash src update</string>
+				<string>words match title, author, series, path, genre, subjects, format, language, year · rnd inbox classify dups stats fix trash src update</string>
 				<key>runningsubtext</key>
 				<string>Searching…</string>
 				<key>withspace</key>

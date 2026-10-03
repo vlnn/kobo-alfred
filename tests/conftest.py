@@ -17,6 +17,9 @@ OPF = """<?xml version="1.0"?>
     <dc:language>en</dc:language>
     <dc:date>2016-01-05</dc:date>
     <dc:publisher>Grand Central</dc:publisher>
+    <dc:subject>Business</dc:subject>
+    <dc:subject>Attention economy</dc:subject>
+    <dc:description>Rules for focused success in a distracted world.</dc:description>
     <meta name="calibre:series" content="Focus"/>
     <meta name="calibre:series_index" content="2"/>
     <meta name="cover" content="cover-img"/>
@@ -38,8 +41,10 @@ FB2 = """<?xml version="1.0" encoding="utf-8"?>
 <FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
   <description>
     <title-info>
+      <genre>sci_psychology</genre>
       <author><first-name>Беррес</first-name><middle-name>Фредерик</middle-name><last-name>Скиннер</last-name></author>
       <book-title>Оперантное поведение</book-title>
+      <annotation><p>Что такое <emphasis>оперантное</emphasis> поведение.</p><p>Вторая глава.</p></annotation>
       <lang>ru</lang>
       <sequence name="Психология" number="3"/>
       <coverpage><image l:href="#cover.png"/></coverpage>

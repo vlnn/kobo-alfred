@@ -420,6 +420,36 @@ def test_picker_rows_carry_the_book_and_the_genre_action(napkin):
     assert [r["autocomplete"] for r in rows] == [r["arg"] for r in rows], "⇥ should complete the genre itself"
 
 
+SPY, BUSINESS, HISTORY, SCIFI = "fiction/spy", "nonfiction/business", "nonfiction/history", "fiction/sci-fi_fantasy"
+
+
+@pytest.mark.parametrize(
+    "subjects, known, expected",
+    [
+        ("Business; Attention economy", [SPY, BUSINESS, "reference"], [BUSINESS, SPY, "reference"]),
+        ("Science Fiction", [HISTORY, SCIFI, SPY], [SCIFI, SPY, HISTORY]),
+        ("", [HISTORY, SPY], [HISTORY, SPY]),
+        ("History", [HISTORY, "fiction/historical"], [HISTORY, "fiction/historical"]),
+    ],
+)
+def test_genres_sharing_a_word_with_the_subjects_come_first(subjects, known, expected):
+    from kobolib.commands import subject_likely_first
+
+    assert subject_likely_first(known, subjects) == expected, f"{subjects!r} should lift the genres that share a word with it"
+
+
+def test_picker_lifts_genres_matching_the_books_subjects(indexed, library, capsys):
+    for name, genre in (("Napkin.pdf", "fiction/spy"), ("Скиннер - Оперантное поведение.fb2", "nonfiction/business")):
+        main(["genre", str(library / "00_Inbox" / name), genre])
+    capsys.readouterr()
+    deep = next(i for i in search_items("deep") if "quicklookurl" in i)["variables"]["book"]
+
+    header, keep, *others = picker("", deep)
+
+    assert keep["title"] == "Keep nonfiction", "the current genre still comes first"
+    assert titles(others) == ["nonfiction/business", "fiction/spy"], "then the genre sharing a word with the book's subjects, then the rest"
+
+
 def test_picker_for_a_book_without_genre_has_no_keep_row(indexed):
     book = next(i for i in search_items("napkin") if "quicklookurl" in i)["variables"]["book"]
 

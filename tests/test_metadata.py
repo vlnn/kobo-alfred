@@ -18,6 +18,29 @@ def test_epub_metadata(epub_file: Path):
     assert book.cover == ("cover.png", PNG_1X1), "epub cover should be resolved via meta name=cover"
 
 
+def test_epub_subjects_and_description(epub_file: Path):
+    book = read_book(epub_file, epub_file.parent)
+
+    assert book.subjects == ["Business", "Attention economy"], "epub subjects should list every dc:subject in order"
+    assert book.description == "Rules for focused success in a distracted world.", "epub description should come from dc:description"
+
+
+def test_fb2_genres_and_annotation(fb2_file: Path):
+    book = read_book(fb2_file, fb2_file.parent)
+
+    assert book.subjects == ["sci_psychology"], "fb2 subjects should come from title-info genre"
+    assert book.description == "Что такое оперантное поведение. Вторая глава.", "fb2 description should flatten the annotation paragraphs"
+
+
+def test_books_without_embedded_metadata_have_no_subjects(tmp_path: Path):
+    path = tmp_path / "Napkin.pdf"
+    path.write_bytes(b"%PDF-1.4")
+
+    book = read_book(path, tmp_path)
+
+    assert book.subjects == [] and book.description == "", "a filename says nothing about subjects"
+
+
 def test_fb2_metadata(fb2_file: Path):
     book = read_book(fb2_file, fb2_file.parent)
 

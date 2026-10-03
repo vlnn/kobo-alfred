@@ -194,7 +194,7 @@ def plan_item(op: Operation, root: str) -> dict:
 def empty_item(query: str) -> dict:
     return {
         "title": f"No books match ‘{query}’",
-        "subtitle": "Words match title, author, series, path, genre, format, language and year",
+        "subtitle": "Words match title, author, series, path, genre, subjects, format, language and year",
         "valid": False,
     }
 

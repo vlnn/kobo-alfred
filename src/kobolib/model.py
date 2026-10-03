@@ -22,6 +22,8 @@ class Book:
     size: int = 0
     mtime: float = 0.0
     fingerprint: str = ""
+    subjects: list[str] = field(default_factory=list)
+    description: str = ""
 
 
 @dataclass
@@ -43,6 +45,8 @@ class Row:
     norm_title: str
     fingerprint: str
     genre: str
+    subjects: str
+    description: str
 
     @property
     def path(self) -> str:

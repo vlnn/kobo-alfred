@@ -18,7 +18,7 @@ from kobolib.query import fts_match
 from kobolib.scan import SKIP_FOLDERS, iter_books
 
 COLUMNS = tuple(f.name for f in fields(Row))
-SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path", "genre", "format", "language", "year"}
+SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path", "genre", "subjects", "format", "language", "year"}
 SCHEMA = f"""
 CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
     {", ".join(c if c in SEARCHABLE else f"{c} UNINDEXED" for c in COLUMNS)},
@@ -26,7 +26,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 );
 """
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
 
@@ -57,6 +57,8 @@ def to_row(book: Book, cover: Path | None, root: str = "") -> Row:
         norm_title=normalize_title(book.title),
         fingerprint=book.fingerprint,
         genre="",
+        subjects="; ".join(book.subjects),
+        description=book.description,
     )
 
 
