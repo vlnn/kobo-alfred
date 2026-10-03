@@ -48,9 +48,5 @@ def genre_store() -> GenreStore:
     return GenreStore(data_dir() / "genres.tsv").load()
 
 
-def selected_book() -> str:
-    return os.environ.get("book", "")
-
-
 def selected_books() -> list[str]:
-    return selected_book().splitlines()
+    return os.environ.get("book", "").splitlines()
