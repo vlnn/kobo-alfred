@@ -102,8 +102,8 @@ def test_duplicates_group_by_normalized_title(index: Index, library: Path):
 
     groups = index.duplicates()
 
-    assert [g.title for g in groups] == ["Deep Work"], "same title in different files should be reported as duplicate"
-    assert sorted(b.format for b in groups[0].books) == ["epub", "pdf"], "duplicate group should list both formats"
+    assert [g[0].title for g in groups] == ["Deep Work"], "same title in different files should be reported as duplicate"
+    assert sorted(b.format for b in groups[0]) == ["epub", "pdf"], "duplicate group should list both formats"
 
 
 def test_duplicates_leave_out_unfinished_downloads(index: Index, library: Path):

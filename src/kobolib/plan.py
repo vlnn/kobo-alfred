@@ -10,7 +10,7 @@ from kobolib.lint import all_folders
 from kobolib.model import Finding, Operation, Row
 from kobolib.naming import Shelves, destination, shelves
 
-FORMAT_RANK = ("epub", "kepub", "fb2", "mobi", "azw3", "azw", "pdf", "djvu")
+FORMAT_RANK = ("epub", "fb2", "mobi", "azw3", "azw", "pdf", "djvu")
 TRASH = "_trash"
 DUPS = "_dups"
 

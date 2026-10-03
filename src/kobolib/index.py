@@ -13,7 +13,7 @@ from pathlib import Path
 from kobolib.covers import THUMBNAIL_FORMATS, cover_key, ensure_cover
 from kobolib.languages import searchable_language
 from kobolib.metadata import is_sound, read_book
-from kobolib.model import Book, DuplicateGroup, Row
+from kobolib.model import Book, Row
 from kobolib.query import fts_match
 from kobolib.scan import SKIP_FOLDERS, iter_books
 
@@ -287,11 +287,11 @@ class Index:
     def remove(self, rel_path: str) -> None:
         self.execute("DELETE FROM books WHERE rel_path = ?", (rel_path,))
 
-    def duplicates(self) -> list[DuplicateGroup]:
+    def duplicates(self) -> list[list[Row]]:
         groups = defaultdict(list)
         for row in self.rows(f"{SELECT_ROWS} WHERE partial = 0 AND norm_title != '' ORDER BY norm_title, rel_path"):
             groups[row.norm_title].append(row)
-        return [DuplicateGroup(books[0].title, books) for books in groups.values() if len(books) > 1]
+        return [books for books in groups.values() if len(books) > 1]
 
 
 def carry_cover(cover: str, dst: str) -> str:

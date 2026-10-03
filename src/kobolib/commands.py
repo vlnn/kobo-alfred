@@ -13,7 +13,7 @@ from kobolib.config import db_path, genre_store, journal_path, library_root, sou
 from kobolib.genres import GenreStore
 from kobolib.index import Index, index_busy, is_current
 from kobolib.library import concerning, diagnosis, known_genres, not_in_library, pending_operations, unclassified_rows
-from kobolib.model import DuplicateGroup, Finding, Operation, Row
+from kobolib.model import Finding, Operation, Row
 from kobolib.query import query_words
 
 
@@ -104,17 +104,17 @@ def nothing(words: list[str], title: str, subtitle: str = "") -> list[dict]:
     return [alfred.empty_item(" ".join(words))] if words else [alfred.message_item(title, subtitle)]
 
 
-def duplicate_groups(index: Index, words: list[str]) -> list[DuplicateGroup]:
+def duplicate_groups(index: Index, words: list[str]) -> list[list[Row]]:
     groups = index.duplicates()
     if not words:
         return groups
     wanted = index.rel_paths(words)
-    return [g for g in groups if any(b.rel_path in wanted for b in g.books)]
+    return [g for g in groups if any(b.rel_path in wanted for b in g)]
 
 
 def dups_items(words: list[str] = ()) -> list[dict]:
     groups = duplicate_groups(Index(db_path()), list(words))
-    rows = [alfred.copy_item(book, len(g.books)) for g in groups for book in g.books]
+    rows = [alfred.copy_item(book, len(g)) for g in groups for book in g]
     return rows or [alfred.message_item("No duplicate titles")]
 
 

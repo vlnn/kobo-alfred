@@ -46,12 +46,6 @@ class Row:
 
 
 @dataclass
-class DuplicateGroup:
-    title: str
-    books: list[Row]
-
-
-@dataclass
 class GenreEntry:
     genre: str = ""
     rel_path: str = ""
