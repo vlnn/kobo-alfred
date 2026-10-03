@@ -8,11 +8,11 @@ from pathlib import Path
 from kobolib import alfred
 from kobolib.config import db_path, library_root, plan_path, sources, sources_db_path
 from kobolib.index import Index, is_current
-from kobolib.library import current_plan, findings, known_genres, known_tags, not_in_library, unclassified_rows
+from kobolib.library import current_plan, findings, known_genres, not_in_library, unclassified_rows
 from kobolib.model import Row
 from kobolib.plan import write_plan
 from kobolib.query import parse_query
-from kobolib.tags import TagStore
+from kobolib.tags import GenreStore
 
 
 def index_problem(path: Path | None = None, what: str = "Index") -> str:
@@ -144,33 +144,12 @@ def contains(fragment: str, text: str) -> bool:
     return fragment.casefold() in text.casefold()
 
 
-def genre_edits(query: str, index: Index, store: TagStore, book: str) -> list[dict]:
+def genre_edits(query: str, index: Index, store: GenreStore, book: str) -> list[dict]:
     genres = [g for g in known_genres(index, store) if contains(query, g)]
     items = [alfred.genre_item(g, book) for g in genres]
     if query and query not in genres:
         items.append(alfred.edit_item(f"genre={query}", f"New genre: {query}", book))
     return items
-
-
-def add_tag_edits(fragment: str, current: list[str], index: Index, book: str) -> list[dict]:
-    suggested = [t for t in known_tags(index) if contains(fragment, t) and t not in current]
-    items = [alfred.edit_item(f"+{t}", f"Add tag: {t}", book) for t in suggested]
-    if fragment not in suggested:
-        items.append(alfred.edit_item(f"+{fragment}", f"Add tag: {fragment}", book))
-    return items
-
-
-def remove_tag_edits(fragment: str, current: list[str], book: str) -> list[dict]:
-    matching = [t for t in current if contains(fragment, t)] or [fragment]
-    return [alfred.edit_item(f"-{t}", f"Remove tag: {t}", book) for t in matching]
-
-
-def tag_edits(query: str, current: list[str], index: Index, book: str) -> list[dict]:
-    if query.startswith("+") and len(query) > 1:
-        return add_tag_edits(query[1:], current, index, book)
-    if query.startswith("-") and len(query) > 1:
-        return remove_tag_edits(query[1:], current, book)
-    return [alfred.edit_item(f"-{t}", f"Remove tag: {t}", book) for t in current if not query]
 
 
 def source_items(raw: str) -> list[dict]:

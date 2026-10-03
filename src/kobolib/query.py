@@ -9,7 +9,6 @@ SQL_CLAUSES = {
     "lang": "fold(language) = :lang",
     "year": "year = :year",
     "genre": "(genre = :genre OR genre LIKE :genre || '/%')",
-    "tag": "',' || tags || ',' LIKE '%,' || :tag || ',%'",
 }
 STATE_CLAUSES = {"partial": "partial = 1", "complete": "partial = 0"}
 FILTER_KEYS = FTS_COLUMNS.keys() | SQL_CLAUSES.keys() | {"is"}

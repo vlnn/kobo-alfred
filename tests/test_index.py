@@ -140,21 +140,13 @@ def test_fingerprint_stored_per_book(index: Index):
     assert len(row.fingerprint) == 40, "each indexed book should carry a fingerprint"
 
 
-def test_write_tags_updates_rows_and_search_filters(index: Index):
-    from kobolib.model import Tag
-    from kobolib.tags import TagStore
-
-    store = TagStore(index.db_path.parent / "tags.tsv")
+def test_write_genres_updates_rows_and_search_filters(index: Index):
     (deep,) = index.search(parse_query("deep"))
-    store.set(deep.fingerprint, Tag(genre="nonfiction/focus", tags=["bought", "now"]))
 
-    index.write_tags(store)
+    index.write_genres({deep.fingerprint: "nonfiction/focus"})
 
     assert titles(index.search(parse_query("genre:nonfiction"))) == ["Deep Work"], "genre: should match by prefix"
     assert titles(index.search(parse_query("genre:nonfiction/focus"))) == ["Deep Work"], "genre: should match the full genre"
-    assert titles(index.search(parse_query("tag:now"))) == ["Deep Work"], "tag: should match one of the tags"
-    assert titles(index.search(parse_query("tag:no"))) == [], "tag: must not match a tag prefix"
-    assert index.search(parse_query("deep"))[0].tags == "bought,now", "tags should be stored on the row"
 
 
 def test_relocate_moves_a_row_to_its_new_path(index: Index, library: Path):
@@ -211,15 +203,18 @@ def test_fingerprints_among_returns_only_the_known_ones(index: Index):
     assert index.fingerprints_among([]) == set(), "nothing asked, nothing found"
 
 
-def test_write_tag_touches_only_one_book(index: Index):
-    from kobolib.model import Tag
-
+def test_write_genres_touches_only_the_named_book(index: Index):
     napkin = index.by_rel_path("00_Inbox/Napkin.pdf")
-    index.write_tag(napkin.fingerprint, Tag(genre="games/go", tags=["now", "bought"]))
+    index.write_genres({napkin.fingerprint: "games/go"})
 
-    tagged = index.by_fingerprint(napkin.fingerprint)
-    assert (tagged.genre, tagged.tags) == ("games/go", "now,bought"), "the one book carries its genre and tags"
+    assert index.by_fingerprint(napkin.fingerprint).genre == "games/go", "the one book carries its genre"
     assert index.genres() == ["games/go"], "no other book gained a genre"
+
+
+def test_index_has_no_tags_column():
+    from kobolib.index import COLUMNS
+
+    assert "tags" not in COLUMNS, "tags are gone from the index"
 
 
 def test_columns_follow_the_row_dataclass():
@@ -235,8 +230,6 @@ def test_columns_follow_the_row_dataclass():
 def test_every_connection_is_closed_after_use(index: Index, mocker):
     import sqlite3
 
-    from kobolib.model import Tag
-
     opened = []
     real_connect = sqlite3.connect
 
@@ -247,7 +240,7 @@ def test_every_connection_is_closed_after_use(index: Index, mocker):
     mocker.patch("kobolib.index.sqlite3.connect", side_effect=tracked)
     index.count()
     index.search(parse_query("deep"))
-    index.write_tag("nope", Tag(genre="x"))
+    index.write_genres({"nope": "x"})
 
     assert len(opened) == 3, "each operation opens its own connection"
     for conn in opened:

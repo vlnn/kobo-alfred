@@ -21,10 +21,19 @@ from kobolib.commands import (
     random_items,
     search_items,
     sources_items,
-    tag_edits,
     without_index_items,
 )
-from kobolib.config import covers_dir, db_path, journal_path, library_root, plan_path, selected_book, selected_books, sources, tag_store
+from kobolib.config import (
+    covers_dir,
+    db_path,
+    genre_store,
+    journal_path,
+    library_root,
+    plan_path,
+    selected_book,
+    selected_books,
+    sources,
+)
 from kobolib.index import Index, add_book, fill_thumbnails, index_busy
 from kobolib.library import (
     apply_edits,
@@ -47,7 +56,7 @@ from kobolib.library import (
 )
 from kobolib.model import Book, Row, Tag
 from kobolib.plan import read_plan, write_plan
-from kobolib.tags import TagStore
+from kobolib.tags import GenreStore
 
 NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobo Library"', "end run")
 
@@ -186,11 +195,11 @@ def cmd_undo(args) -> int:
     return finish_with_reindex(f"Undid {undone}", args.notify)
 
 
-def tag_one(row: Row, edits: list[str], index: Index, store: TagStore) -> str:
+def tag_one(row: Row, edits: list[str], index: Index, store: GenreStore) -> str:
     tag = apply_edits(store.get(row.fingerprint) or Tag(rel_path=row.rel_path), edits)
     store.set(row.fingerprint, tag)
     store.save()
-    index.write_tag(row.fingerprint, store.get(row.fingerprint))
+    index.write_genres({row.fingerprint: tag.genre})
     summary = tag_summary(row.title, tag)
     return summary if not sets_genre(edits) else f"{summary} · {rehome(row, index, store)}"
 
@@ -205,7 +214,7 @@ def tagged_summary(rows: list[Row], results: list[str], edits: list[str], missin
 def cmd_tag(args) -> int:
     if reason := not_writable():
         return refuse(reason, args.notify)
-    index, store = Index(db_path()), tag_store()
+    index, store = Index(db_path()), genre_store()
     found = {ref: row_by_reference(ref, index) for ref in args.book.splitlines() if ref}
     rows = [row for row in found.values() if row is not None]
     missing = [f"not indexed: {ref}" for ref, row in found.items() if row is None]
@@ -220,17 +229,14 @@ def cmd_tag(args) -> int:
 @requires_index
 def cmd_fix(args) -> int:
     book = selected_book()
-    index, store = Index(db_path()), tag_store()
+    index, store = Index(db_path()), genre_store()
     row = index.by_fingerprint(book) if book else None
     if row is None:
         print(alfred.render([alfred.message_item("No book selected", "Start from kb and press ⇧↩ on a book")]))
         return 0
     tag = store.get(book) or Tag()
     query = args.query.strip().lower()
-    items = [alfred.fix_header(row, tag.genre, tag.tags), *tag_edits(query, tag.tags, index, book)]
-    if not query.startswith(("+", "-")):
-        items += genre_edits(query, index, store, book)
-    print(alfred.render(items))
+    print(alfred.render([alfred.fix_header(row, tag.genre), *genre_edits(query, index, store, book)]))
     return 0
 
 
@@ -246,7 +252,7 @@ def cmd_genres(args) -> int:
     if not books:
         print(alfred.render([alfred.message_item("No book selected", "Start from kb:classify")]))
         return 0
-    edits = genre_edits(args.query.strip().lower(), Index(db_path()), tag_store(), selected_book())
+    edits = genre_edits(args.query.strip().lower(), Index(db_path()), genre_store(), selected_book())
     print(alfred.render(batch_header(books) + edits))
     return 0
 

@@ -9,7 +9,7 @@ from kobolib.index import series_key
 from kobolib.lint import all_folders
 from kobolib.model import Finding, Operation, Row
 from kobolib.naming import Shelves, destination, shelves
-from kobolib.tags import TagStore, genre_from_folder
+from kobolib.tags import GenreStore, genre_from_folder
 
 FORMAT_RANK = ("epub", "kepub", "fb2", "mobi", "azw3", "azw", "pdf", "djvu")
 TRASH = "_trash"
@@ -79,20 +79,20 @@ def shape_of(rows: list[Row]) -> Shape:
     return Shape(shelves(all_folders(rows)), counts)
 
 
-def wants_home(row: Row, store: TagStore) -> bool:
+def wants_home(row: Row, store: GenreStore) -> bool:
     return not row.partial and bool(row.authors) and bool(store.genre_of(row))
 
 
-def home_of(row: Row, store: TagStore, shape: Shape) -> str:
+def home_of(row: Row, store: GenreStore, shape: Shape) -> str:
     return destination(row, store.genre_of(row), shape.layout, shape.series_counts[series_key(row.series)])
 
 
-def desired(rows: list[Row], store: TagStore) -> dict[str, str]:
+def desired(rows: list[Row], store: GenreStore) -> dict[str, str]:
     shape = shape_of(rows)
     return {r.rel_path: home_of(r, store, shape) for r in rows if wants_home(r, store)}
 
 
-def relocation(row: Row, rows: list[Row], store: TagStore) -> Operation | None:
+def relocation(row: Row, rows: list[Row], store: GenreStore) -> Operation | None:
     if not wants_home(row, store):
         return None
     dst = home_of(row, store, shape_of(rows))
@@ -103,7 +103,7 @@ def relocation(row: Row, rows: list[Row], store: TagStore) -> Operation | None:
     return Operation("move", row.rel_path, dst, move_reason(row.rel_path, dst))
 
 
-def relocations(rows: list[Row], store: TagStore, settled: set[str]) -> list[Operation]:
+def relocations(rows: list[Row], store: GenreStore, settled: set[str]) -> list[Operation]:
     wanted = {src: dst for src, dst in desired(rows, store).items() if src not in settled}
     moving = {src for src, dst in wanted.items() if src != dst}
     occupied = {r.rel_path: r.rel_path for r in rows if r.rel_path not in moving}
@@ -118,7 +118,7 @@ def relocations(rows: list[Row], store: TagStore, settled: set[str]) -> list[Ope
     return ops
 
 
-def plan(rows: list[Row], findings: list[Finding], store: TagStore) -> list[Operation]:
+def plan(rows: list[Row], findings: list[Finding], store: GenreStore) -> list[Operation]:
     by_path = {r.rel_path: r for r in rows}
     ops = trash_junk(findings) + set_aside_duplicates(findings, by_path)
     settled = {o.src for o in ops}

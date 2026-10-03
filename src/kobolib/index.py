@@ -12,10 +12,9 @@ from pathlib import Path
 
 from kobolib.covers import THUMBNAIL_FORMATS, cover_key, ensure_cover
 from kobolib.metadata import is_sound, read_book
-from kobolib.model import Book, DuplicateGroup, Row, Tag
+from kobolib.model import Book, DuplicateGroup, Row
 from kobolib.query import SQL_CLAUSES, STATE_CLAUSES, Query
 from kobolib.scan import SKIP_FOLDERS, iter_books
-from kobolib.tags import TagStore
 
 COLUMNS = tuple(f.name for f in fields(Row))
 SEARCHABLE = {"title", "authors", "series", "series_index", "folder", "rel_path"}
@@ -59,7 +58,6 @@ def to_row(book: Book, cover: Path | None) -> Row:
         norm_title=normalize_title(book.title),
         fingerprint=book.fingerprint,
         genre="",
-        tags="",
     )
 
 
@@ -195,13 +193,6 @@ def add_book(db_path: Path, path: Path, root: Path, cover_cache: Path) -> Book:
     return book
 
 
-TAG_SQL = "UPDATE books SET genre = ?, tags = ? WHERE fingerprint = ?"
-
-
-def tag_values(fingerprint: str, tag: Tag) -> tuple[str, str, str]:
-    return tag.genre, ",".join(tag.tags), fingerprint
-
-
 def row_factory(cursor, values) -> Row:
     data = dict(zip([c[0] for c in cursor.description], values))
     data["partial"] = bool(data["partial"])
@@ -260,9 +251,6 @@ class Index:
     def folders(self) -> list[str]:
         return self.distinct("folder")
 
-    def tags(self) -> list[str]:
-        return self.distinct("tags")
-
     def distinct(self, column: str) -> list[str]:
         return self.values(f"SELECT DISTINCT {column} FROM books WHERE {column} != '' ORDER BY {column}")
 
@@ -274,12 +262,6 @@ class Index:
 
     def write_genres(self, genres: dict[str, str]) -> None:
         self.execute_many("UPDATE books SET genre = ? WHERE fingerprint = ?", [(g, fp) for fp, g in genres.items()])
-
-    def write_tags(self, store: TagStore) -> None:
-        self.execute_many(TAG_SQL, [tag_values(fp, tag) for fp, tag in store.entries.items()])
-
-    def write_tag(self, fingerprint: str, tag: Tag) -> None:
-        self.execute(TAG_SQL, tag_values(fingerprint, tag))
 
     def relocate(self, src: str, dst: str, root: Path) -> None:
         if set_aside(dst):

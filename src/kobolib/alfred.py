@@ -46,7 +46,7 @@ def modifiers(row: Row) -> dict:
         "alt": {"arg": row.path, "subtitle": "Reveal in Finder"},
         "cmd": {"arg": row.rel_path, "subtitle": f"Copy relative path: {row.rel_path}"},
         "ctrl": {"arg": row.folder, "subtitle": f"Browse folder: {row.folder}"},
-        "shift": {"arg": "", "subtitle": "Fix: set genre, add or remove tags", "variables": {"book": row.fingerprint}},
+        "shift": {"arg": "", "subtitle": "Set genre", "variables": {"book": row.fingerprint}},
         "fn": {"arg": row.path, "subtitle": "Move to its genre home now"},
     }
 
@@ -84,8 +84,8 @@ def classify_item(row: Row) -> dict:
     return {**inbox_item(row), "arg": "", "mods": {}, "subtitle": inbox_subtitle(row) + " · ↩ pick a genre"}
 
 
-def fix_header(row: Row, genre: str, tags: list[str]) -> dict:
-    state = SEPARATOR.join(p for p in (genre or "no genre", ", ".join(tags), row.rel_path) if p)
+def fix_header(row: Row, genre: str) -> dict:
+    state = SEPARATOR.join((genre or "no genre", row.rel_path))
     return {**message_item(row.title, state), "icon": icon(row)}
 
 

@@ -10,7 +10,7 @@ from kobolib.index import series_key
 from kobolib.model import Finding, Row
 from kobolib.paths import relative_path
 from kobolib.scan import BOOK_SUFFIXES, display_stem, iter_junk
-from kobolib.tags import TagStore
+from kobolib.tags import GenreStore
 
 WORD_BREAK = re.compile(r"[\s_\-]+")
 JOINED_WORDS = re.compile(r"\w[_\-]\w")
@@ -175,7 +175,7 @@ def misfiled_series(rows: list[Row]) -> list[Finding]:
     return findings
 
 
-def unclassified(rows: list[Row], store: TagStore) -> list[Finding]:
+def unclassified(rows: list[Row], store: GenreStore) -> list[Finding]:
     return flag("unclassified", rows, lambda r: not store.genre_of(r), lambda r: f"{r.title}: no genre yet")
 
 
@@ -183,7 +183,7 @@ def junk(root: Path, exclude: tuple[Path, ...] = ()) -> list[Finding]:
     return [Finding("junk", f"{p.name}: not a book", [relative_path(p, root)]) for p in iter_junk(root, exclude)]
 
 
-def lint(rows: list[Row], store: TagStore, root: Path, exclude: tuple[Path, ...] = ()) -> list[Finding]:
+def lint(rows: list[Row], store: GenreStore, root: Path, exclude: tuple[Path, ...] = ()) -> list[Finding]:
     return [
         *junk(root, exclude),
         *partials(rows),

@@ -15,7 +15,7 @@ from kobolib.lint import (
     unclassified,
 )
 from kobolib.model import Tag
-from kobolib.tags import TagStore
+from kobolib.tags import GenreStore
 from tests.test_alfred import row
 
 
@@ -153,7 +153,7 @@ def test_misfiled_series_matches_short_folder_names():
 
 
 def test_unclassified_lists_books_without_genre(tmp_path: Path):
-    store = TagStore(tmp_path / "t.tsv")
+    store = GenreStore(tmp_path / "t.tsv")
     store.set("known", Tag(genre="fiction/sci-fi"))
     rows = [named("a.epub", fingerprint="known"), named("b.epub", fingerprint="unknown")]
 
@@ -163,7 +163,7 @@ def test_unclassified_lists_books_without_genre(tmp_path: Path):
 def test_lint_runs_all_rules_in_order(tmp_path: Path):
     (tmp_path / "FSCK0000.000").write_bytes(b"")
     rows = [named("2_1.epub", title="2_1", fingerprint="x"), named("b.epub.part", partial=True, fingerprint="y")]
-    store = TagStore(tmp_path / "t.tsv")
+    store = GenreStore(tmp_path / "t.tsv")
 
     rules = [f.rule for f in lint(rows, store, tmp_path)]
 

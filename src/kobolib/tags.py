@@ -10,8 +10,8 @@ from kobolib.model import Row, Tag
 GENRE_DEPTH = 2
 ORDER_PREFIX = re.compile(r"^\d+_")
 UNCLASSIFIED_FOLDERS = {"inbox", "archives", "system_files", "_inbox", "_dups", "_trash", "_broken"}
-FIELDS = ("fingerprint", "genre", "tags", "rel_path")
-TAG_SEPARATOR = ","
+FIELDS = ("fingerprint", "genre", "rel_path")
+LEGACY_NAME = "tags.tsv"
 
 
 def folder_slug(name: str) -> str:
@@ -25,33 +25,34 @@ def genre_from_folder(folder: str) -> str:
     return "/".join(parts[:GENRE_DEPTH])
 
 
-def unique_sorted(tags: list[str]) -> list[str]:
-    return sorted({t.strip().lower() for t in tags if t.strip()})
-
-
 def to_fields(fingerprint: str, tag: Tag) -> dict:
-    return {
-        "fingerprint": fingerprint,
-        "genre": tag.genre,
-        "tags": TAG_SEPARATOR.join(unique_sorted(tag.tags)),
-        "rel_path": tag.rel_path,
-    }
+    return {"fingerprint": fingerprint, "genre": tag.genre, "rel_path": tag.rel_path}
 
 
 def from_fields(record: dict) -> tuple[str, Tag]:
-    tags = [t for t in record["tags"].split(TAG_SEPARATOR) if t]
-    return record["fingerprint"], Tag(genre=record["genre"], tags=tags, rel_path=record["rel_path"])
+    return record["fingerprint"], Tag(genre=record["genre"], rel_path=record["rel_path"])
 
 
-class TagStore:
+def read_entries(path: Path) -> dict[str, Tag]:
+    with path.open(newline="", encoding="utf-8") as handle:
+        return dict(from_fields(r) for r in csv.DictReader(handle, delimiter="\t"))
+
+
+class GenreStore:
     def __init__(self, path: Path):
         self.path = path
         self.entries: dict[str, Tag] = {}
 
-    def load(self) -> TagStore:
-        if self.path.exists():
-            with self.path.open(newline="", encoding="utf-8") as handle:
-                self.entries = dict(from_fields(r) for r in csv.DictReader(handle, delimiter="\t"))
+    @property
+    def legacy_path(self) -> Path:
+        return self.path.with_name(LEGACY_NAME)
+
+    def readable_path(self) -> Path | None:
+        return next((p for p in (self.path, self.legacy_path) if p.exists()), None)
+
+    def load(self) -> GenreStore:
+        if source := self.readable_path():
+            self.entries = read_entries(source)
         return self
 
     def save(self) -> None:
@@ -65,7 +66,7 @@ class TagStore:
         return self.entries.get(fingerprint)
 
     def set(self, fingerprint: str, tag: Tag) -> None:
-        self.entries[fingerprint] = replace(tag, tags=unique_sorted(tag.tags))
+        self.entries[fingerprint] = tag
 
     def genre_of(self, row: Row) -> str:
         tag = self.get(row.fingerprint)

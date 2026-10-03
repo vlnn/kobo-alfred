@@ -40,7 +40,7 @@ def test_every_filter_key_has_exactly_one_meaning():
     from kobolib.query import FILTER_KEYS, FTS_COLUMNS, SQL_CLAUSES
 
     assert not FTS_COLUMNS.keys() & SQL_CLAUSES.keys(), "a key is either matched in the FTS index or in a SQL clause, never both"
-    assert {"fmt", "in", "author", "series", "lang", "is", "year", "genre", "tag"} == FILTER_KEYS, (
+    assert {"fmt", "in", "author", "series", "lang", "is", "year", "genre"} == FILTER_KEYS, (
         "the documented filter set is what parse_query accepts"
     )
 

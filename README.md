@@ -4,7 +4,7 @@ Alfred workflow for searching an ebook library (the Kobo SD card) by metadata, w
 
 ```
 kb deep work                 full-text over title / authors / series / folder / filename
-kb author:delany fmt:epub    filters: fmt: in: author: series: lang: year: genre: tag: is:partial is:complete
+kb author:delany fmt:epub    filters: fmt: in: author: series: lang: year: genre: is:partial is:complete
 kb in:inbox                  folder match is substring, case-insensitive
 kb                           empty query → most recently added books
 kb:index                     rebuild the library index and, if sources are configured, the sources index (also `kb update`)
@@ -40,7 +40,7 @@ Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbn
 | ⌘↩           | copy library-relative path   |
 | ⌃↩           | browse the book's folder     |
 | ⇧ / ⌘Y       | Quick Look                   |
-| ⇧↩           | fix genre / tags             |
+| ⇧↩           | set the genre                |
 | ⌥⇧↩          | ↩ for every row shown (`kb:src`, `kb:inbox`, `kb:classify`, `kb:plan`) |
 | fn↩          | move to its genre home now   |
 | ⌘C           | copy relative path           |
@@ -73,18 +73,19 @@ The folder tree is the on-device browser, so it should encode exactly one thing:
 (`01_Fiction/01_Sci-Fi_Fantasy/…` → `fiction/sci-fi_fantasy`); books under `00_Inbox` or `99_Archives`
 stay unclassified and show up in `kb:inbox`.
 
-Genres and tags live in a tag store (`tags.tsv` next to the index) keyed by a fingerprint of the book's
+Genres live in a genre store (`genres.tsv` next to the index) keyed by a fingerprint of the book's
 *text*, not its bytes: for an epub the set of its HTML files (whatever they are named or ordered), for an fb2
 its `<body>`. A renamed, moved or repacked epub, a swapped cover or edited metadata is therefore still the
-same book and keeps its tags; other formats, partial downloads and unreadable files are hashed whole.
+same book and keeps its genre; other formats, partial downloads and unreadable files are hashed whole.
 `kb:index` computes the fingerprint while reading each book — it reads every byte, so a full reindex of a big
-card takes a minute or two longer — and if a book's fingerprint has changed since the last run, its tags are
-carried over by path.
+card takes a minute or two longer — and if a book's fingerprint has changed since the last run, its genre is
+carried over by path. An older `tags.tsv` is read
+once when `genres.tsv` does not exist yet; its tags are ignored.
 
-Setting a genre (`kb:classify`, or ⇧↩ "Fix" on any book) moves the book to its genre home right away —
+Setting a genre (`kb:classify`, or ⇧↩ on any book) moves the book to its genre home right away —
 `genre/author[/series]/` with a normalised filename — and updates that book's row in the index (no full
 reindex); `kb:undo` reverses the move.
-Books without a recognisable author stay put, as do tag-only edits (`+tag`, `-tag`). `kb:plan` / `kb:apply`
+Books without a recognisable author stay put. `kb:plan` / `kb:apply`
 remain for bulk work: junk, duplicates and anything classified before this behaviour existed.
 
 `kb:lint` reports, never changes anything:
@@ -103,7 +104,7 @@ remain for bulk work: junk, duplicates and anything classified before this behav
 | `unclassified` | no genre |
 
 From a terminal: `kobolib lint --text` prints one finding per line (`rule<TAB>detail<TAB>paths`).
-`kobolib tag <path|fingerprint> genre=fiction/sci-fi +tag -tag` sets the genre (and moves the book), adds or removes tags.
+`kobolib tag <path|fingerprint> genre=fiction/sci-fi` sets the genre and moves the book.
 
 `kb:plan` turns findings and genres into operations and writes them to `plan.tsv` next to the index
 (`kobolib plan --text` prints it). Review it, delete lines you disagree with; nothing is applied yet.
@@ -130,14 +131,13 @@ are left for you, and both are ignored by the scanner.
 `kb:classify` is the daily loop: type to find an inbox book, ↩, type a genre (existing ones are listed, an
 unknown one is created), ↩. Narrow the inbox to a batch instead (`kb:classify newport`) and the list starts with
 "Classify all N books": ↩ there (or ⌥⇧↩ on any row, also in `kb:inbox`) opens the same picker for every complete
-book listed, and the genre you choose applies to all of them. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy +now -bought`.
-Genres and tags are searchable (`kb genre:fiction tag:now`); `genre:` matches by prefix.
+book listed, and the genre you choose applies to all of them. From a terminal: `kobolib tag <path|fingerprint> genre=fiction/sci-fi_fantasy`.
+Genres are searchable (`kb genre:fiction`); `genre:` matches by prefix.
 
 Any book you have just found — in `kb`, `kb:inbox`, or after `kb term` — can be fixed in place with ⇧↩: the
-picker shows the current genre and tags and lists known genres; typing any part of a genre's path filters them
+picker shows the current genre and lists known genres; typing any part of a genre's path filters them
 (`spy` finds `fiction/spy`, case does not matter), ⇥ completes the genre, and the typed text is offered as a new
-genre unless it already is one. `+tag` offers the tags used on other books, then the typed tag itself; `-tag`
-narrows the book's own tags. Current tags are listed for removal when the query is empty.
+genre unless it already is one.
 
 Author folders are `Last, First`. A plain `First Last` name is inverted, except Cyrillic names, which are
 assumed `Фамилия Имя [Отчество]` as in libgen/flibusta filenames; an existing author folder (either form) wins
@@ -188,5 +188,5 @@ uv run ruff check && uv run ruff format --check
 ```
 
 Modules, from the bottom up: `model` (the records), `paths`/`scan`/`identity`/`filenames`/`metadata` (reading the card),
-`index` (SQLite FTS5), `tags`, `lint`, `naming`, `plan`, `apply`/`koreader` (moving files), `alfred` (JSON items),
+`index` (SQLite FTS5), `tags` (the genre store), `lint`, `naming`, `plan`, `apply`/`koreader` (moving files), `alfred` (JSON items),
 `config` (paths from the environment), `library` (operations), `commands` (the `kb` item lists) and `cli`.

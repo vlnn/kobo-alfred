@@ -9,13 +9,13 @@ from kobolib.config import (
     covers_dir,
     data_dir,
     db_path,
+    genre_store,
     journal_path,
     library_root,
     mounted_sources,
     plan_path,
     sources,
     sources_db_path,
-    tag_store,
 )
 from kobolib.index import Index, IndexBusy, build_index, build_sources_index
 from kobolib.lint import lint
@@ -25,18 +25,18 @@ from kobolib.paths import relative_path
 from kobolib.plan import plan, read_plan, relocation
 from kobolib.query import parse_query
 from kobolib.scan import probe_root
-from kobolib.tags import TagStore, folder_slug, genre_from_folder
+from kobolib.tags import GenreStore, folder_slug, genre_from_folder
 
 
 def all_rows(index: Index) -> list:
     return index.search(parse_query(""), limit=100_000)
 
 
-def bootstrap_tags() -> int:
-    store, index = tag_store(), Index(db_path())
+def bootstrap_genres() -> int:
+    store, index = genre_store(), Index(db_path())
     added = store.bootstrap(all_rows(index))
     store.save()
-    index.write_tags(store)
+    index.write_genres({fingerprint: tag.genre for fingerprint, tag in store.entries.items()})
     return added
 
 
@@ -50,10 +50,6 @@ def apply_edits(tag: Tag, edits: list[str]) -> Tag:
     for edit in edits:
         if edit.startswith("genre="):
             tag.genre = edit.removeprefix("genre=").strip().lower()
-        elif edit.startswith("+"):
-            tag.tags = [*tag.tags, edit[1:]]
-        elif edit.startswith("-"):
-            tag.tags = [t for t in tag.tags if t != edit[1:].lower()]
     return tag
 
 
@@ -62,17 +58,13 @@ def sets_genre(edits: list[str]) -> bool:
 
 
 def tag_summary(title: str, tag: Tag) -> str:
-    return f"{title} → {tag.genre or 'no genre'}" + (f" · {', '.join(tag.tags)}" if tag.tags else "")
+    return f"{title} → {tag.genre or 'no genre'}"
 
 
-def known_genres(index: Index, store: TagStore) -> list[str]:
-    from_tags = {t.genre for t in store.entries.values() if t.genre}
+def known_genres(index: Index, store: GenreStore) -> list[str]:
+    from_store = {t.genre for t in store.entries.values() if t.genre}
     from_folders = {g for f in index.folders() if (g := genre_from_folder(f))}
-    return sorted(from_tags | from_folders | set(index.genres()))
-
-
-def known_tags(index: Index) -> list[str]:
-    return sorted({t for tags in index.tags() for t in tags.split(",") if t})
+    return sorted(from_store | from_folders | set(index.genres()))
 
 
 def run_index() -> tuple[int, str]:
@@ -85,7 +77,7 @@ def run_index() -> tuple[int, str]:
         return 1, "Indexing is already running"
     if count == 0:
         return 1, f"No books found: {probe_root(root) or f'no ebook files under {root}'}"
-    bootstrap_tags()
+    bootstrap_genres()
     return 0, f"Indexed {count} books from {root}"
 
 
@@ -104,7 +96,7 @@ def run_index_sources() -> tuple[int, str]:
 
 
 def findings() -> list:
-    return lint(all_rows(Index(db_path())), tag_store(), library_root(), exclude=(data_dir(),))
+    return lint(all_rows(Index(db_path())), genre_store(), library_root(), exclude=(data_dir(),))
 
 
 def text_report(findings) -> str:
@@ -116,7 +108,7 @@ def unclassified_rows(query: str = "") -> list[Row]:
 
 
 def current_plan():
-    rows, store = all_rows(Index(db_path())), tag_store()
+    rows, store = all_rows(Index(db_path())), genre_store()
     return plan(rows, lint(rows, store, library_root(), exclude=(data_dir(),)), store)
 
 
@@ -137,7 +129,7 @@ def ops_for_one(path: str) -> list[Operation]:
 
 
 def refresh_index(result: Applied) -> None:
-    index, store = Index(db_path()), tag_store()
+    index, store = Index(db_path()), genre_store()
     for src, dst in result.moved.items():
         if (row := index.by_rel_path(src)) and (tag := store.get(row.fingerprint)):
             store.set(row.fingerprint, replace(tag, rel_path=dst))
@@ -158,7 +150,7 @@ def apply_summary(result) -> str:
     return f"Applied {result.done}, skipped {len(result.skipped)} ({skip_reasons(result.skipped)})"
 
 
-def rehome(row: Row, index: Index, store: TagStore) -> str:
+def rehome(row: Row, index: Index, store: GenreStore) -> str:
     op = relocation(row, all_rows(index), store)
     if op is None or op.kind != "move":
         return "stays put (no author or already home)"

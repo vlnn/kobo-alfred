@@ -13,9 +13,9 @@
 	<key>category</key>
 	<string>Productivity</string>
 	<key>readme</key>
-	<string>kb &lt;query&gt; searches the library: full text over title, authors, series, folder and filename, with filters fmt:epub in:inbox author:x series:x lang:uk year:2016 genre:fiction tag:now is:partial is:complete.
+	<string>kb &lt;query&gt; searches the library: full text over title, authors, series, folder and filename, with filters fmt:epub in:inbox author:x series:x lang:uk year:2016 genre:fiction is:partial is:complete.
 Every command works as a kb word too: kb stats, kb dups, kb rnd, kb lint, kb inbox, kb classify, kb plan, kb src, kb index, kb apply, kb undo (the kb:x keywords are the same commands).
-kb:classify picks an inbox book, then a genre, and moves the book to its genre home at once; ⇧↩ on any book fixes its genre and tags the same way. kb:lint reports problems, kb:plan proposes bulk moves, renames and trash — ↩ on a row applies that row, ↩ on the head row applies all; kb:undo moves the last batch back.
+kb:classify picks an inbox book, then a genre, and moves the book to its genre home at once; ⇧↩ on any book sets its genre the same way. kb:lint reports problems, kb:plan proposes bulk moves, renames and trash — ↩ on a row applies that row, ↩ on the head row applies all; kb:undo moves the last batch back.
 A list with several books starts with an "Import all" / "Classify all" / "Apply all" row; ↩ there (or ⌥⇧↩ on any row) does it for every row shown.
 kb:src searches other sources (a Calibre library, a downloads folder) and ↩ copies the book into the library inbox; books already in the library, unfinished downloads and unreadable files are not offered.
 Set the library root (and optionally other sources and the index folder) in the workflow configuration, then run kb:index once; rerun after adding books. The index lives in Alfred's workflow data folder. Needs only macOS's /usr/bin/python3.</string>
@@ -110,7 +110,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<key>title</key>
 				<string>Search library</string>
 				<key>subtext</key>
-				<string>title, author, series · fmt:epub in:inbox author:x genre:x tag:x is:partial · stats dups rnd lint inbox classify plan src index/update apply undo · ⇧↩ fix</string>
+				<string>title, author, series · fmt:epub in:inbox author:x genre:x is:partial · stats dups rnd lint inbox classify plan src index/update apply undo · ⇧↩ fix</string>
 				<key>runningsubtext</key>
 				<string>Searching…</string>
 				<key>withspace</key>
@@ -418,7 +418,7 @@ echo "Indexing started… you will get a notification when it finishes"</string>
 				<key>title</key>
 				<string>Books waiting for a genre</string>
 				<key>subtext</key>
-				<string>oldest first · ↩ open · ⌥↩ reveal in Finder · ⇧↩ fix genre/tags</string>
+				<string>oldest first · ↩ open · ⌥↩ reveal in Finder · ⇧↩ set genre</string>
 				<key>runningsubtext</key>
 				<string>Checking…</string>
 				<key>withspace</key>
@@ -730,7 +730,7 @@ esac</string>
 				<key>title</key>
 				<string>Fix a book</string>
 				<key>subtext</key>
-				<string>genre to set · +tag to add · -tag to remove</string>
+				<string>type a genre · ↩ sets it</string>
 				<key>runningsubtext</key>
 				<string>…</string>
 				<key>withspace</key>
@@ -992,7 +992,7 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 				<key>modifiers</key>
 				<integer>131072</integer>
 				<key>modifiersubtext</key>
-				<string>Fix genre / tags</string>
+				<string>Set genre</string>
 				<key>vitoclose</key>
 				<false/>
 			</dict>
@@ -1088,7 +1088,7 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 				<key>modifiers</key>
 				<integer>131072</integer>
 				<key>modifiersubtext</key>
-				<string>Fix genre / tags</string>
+				<string>Set genre</string>
 				<key>vitoclose</key>
 				<false/>
 			</dict>
@@ -1174,7 +1174,7 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 				<key>modifiers</key>
 				<integer>131072</integer>
 				<key>modifiersubtext</key>
-				<string>Fix genre / tags</string>
+				<string>Set genre</string>
 				<key>vitoclose</key>
 				<false/>
 			</dict>

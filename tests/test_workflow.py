@@ -171,7 +171,7 @@ MEANING = {
     "REVEAL": ("reveal",),
     "COPY": ("copy",),
     "BROWSE": ("browse",),
-    "FIX": ("fix",),
+    "FIX": ("set genre",),
     "APPLY_ONE": ("genre home", "apply all"),
     "IMPORT_RUN": ("import all",),
     "GENRES": ("classify all",),

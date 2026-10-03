@@ -47,7 +47,6 @@ class Row:
     norm_title: str
     fingerprint: str
     genre: str
-    tags: str
 
 
 @dataclass
@@ -59,7 +58,6 @@ class DuplicateGroup:
 @dataclass
 class Tag:
     genre: str = ""
-    tags: list[str] = field(default_factory=list)
     rel_path: str = ""
 
 

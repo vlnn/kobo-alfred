@@ -23,7 +23,6 @@ BASE_ROW = {
     "norm_title": "deep work",
     "fingerprint": "f00",
     "genre": "",
-    "tags": "",
 }
 
 
