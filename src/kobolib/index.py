@@ -26,7 +26,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books USING fts5(
 );
 """
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 LEADING_ARTICLE = re.compile(r"^(?:the|a|an)\s+")
 
 
@@ -51,8 +51,6 @@ def to_row(book: Book, cover: Path | None) -> Row:
         partial=book.partial,
         language=searchable_language(book.language),
         year=book.year,
-        publisher=book.publisher,
-        source=book.source,
         cover=str(cover) if cover else "",
         size=book.size,
         mtime=book.mtime,

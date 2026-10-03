@@ -13,11 +13,9 @@ def test_epub_metadata(epub_file: Path):
     assert book.authors == ["Cal Newport", "Someone Else"], "epub should list all dc:creator"
     assert book.language == "en", "epub language should come from dc:language"
     assert book.year == "2016", "epub year should be first 4 digits of dc:date"
-    assert book.publisher == "Grand Central", "epub publisher should come from dc:publisher"
     assert book.series == "Focus", "epub series should come from calibre:series"
     assert book.series_index == "2", "epub series index should come from calibre:series_index"
     assert book.cover == ("cover.png", PNG_1X1), "epub cover should be resolved via meta name=cover"
-    assert book.source == "epub", "epub metadata source should be marked"
 
 
 def test_fb2_metadata(fb2_file: Path):
@@ -40,7 +38,6 @@ def test_filename_fallback(tmp_path: Path, name: str):
     book = read_book(path, tmp_path)
 
     assert book.title, f"{name} should get a title from its filename"
-    assert book.source == "filename", "unparseable formats should fall back to filename"
     assert book.cover is None, "no cover should be extracted from unknown formats"
 
 
@@ -63,7 +60,7 @@ def test_corrupt_epub_falls_back_to_filename(tmp_path: Path):
     book = read_book(path, tmp_path)
 
     assert book.title == "Dead Lines", "corrupt epub should still be indexed from filename"
-    assert book.source == "filename", "corrupt epub should be marked as filename-sourced"
+    assert book.broken, "corrupt epub should be marked broken"
 
 
 def test_filename_metadata_is_nfc_normalized(tmp_path):

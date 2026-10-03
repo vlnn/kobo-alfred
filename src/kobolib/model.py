@@ -18,8 +18,6 @@ class Book:
     series_index: str = ""
     language: str = ""
     year: str = ""
-    publisher: str = ""
-    source: str = "filename"
     cover: Cover | None = None
     size: int = 0
     mtime: float = 0.0
@@ -39,8 +37,6 @@ class Row:
     partial: bool
     language: str
     year: str
-    publisher: str
-    source: str
     cover: str
     size: int
     mtime: float

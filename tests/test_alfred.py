@@ -17,8 +17,6 @@ BASE_ROW = {
     "partial": False,
     "language": "en",
     "year": "2016",
-    "publisher": "GC",
-    "source": "epub",
     "cover": "/cache/abc.png",
     "size": 1_500_000,
     "mtime": 0.0,
