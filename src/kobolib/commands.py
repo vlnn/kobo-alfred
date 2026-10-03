@@ -112,8 +112,8 @@ def duplicate_groups(index: Index, words: list[str]) -> list[list[Row]]:
     return [g for g in groups if any(b.rel_path in wanted for b in g)]
 
 
-def dups_items(words: list[str] = ()) -> list[dict]:
-    groups = duplicate_groups(Index(db_path()), list(words))
+def dups_items(words: list[str]) -> list[dict]:
+    groups = duplicate_groups(Index(db_path()), words)
     rows = [alfred.copy_item(book, len(g)) for g in groups for book in g]
     return rows or [alfred.message_item("No duplicate titles")]
 
@@ -208,7 +208,7 @@ def sources_stats_items() -> list[dict]:
     return [alfred.navigation_item(f"{counted(count, 'book')} in {counted(len(sources()), 'source')}", "↩ searches them", "src ")]
 
 
-def all_stats_items(words: list[str] = ()) -> list[dict]:
+def all_stats_items(words: list[str]) -> list[dict]:
     return stats_items() + sources_stats_items()
 
 
