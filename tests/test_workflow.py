@@ -242,7 +242,7 @@ def test_import_all_head_row_reaches_the_runner_from_kb(workflow, indexed_with_s
     assert route(workflow, head) == "RUN", "↩ on it must run the import in the background"
 
 
-ORACLE_VARIABLES = ("KOBO_ORACLE_URL", "KOBO_ORACLE_MODEL", "KOBO_EMBED_URL", "KOBO_EMBED_MODEL")
+ORACLE_VARIABLES = ("KOBO_ORACLE_URL", "KOBO_ORACLE_MODEL", "KOBO_ORACLE_KEY", "KOBO_EMBED_URL", "KOBO_EMBED_MODEL", "KOBO_EMBED_KEY")
 
 
 @pytest.mark.parametrize("variable", ORACLE_VARIABLES)

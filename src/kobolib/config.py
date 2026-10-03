@@ -67,6 +67,14 @@ def oracle_model() -> str:
     return os.environ.get("KOBO_ORACLE_MODEL", "").strip()
 
 
+def oracle_key() -> str:
+    return os.environ.get("KOBO_ORACLE_KEY", "").strip()
+
+
+def embed_key() -> str:
+    return os.environ.get("KOBO_EMBED_KEY", "").strip() or oracle_key()
+
+
 def embed_url() -> str:
     return os.environ.get("KOBO_EMBED_URL", "").strip().rstrip("/") or oracle_url()
 

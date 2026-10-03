@@ -4,15 +4,23 @@ import json
 from http.client import HTTPException
 from urllib.request import Request, urlopen
 
-from kobolib.config import embed_model, embed_url
+from kobolib.config import embed_key, embed_model, embed_url, oracle_key, oracle_url
 
 LIST_TIMEOUT = 0.5
 EMBED_TIMEOUT = 60
 
 
+def key_for(url: str) -> str:
+    return embed_key() if url == embed_url() and url != oracle_url() else oracle_key()
+
+
+def headers(key: str) -> dict[str, str]:
+    return {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})}
+
+
 def fetch(url: str, timeout: float, body: dict | None = None) -> dict | None:
     data = json.dumps(body).encode() if body is not None else None
-    request = Request(url, data=data, headers={"Content-Type": "application/json"})
+    request = Request(url, data=data, headers=headers(key_for(url.rsplit("/v1/", 1)[0])))
     try:
         with urlopen(request, timeout=timeout) as response:
             return json.load(response)

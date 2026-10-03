@@ -33,9 +33,13 @@ Set the library root (and optionally other sources and the index folder) in the 
 		<string></string>
 		<key>KOBO_ORACLE_MODEL</key>
 		<string></string>
+		<key>KOBO_ORACLE_KEY</key>
+		<string></string>
 		<key>KOBO_EMBED_URL</key>
 		<string></string>
 		<key>KOBO_EMBED_MODEL</key>
+		<string></string>
+		<key>KOBO_EMBED_KEY</key>
 		<string></string>
 	</dict>
 	<key>userconfigurationconfig</key>
@@ -151,6 +155,27 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<key>default</key>
 				<string></string>
 				<key>placeholder</key>
+				<string></string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Sent as a bearer token when the model server was started with --api-key (or has LLAMA_API_KEY set). Empty sends none. Also used for the embedding server unless it has its own key.</string>
+			<key>label</key>
+			<string>Model server API key (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_ORACLE_KEY</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
 				<string>http://127.0.0.1:8081</string>
 				<key>required</key>
 				<false/>
@@ -186,6 +211,27 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<string>textfield</string>
 			<key>variable</key>
 			<string>KOBO_EMBED_MODEL</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string></string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>The embedding server's key, when it differs from the model server's.</string>
+			<key>label</key>
+			<string>Embedding server API key (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_EMBED_KEY</string>
 		</dict>
 	</array>
 	<key>objects</key>

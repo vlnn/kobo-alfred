@@ -71,3 +71,28 @@ def test_embed_is_none_without_an_embedding_model(embedding_server, monkeypatch,
     urlopen = mocker.patch("kobolib.embedder.urlopen")
 
     assert embedder.embed("x") is None and not urlopen.called, "no model, no request"
+
+
+def test_embed_and_models_send_the_embedding_servers_key(embedding_server, monkeypatch, mocker):
+    monkeypatch.setenv("KOBO_ORACLE_KEY", "sk-oracle")
+    monkeypatch.setenv("KOBO_EMBED_KEY", "sk-embed")
+    urlopen = mocker.patch("kobolib.embedder.urlopen", return_value=Responding({"data": [{"embedding": [0.1]}]}))
+
+    embedder.embed("x")
+    assert urlopen.call_args.args[0].get_header("Authorization") == "Bearer sk-embed", "the embedding server has its own key"
+
+    embedder.models("http://127.0.0.1:8081")
+    assert urlopen.call_args.args[0].get_header("Authorization") == "Bearer sk-embed", "the list uses the key of the server it asks"
+
+    embedder.models("http://127.0.0.1:8080")
+    assert urlopen.call_args.args[0].get_header("Authorization") == "Bearer sk-oracle", "the oracle server's list uses the oracle key"
+
+
+def test_embed_key_falls_back_to_the_oracle_key(embedding_server, monkeypatch, mocker):
+    monkeypatch.setenv("KOBO_ORACLE_KEY", "sk-one")
+    monkeypatch.delenv("KOBO_EMBED_KEY", raising=False)
+    urlopen = mocker.patch("kobolib.embedder.urlopen", return_value=Responding({"data": [{"embedding": [0.1]}]}))
+
+    embedder.embed("x")
+
+    assert urlopen.call_args.args[0].get_header("Authorization") == "Bearer sk-one", "one key for both servers is the common case"

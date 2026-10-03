@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from kobolib.config import oracle_log_path, oracle_model, oracle_status_path, oracle_url
+from kobolib.config import oracle_key, oracle_log_path, oracle_model, oracle_status_path, oracle_url
 
 TIMEOUT = 60
 LOG_ENTRIES = 500
@@ -60,9 +60,12 @@ def request_body(question: str, evidence: str, schema: dict) -> dict:
     return {**body, "model": oracle_model()} if oracle_model() else body
 
 
+def headers(key: str) -> dict[str, str]:
+    return {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})}
+
+
 def post(url: str, body: dict, timeout: float) -> dict:
-    data = json.dumps(body).encode()
-    request = Request(url, data=data, headers={"Content-Type": "application/json"})
+    request = Request(url, data=json.dumps(body).encode(), headers=headers(oracle_key()))
     with urlopen(request, timeout=timeout) as response:
         return json.load(response)
 

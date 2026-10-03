@@ -182,3 +182,19 @@ def test_author_groups_keeps_only_groups_of_known_folders(server, mocker, reply,
 
     assert oracle.author_groups(FOLDERS) == expected, f"{reply!r} should give {expected!r}"
     assert "Delany, Samuel R." in ask.call_args.args[1] and "Дилэни, Сэмюэл" in ask.call_args.args[1], "the evidence is the folder list"
+
+
+def test_ask_sends_the_api_key_when_one_is_configured(answering, monkeypatch):
+    monkeypatch.setenv("KOBO_ORACLE_KEY", "sk-local")
+
+    oracle.ask("genre", "x", {})
+
+    assert answering.call_args.args[0].get_header("Authorization") == "Bearer sk-local", (
+        "a server started with --api-key wants a bearer token"
+    )
+
+
+def test_ask_sends_no_authorization_without_a_key(answering):
+    oracle.ask("genre", "x", {})
+
+    assert answering.call_args.args[0].get_header("Authorization") is None, "without a key the request carries no token"

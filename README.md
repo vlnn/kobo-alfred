@@ -213,7 +213,7 @@ uv run kobolib models
 uv run kobolib choose oracle|embed <model>
 ```
 
-`KOBO_ORACLE_URL`, `KOBO_ORACLE_MODEL`, `KOBO_EMBED_URL` and `KOBO_EMBED_MODEL` configure the model from the terminal the way the workflow panel does.
+`KOBO_ORACLE_URL`, `KOBO_ORACLE_MODEL`, `KOBO_EMBED_URL` and `KOBO_EMBED_MODEL` configure the model from the terminal the way the workflow panel does; `KOBO_ORACLE_KEY` (and `KOBO_EMBED_KEY` when the embedding server has its own) is sent as a bearer token to a server started with `--api-key`.
 
 `KOBO_SOURCES` takes the other sources. `search` and `genres` print Alfred's JSON; everything else prints one line and, with `--notify`, posts it as a macOS notification.
 
@@ -234,6 +234,7 @@ Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index:
 | *No book selected* in the genre picker | it was opened directly; use ⇧↩ on a book or ↩ in `kb classify` |
 | *Nothing to fix* | the library is clean |
 | *Model not reachable at …* | start `llama-server`, or fix **Model server**; `kb model` shows whether it answers |
+| every request skipped, `oracle.log` says *401* | the server wants a key: set **Model server API key** (`--api-key` or `LLAMA_API_KEY` on the server side) |
 | *No embedding model* in `kb like` | ↩ on a model in `kb model`, then **Use … for embeddings** |
 | *No embeddings yet* | ↩ on that row embeds the library in the background |
 
