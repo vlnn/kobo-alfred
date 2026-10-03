@@ -13,7 +13,7 @@ OBJECT_VERSIONS = {
     "alfred.workflow.action.revealfile": 1,
     "alfred.workflow.utility.conditional": 1,
 }
-OBJECTS = {"KB", "PICKER", "DISPATCH", "OPEN", "REVEAL", "RUN", "NOTIFY"}
+OBJECTS = {"KB", "PICKER", "DISPATCH", "OPEN", "REVEAL", "RUN", "NOTIFY", "CHOOSER", "CHOOSE"}
 RUNNER_ACTIONS = ("update", "fix", "trash", "undo", "import", "genre", "ask", "dismiss")
 ROUTES = {
     "update": "RUN",
@@ -62,8 +62,10 @@ def test_every_object_is_placed_on_the_canvas(workflow):
     assert set(workflow["uidata"]) == {o["uid"] for o in workflow["objects"]}, "every object, and only those, should have a canvas position"
 
 
-def test_the_workflow_is_one_filter_one_picker_and_their_actions(workflow):
-    assert {o["uid"] for o in workflow["objects"]} == OBJECTS, "kb, the genre picker, the dispatcher, open, reveal, runner, notification"
+def test_the_workflow_is_one_filter_two_pickers_and_their_actions(workflow):
+    assert {o["uid"] for o in workflow["objects"]} == OBJECTS, (
+        "kb, the genre picker, the dispatcher, open, reveal, runner, notification, the model chooser and its step"
+    )
 
 
 def test_kb_is_the_only_keyword(workflow):
@@ -71,7 +73,7 @@ def test_kb_is_the_only_keyword(workflow):
     assert keywords == ["kb"], "everything starts with kb; there are no kb:x keywords"
 
 
-@pytest.mark.parametrize("uid, subcommand", [("KB", 'search "$1"'), ("PICKER", 'genres "$1"')])
+@pytest.mark.parametrize("uid, subcommand", [("KB", 'search "$1"'), ("PICKER", 'genres "$1"'), ("CHOOSER", 'chooser "$1"')])
 def test_script_filters_call_their_subcommand(workflow, uid, subcommand):
     assert f"-m kobolib {subcommand}" in obj(workflow, uid)["config"]["script"], f"{uid} should run kobolib {subcommand}"
 
@@ -119,6 +121,13 @@ def test_genre_picker_runs_the_genre_step_on_enter_and_shift(workflow):
 
 def test_runner_notifies(workflow):
     assert targets(workflow, "RUN") == {0: "NOTIFY"}, "the runner's message should become a notification"
+
+
+def test_model_chooser_runs_the_choose_step_in_the_foreground(workflow):
+    assert targets(workflow, "CHOOSER") == {0: "CHOOSE"}, "↩ on a role writes the configuration"
+    assert targets(workflow, "CHOOSE") == {0: "NOTIFY"}, "and the result becomes a notification"
+    script = obj(workflow, "CHOOSE")["config"]["script"]
+    assert 'choose "$1" "$model"' in script and "nohup" not in script, "choose runs in the foreground with the role and the model"
 
 
 def runner_branch(workflow: dict, action: str) -> str:

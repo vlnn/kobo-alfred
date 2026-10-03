@@ -686,3 +686,110 @@ def test_merge_rows_follow_the_words(delany_merge, words, shown):
     assert any(i["uid"].startswith("oracle:merge") for i in command_rows(f"fix {words}")) is shown, (
         f"kb fix {words} should {'show' if shown else 'hide'} the merge"
     )
+
+
+SERVED = ["qwen2.5-7b-instruct", "gemma-3-4b-it", "bge-m3"]
+
+
+@pytest.fixture
+def served(oracle_on, monkeypatch, mocker):
+    monkeypatch.setenv("KOBO_ORACLE_MODEL", "qwen2.5-7b-instruct")
+    monkeypatch.setenv("KOBO_EMBED_MODEL", "bge-m3")
+    return mocker.patch("kobolib.embedder.models", return_value=SERVED)
+
+
+def test_model_lists_the_servers_models_with_their_roles(served):
+    oracle_row, embed_row, *models = command_rows("model")
+
+    assert (oracle_row["title"], oracle_row["subtitle"], oracle_row["valid"]) == (
+        "Oracle: qwen2.5-7b-instruct",
+        "http://127.0.0.1:8080 · reachable",
+        False,
+    ), "the header shows the oracle's model and server"
+    assert embed_row["title"] == "Embeddings: bge-m3", "then the embedding model"
+    assert titles(models) == SERVED, "then every model the server lists"
+    assert [m["subtitle"] for m in models] == [
+        "✓ oracle · ↩ choose what it is for",
+        "↩ choose what it is for",
+        "✓ embeddings · ↩ choose what it is for",
+    ], "the current choices are marked"
+    assert all(m["arg"] == m["title"] and m["variables"] == {"model": m["title"], "action": "model"} for m in models), (
+        "↩ on a model opens the chooser for it"
+    )
+    served.assert_called_once_with("http://127.0.0.1:8080")
+
+
+def test_model_asks_both_servers_when_embeddings_live_elsewhere(served, monkeypatch):
+    monkeypatch.setenv("KOBO_EMBED_URL", "http://127.0.0.1:8081")
+    served.side_effect = lambda url: ["bge-m3"] if url.endswith("8081") else ["qwen2.5-7b-instruct"]
+
+    rows = command_rows("model")
+
+    assert titles(rows[2:]) == ["qwen2.5-7b-instruct", "bge-m3"], "the rows are what both servers list"
+    assert rows[1]["subtitle"].startswith("http://127.0.0.1:8081"), "the embeddings header names its own server"
+
+
+def test_model_with_the_server_down_says_so(served):
+    served.return_value = None
+
+    rows = command_rows("model")
+
+    assert titles(rows) == ["Oracle: qwen2.5-7b-instruct", "Embeddings: bge-m3", "Model not reachable at http://127.0.0.1:8080"], (
+        "instead of the list, one row explains"
+    )
+    assert rows[0]["subtitle"] == "http://127.0.0.1:8080 · not reachable", "the header says so too"
+
+
+def test_model_without_a_server_explains(indexed, monkeypatch):
+    monkeypatch.delenv("KOBO_ORACLE_URL", raising=False)
+
+    (row,) = command_rows("model")
+
+    assert row["title"] == "No model server" and "KOBO_ORACLE_URL" in row["subtitle"], "the setting to fill is named"
+
+
+def test_model_without_chosen_models_names_the_defaults(served, monkeypatch):
+    monkeypatch.delenv("KOBO_ORACLE_MODEL")
+    monkeypatch.delenv("KOBO_EMBED_MODEL")
+
+    oracle_row, embed_row, *models = command_rows("model")
+
+    assert oracle_row["title"] == "Oracle: server default", "without a choice the server's default model answers"
+    assert embed_row["title"] == "Embeddings: none" and "↩ on a model" in embed_row["subtitle"], (
+        "without an embedding model there is no kb like"
+    )
+    assert not any("✓" in m["subtitle"] for m in models), "nothing is marked"
+
+
+def test_model_needs_no_index(env, monkeypatch, mocker):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    mocker.patch("kobolib.embedder.models", return_value=["bge-m3"])
+
+    assert titles(search_items("model"))[-1] == "bge-m3", "kb model works before the first index, so you can see whether the server is up"
+
+
+def test_chooser_offers_the_two_roles():
+    from kobolib.commands import chooser_items
+
+    oracle_row, embed_row = chooser_items("", "gemma-3-4b-it")
+
+    assert oracle_row["title"] == "Use gemma-3-4b-it for the oracle" and oracle_row["arg"] == "oracle", "↩ makes it the oracle"
+    assert embed_row["title"] == "Use gemma-3-4b-it for embeddings" and embed_row["arg"] == "embed", "or the embedding model"
+    assert "re-embeds everything" in embed_row["subtitle"] and "kept" in embed_row["subtitle"], "switching embeddings is explained"
+    assert all(r["variables"] == {"model": "gemma-3-4b-it", "action": "choose"} for r in (oracle_row, embed_row)), (
+        "both rows carry the model"
+    )
+
+
+def test_chooser_filters_by_typed_text():
+    from kobolib.commands import chooser_items
+
+    assert [r["arg"] for r in chooser_items("emb", "gemma-3-4b-it")] == ["embed"], "typed text narrows the two rows"
+
+
+def test_chooser_without_a_model_explains():
+    from kobolib.commands import chooser_items
+
+    (row,) = chooser_items("", "")
+
+    assert row["title"] == "No model selected" and row["valid"] is False, "the chooser needs a model from kb model"

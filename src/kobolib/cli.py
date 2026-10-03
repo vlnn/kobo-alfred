@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 from pathlib import Path
 
@@ -9,9 +10,12 @@ from kobolib.alfred import counted
 from kobolib.apply import Applied, apply, undo
 from kobolib.asking import Question, ask_all, ask_authors, author_folder_names, collect_evidence, genre_question, name_question, summary
 from kobolib.commands import (
+    chooser_items,
     genre_picker_items,
     index_problem,
+    roles,
     search_items,
+    served_models,
     without_index_items,
 )
 from kobolib.config import (
@@ -48,11 +52,27 @@ from kobolib.library import (
 from kobolib.model import Book, Row
 
 NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobo Library"', "end run")
+CONFIGURE_SCRIPT = (
+    "on run argv",
+    'tell application id "com.runningwithcrayons.Alfred" to set configuration (item 1 of argv) '
+    "to value (item 2 of argv) in workflow (item 3 of argv) exportable false",
+    "end run",
+)
+BUNDLE_ID = "com.anokhin.kobolib"
+ROLE_VARIABLES = {"oracle": ("KOBO_ORACLE_MODEL", "Oracle"), "embed": ("KOBO_EMBED_MODEL", "Embeddings")}
+
+
+def osascript(script: tuple[str, ...], *args: str) -> None:
+    lines = [arg for line in script for arg in ("-e", line)]
+    subprocess.run(["osascript", *lines, "--", *args], capture_output=True, check=False)
 
 
 def notify(message: str) -> None:
-    lines = [arg for line in NOTIFY_SCRIPT for arg in ("-e", line)]
-    subprocess.run(["osascript", *lines, "--", message], capture_output=True, check=False)
+    osascript(NOTIFY_SCRIPT, message)
+
+
+def configure(variable: str, value: str) -> None:
+    osascript(CONFIGURE_SCRIPT, variable, value, os.environ.get("alfred_workflow_bundleid") or BUNDLE_ID)
 
 
 def report(message: str, should_notify: bool) -> None:
@@ -266,6 +286,30 @@ def cmd_ask(args) -> int:
     return 0
 
 
+def cmd_choose(args) -> int:
+    variable, label = ROLE_VARIABLES[args.role]
+    configure(variable, args.model)
+    report(f"{label}: {args.model}", args.notify)
+    return 0
+
+
+def cmd_models(args) -> int:
+    if not oracle.configured():
+        return refuse("No model server: set KOBO_ORACLE_URL in the workflow configuration", False)
+    served = served_models()
+    for url, listed in served.items():
+        if listed is None:
+            print(f"Model not reachable at {url}")
+        else:
+            print("".join(f"{model}\t{', '.join(roles(model))}\n" for model in listed), end="")
+    return int(any(listed is None for listed in served.values()))
+
+
+def cmd_chooser(args) -> int:
+    print(alfred.render(chooser_items(args.query.strip(), os.environ.get("model", ""))))
+    return 0
+
+
 def flag(name: str) -> argparse.ArgumentParser:
     parent = argparse.ArgumentParser(add_help=False)
     parent.add_argument(name, action="store_true")
@@ -306,6 +350,12 @@ def build_parser() -> argparse.ArgumentParser:
     dismiss_cmd = sub.add_parser("dismiss", parents=[notify])
     dismiss_cmd.add_argument("book")
     dismiss_cmd.set_defaults(func=cmd_dismiss)
+    choose_cmd = sub.add_parser("choose", parents=[notify])
+    choose_cmd.add_argument("role", choices=list(ROLE_VARIABLES))
+    choose_cmd.add_argument("model")
+    choose_cmd.set_defaults(func=cmd_choose)
+    sub.add_parser("models").set_defaults(func=cmd_models)
+    sub.add_parser("chooser", parents=[query]).set_defaults(func=cmd_chooser)
     return parser
 
 

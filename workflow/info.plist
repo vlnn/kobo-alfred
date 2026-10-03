@@ -267,6 +267,70 @@ esac</string>
 			</dict>
 		</dict>
 		<dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>CHOOSER</string>
+			<key>version</key>
+			<integer>3</integer>
+			<key>config</key>
+			<dict>
+				<key>title</key>
+				<string>Use model for…</string>
+				<key>subtext</key>
+				<string>↩ writes the choice into the workflow configuration</string>
+				<key>runningsubtext</key>
+				<string>…</string>
+				<key>withspace</key>
+				<true/>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>queuedelaycustom</key>
+				<integer>1</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib chooser "$1"</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>CHOOSE</string>
+			<key>version</key>
+			<integer>2</integer>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>type</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>PYTHONPATH="$PWD" /usr/bin/python3 -m kobolib choose "$1" "$model"</string>
+			</dict>
+		</dict>
+		<dict>
 			<key>config</key>
 			<dict>
 				<key>conditions</key>
@@ -397,6 +461,20 @@ esac</string>
 						<key>uid</key>
 						<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C2</string>
 					</dict>
+					<dict>
+						<key>inputstring</key>
+						<string>{var:action}</string>
+						<key>matchcasesensitive</key>
+						<false/>
+						<key>matchmode</key>
+						<integer>0</integer>
+						<key>matchstring</key>
+						<string>model</string>
+						<key>outputlabel</key>
+						<string>model</string>
+						<key>uid</key>
+						<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C3</string>
+					</dict>
 				</array>
 				<key>elselabel</key>
 				<string>open</string>
@@ -525,6 +603,18 @@ esac</string>
 			</dict>
 			<dict>
 				<key>destinationuid</key>
+				<string>CHOOSER</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+				<key>sourceoutputuid</key>
+				<string>3B6F0C2E-5A1D-4E7B-9C84-0A5B000001C3</string>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
 				<string>OPEN</string>
 				<key>modifiers</key>
 				<integer>0</integer>
@@ -576,6 +666,32 @@ esac</string>
 				<string>PICKER</string>
 				<key>modifiers</key>
 				<integer>131072</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>CHOOSER</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>CHOOSE</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>CHOOSE</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>NOTIFY</string>
+				<key>modifiers</key>
+				<integer>0</integer>
 				<key>modifiersubtext</key>
 				<string></string>
 				<key>vitoclose</key>
@@ -656,6 +772,20 @@ esac</string>
 			<real>320.0</real>
 			<key>ypos</key>
 			<real>320.0</real>
+		</dict>
+		<key>CHOOSER</key>
+		<dict>
+			<key>xpos</key>
+			<real>320.0</real>
+			<key>ypos</key>
+			<real>480.0</real>
+		</dict>
+		<key>CHOOSE</key>
+		<dict>
+			<key>xpos</key>
+			<real>580.0</real>
+			<key>ypos</key>
+			<real>480.0</real>
 		</dict>
 	</dict>
 	<key>version</key>

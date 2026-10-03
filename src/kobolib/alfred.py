@@ -201,6 +201,10 @@ def merge_item(canonical: str, ops: list[Operation], root: str) -> dict:
     return {**head, "mods": {"alt": reveal(f"{root}/{folders[0]}")}}
 
 
+def choose_item(model: str, role: str, title: str, subtitle: str) -> dict:
+    return {"uid": f"choose:{role}", **action_item(title, subtitle, "choose", role), "variables": {"model": model, "action": "choose"}}
+
+
 def dismiss_item(book: str) -> dict:
     subtitle = "↩ forgets the model's answers for it · kobolib ask --force asks again"
     return head_row("oracle:dismiss", "Dismiss suggestions for this book", subtitle, variables={"book": book, "action": "dismiss"})

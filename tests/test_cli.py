@@ -683,3 +683,62 @@ def test_bare_fix_leaves_merges_alone(delany_merge, library, capsys):
     main(["fix"])
 
     assert (library / BABEL_ALIAS).exists(), "a merge is a suggestion until ↩ on its row"
+
+
+def test_choose_writes_the_workflow_configuration(env, capsys, mocker):
+    run_script = mocker.patch("kobolib.cli.subprocess.run")
+
+    assert main(["choose", "oracle", "qwen2.5-7b-instruct"]) == 0, "choosing should succeed"
+
+    argv = run_script.call_args.args[0]
+    assert argv[0] == "osascript" and argv[-3:] == ["KOBO_ORACLE_MODEL", "qwen2.5-7b-instruct", "com.anokhin.kobolib"], (
+        "the variable, the value and the bundle id reach the script as arguments, never spliced into it"
+    )
+    assert "set configuration" in " ".join(argv) and "com.runningwithcrayons.Alfred" in " ".join(argv), (
+        "Alfred is asked to set the variable"
+    )
+    assert capsys.readouterr().out.strip() == "Oracle: qwen2.5-7b-instruct", "the choice is reported"
+
+
+def test_choose_embed_sets_the_embedding_model(env, capsys, mocker):
+    run_script = mocker.patch("kobolib.cli.subprocess.run")
+
+    main(["choose", "embed", "bge-m3"])
+
+    assert run_script.call_args.args[0][-3] == "KOBO_EMBED_MODEL", "embed chooses the embedding model"
+    assert capsys.readouterr().out.strip() == "Embeddings: bge-m3", "the choice is reported"
+
+
+def test_choose_uses_the_running_workflows_bundle_id(env, capsys, mocker, monkeypatch):
+    monkeypatch.setenv("alfred_workflow_bundleid", "com.example.fork")
+    run_script = mocker.patch("kobolib.cli.subprocess.run")
+
+    main(["choose", "oracle", "x"])
+
+    assert run_script.call_args.args[0][-1] == "com.example.fork", "a renamed workflow configures itself, not the original"
+
+
+def test_models_prints_the_list_with_the_current_choices(env, capsys, mocker, monkeypatch):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    monkeypatch.setenv("KOBO_ORACLE_MODEL", "qwen2.5-7b-instruct")
+    mocker.patch("kobolib.embedder.models", return_value=["qwen2.5-7b-instruct", "bge-m3"])
+
+    assert main(["models"]) == 0, "listing should succeed"
+
+    assert capsys.readouterr().out == "qwen2.5-7b-instruct\toracle\nbge-m3\t\n", "one model per line with its role"
+
+
+def test_models_reports_a_server_that_is_down(env, capsys, mocker, monkeypatch):
+    monkeypatch.setenv("KOBO_ORACLE_URL", "http://127.0.0.1:8080")
+    mocker.patch("kobolib.embedder.models", return_value=None)
+
+    assert main(["models"]) == 1, "no list is a failure"
+    assert capsys.readouterr().out.strip() == "Model not reachable at http://127.0.0.1:8080", "the server is named"
+
+
+def test_chooser_renders_rows_for_the_selected_model(env, capsys, monkeypatch):
+    monkeypatch.setenv("model", "bge-m3")
+
+    items = run(["chooser", ""], capsys)["items"]
+
+    assert [i["title"] for i in items] == ["Use bge-m3 for the oracle", "Use bge-m3 for embeddings"], "the chooser reads the model variable"

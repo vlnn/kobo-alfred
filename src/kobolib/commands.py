@@ -7,16 +7,20 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from kobolib import alfred, oracle
+from kobolib import alfred, embedder, oracle
 from kobolib.alfred import counted
 from kobolib.apply import EXECUTABLE, last_batch, read_journal
 from kobolib.asking import name_rows
 from kobolib.config import (
     db_path,
+    embed_model,
+    embed_url,
     genre_store,
     journal_path,
     library_index,
     library_root,
+    oracle_model,
+    oracle_url,
     sources,
     sources_db_path,
     sources_index,
@@ -280,6 +284,67 @@ def all_stats_items(words: list[str]) -> list[dict]:
     return stats_items() + sources_stats_items()
 
 
+def served_models() -> dict[str, list[str] | None]:
+    return {url: embedder.models(url) for url in dict.fromkeys([oracle_url(), embed_url()])}
+
+
+def reachability(listed: list[str] | None) -> str:
+    return "reachable" if listed is not None else "not reachable"
+
+
+def roles(model: str) -> list[str]:
+    return [role for role, chosen in (("oracle", oracle_model()), ("embeddings", embed_model())) if model == chosen]
+
+
+def model_row(model: str) -> dict:
+    marks = [f"✓ {role}" for role in roles(model)]
+    subtitle = alfred.SEPARATOR.join([*marks, "↩ choose what it is for"])
+    return {
+        "uid": f"model:{model}",
+        **alfred.action_item(model, subtitle, "model", model),
+        "variables": {"model": model, "action": "model"},
+    }
+
+
+def model_rows(served: dict[str, list[str] | None]) -> list[dict]:
+    rows = []
+    for url, listed in served.items():
+        rows += [model_row(m) for m in listed] if listed is not None else [alfred.unreachable_item(url)]
+    return rows
+
+
+def embeddings_state() -> str:
+    return "↩ on a model below chooses it" if not embed_model() else embed_url()
+
+
+def model_headers(served: dict[str, list[str] | None]) -> list[dict]:
+    oracle_state = alfred.SEPARATOR.join([oracle_url(), reachability(served[oracle_url()])])
+    embeddings = alfred.SEPARATOR.join([embed_url(), reachability(served[embed_url()])]) if embed_model() else embeddings_state()
+    return [
+        alfred.message_item(f"Oracle: {oracle_model() or 'server default'}", oracle_state),
+        alfred.message_item(f"Embeddings: {embed_model() or 'none'}", embeddings),
+    ]
+
+
+def model_items(words: list[str]) -> list[dict]:
+    if not oracle.configured():
+        return [alfred.message_item("No model server", "set KOBO_ORACLE_URL in the workflow configuration to a running llama-server")]
+    served = served_models()
+    return [*model_headers(served), *model_rows(served)]
+
+
+def chooser_items(typed: str, model: str) -> list[dict]:
+    if not model:
+        return [alfred.message_item("No model selected", "Press ↩ on a model in kb model")]
+    rows = [
+        alfred.choose_item(model, "oracle", f"Use {model} for the oracle", "answers the genre, name and author questions"),
+        alfred.choose_item(
+            model, "embed", f"Use {model} for embeddings", "re-embeds everything; the old vectors are kept until the new ones exist"
+        ),
+    ]
+    return [r for r in rows if contains(typed, r["title"])]
+
+
 @dataclass(frozen=True)
 class Command:
     name: str
@@ -416,6 +481,13 @@ COMMAND_LIST = [
     Command("trash", trash_items, "trash", "unfinished downloads; with words, any book · ↩ moves it to _trash/"),
     Command("src", sources_items, "import", "search the other sources · ↩ imports into the inbox", needs_index=False),
     Command("update", update_items, "update", "rebuild the library and sources index", needs_index=False),
+    Command(
+        "model",
+        model_items,
+        "model",
+        "the local model server: which models it serves, which one answers, which one embeds",
+        needs_index=False,
+    ),
 ]
 
 COMMANDS = {name: command for command in COMMAND_LIST for name in command.names}
