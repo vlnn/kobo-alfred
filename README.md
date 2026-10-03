@@ -180,6 +180,40 @@ Turn on **Ask and embed on update** in the configuration and `kb update` does al
 
 Nothing in the UI mentions the model until **Model server** is set; a server that does not answer shows as *Model not reachable at …* in `kb classify`, `kb fix` and `kb model`.
 
+### Running llama-server
+
+The workflow only needs an OpenAI-compatible `/v1/chat/completions` that honours `response_format` with a JSON schema; any recent `llama-server` does. Two ways to run it:
+
+```sh
+llama-server --hf-repo <org>/<model>-GGUF:Q4_K_M --alias oracle --jinja -c 8192 -ngl 99 --port 8080
+```
+
+serves one model; **Model** in `kb model` is then its alias. Or start the server with no model and a preset file, and it runs in *router mode*: every `[section]` is a model it can serve, loaded the first time a request names it:
+
+```ini
+[oracle]
+hf-repo = <org>/<model>-GGUF:Q4_K_M
+jinja = true
+ctx-size = 8192
+n-gpu-layers = 99
+```
+
+```sh
+llama-server --port 8080 --models-preset ~/.config/llama.cpp/models.ini --models-max 2
+```
+
+Router mode is the comfortable one — swap models in `kb model` without restarting anything — with one thing to know: nothing is loaded until it is asked for. The first question after a start pays for loading the weights, and the very first time for downloading them into `~/.cache/llama.cpp`, which for a 20–30 B model is minutes to tens of minutes during which every request in the pass times out at 60 s and is counted as *skipped*. Wait for the download (the blob grows under `…/blobs/*.downloadInProgress`), or ask once from a terminal with `curl` before the pass, and ask again. `sleep-idle-seconds` in a preset unloads the model after that many idle seconds and brings the loading pause back on the next question; leave it out on a machine with the RAM, or expect one skipped book after each break.
+
+Choices that matter for this workflow:
+
+- **An instruct model, not a thinking one.** Answers are capped at 64 tokens for a genre and 256 for a title; a thinking model spends them inside `<think>` and the answer comes back empty. The workflow asks the template not to think, which the hybrid Qwen3 family respects, but a `-Thinking-` build ignores it.
+- **`--jinja`.** Without it the chat template is approximated and the JSON-schema grammar fights the model more than it should.
+- **Context of 8 k or so.** A question carries the book's metadata, two thousand characters of text and the genre list: 3–4 k tokens with Cyrillic text. The author question sends every author folder in the library; 8 k covers a few thousand folders.
+- **Keep the embedding server separate**, as above: **Model server** on one port, **Embedding server** on the other. Pointing **Model server** at the embedding server makes every question time out, because that server never produces a chat completion.
+- **Start it as a service** (`brew services start llama.cpp` with the preset in its arguments, or a launchd agent) rather than from a shell, so it is there when Alfred asks and survives a logout. A manually started copy loses the port to a service that is already listening and exits at once — check `lsof -nP -iTCP:8080 -sTCP:LISTEN` when a restart seems to change nothing.
+
+`kb model` reads `/v1/models` of both servers, so it knows what each one *can* serve; whether a model is loaded right now is `curl localhost:8080/health` (router mode: the per-model entry in `/models`), and `oracle.log` says how long each answer took.
+
 ## KOReader users
 
 Moves and renames also carry each book's `.sdr` sidecar along and rewrite the paths in `.adds/koreader/settings/{collection,history,bookmarks}.lua` (a `.bak` is written first) and under `.adds/koreader/docsettings/`, so highlights, progress and collections survive `kb fix`. This only works if `.adds/koreader` lives under your library root: either the root is the device itself, or your sync includes that folder.
@@ -247,7 +281,9 @@ Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index:
 | *Asking the model… a notification follows* / *The model is already being asked* | one pass runs at a time; wait for its notification. A pass that died leaves `oracle.lock` behind for an hour; delete it to go on |
 | *Model not reachable at …* | start `llama-server`, or fix **Model server**; `kb model` shows whether it answers |
 | every request skipped, `oracle.log` says *401* | the server wants a key: set **Model server API key** (`--api-key` or `LLAMA_API_KEY` on the server side) |
-| `oracle.log` full of *timed out* | the oracle is a thinking model spending the minute on reasoning; choose a plain instruct model in `kb model` |
+| `oracle.log` full of *timed out*, `seconds` = 60 | the model is not answering within a minute: it is still downloading or loading (router mode loads on the first request, `sleep-idle-seconds` unloads it again — see *Running llama-server*), **Model server** points at the embedding server, or the oracle is a thinking model spending the minute on reasoning; choose a plain instruct model in `kb model` |
+| `oracle.log` full of *400 Bad Request* | the request names a model the server does not know (router mode: no `model` at all); pick one in `kb model`, or set `KOBO_ORACLE_MODEL` in the terminal |
+| the terminal and Alfred disagree about what was asked | they use different data folders unless `KOBO_DATA` is set; each has its own `oracle.log` and `oracle.tsv` |
 | `kobolib embed` skips every book | the embedding server answers 501: it was started without `--embeddings`, or with a chat model; see the walkthrough |
 | *No embedding model* in `kb like` | ↩ on a model in `kb model`, then **Use … for embeddings** |
 | *No embeddings yet* | ↩ on that row embeds the library in the background |
