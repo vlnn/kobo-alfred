@@ -62,6 +62,11 @@ FB2 = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 
+@pytest.fixture(autouse=True)
+def no_quicklook(mocker):
+    mocker.patch("kobolib.covers.shutil.which", return_value=None)
+
+
 @pytest.fixture
 def epub_file(tmp_path: Path) -> Path:
     path = tmp_path / "Newport, Cal - Deep Work (2016, GC) - libgen.li.epub"
