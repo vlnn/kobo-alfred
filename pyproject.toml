@@ -1,7 +1,7 @@
 [project]
 name = "kobolib"
-version = "0.2.0"
-description = "Alfred workflow: search an ebook library by metadata, with covers"
+version = "0.3.0"
+description = "Alfred workflow: search and tidy an ebook library by metadata, with covers and an optional local model"
 requires-python = ">=3.9"
 dependencies = []
 

@@ -19,6 +19,7 @@ A first word that names a command adds its rows above the books matching all the
 kb classify lists the inbox; ↩ picks a genre and moves the book to its genre home at once. In the genre picker ⇧↩ creates the typed text as a new genre.
 kb fix shows what is wrong and how to fix it, with Undo for the last batch; kb trash sets unfinished downloads and other books aside in _trash/; nothing is ever deleted.
 kb src searches other sources (a Calibre library, a downloads folder) and ↩ copies the book into the library inbox.
+Optional: point Model server at a running llama-server and the workflow can propose genres, titles and author merges, shown with a ? in kb classify and as rows in kb fix; nothing happens until you press ↩. With an embedding model, kb like lists the books nearest the one you name or read last, and kb model shows what the server serves.
 Set the library root (and optionally other sources and the index folder) in the workflow configuration, then run kb update once; rerun after adding books. Needs only macOS's /usr/bin/python3.</string>
 	<key>variables</key>
 	<dict>
@@ -27,6 +28,14 @@ Set the library root (and optionally other sources and the index folder) in the 
 		<key>KOBO_DATA</key>
 		<string></string>
 		<key>KOBO_SOURCES</key>
+		<string></string>
+		<key>KOBO_ORACLE_URL</key>
+		<string></string>
+		<key>KOBO_ORACLE_MODEL</key>
+		<string></string>
+		<key>KOBO_EMBED_URL</key>
+		<string></string>
+		<key>KOBO_EMBED_MODEL</key>
 		<string></string>
 	</dict>
 	<key>userconfigurationconfig</key>
@@ -94,6 +103,90 @@ Set the library root (and optionally other sources and the index folder) in the 
 			<key>variable</key>
 			<string>KOBO_SOURCES</string>
 		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>http://127.0.0.1:8080</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Base URL of a running llama-server (its OpenAI-compatible endpoint). Empty turns the model off: nothing in the workflow mentions it. With it set, kb classify and kb fix offer to ask the model about inbox books and unnamed files; its answers are suggestions until you press ↩.</string>
+			<key>label</key>
+			<string>Model server (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_ORACLE_URL</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>qwen2.5-7b-instruct</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>The model that answers genre, name and author questions, as /v1/models names it. Empty uses whatever the server loads by default. kb model sets this for you.</string>
+			<key>label</key>
+			<string>Model for questions (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_ORACLE_MODEL</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>http://127.0.0.1:8081</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>Base URL of the server that computes embeddings, when it is not the model server above. Empty uses the model server.</string>
+			<key>label</key>
+			<string>Embedding server (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_EMBED_URL</string>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>default</key>
+				<string></string>
+				<key>placeholder</key>
+				<string>bge-m3</string>
+				<key>required</key>
+				<false/>
+				<key>trim</key>
+				<true/>
+			</dict>
+			<key>description</key>
+			<string>The embedding model behind kb like, as /v1/models names it; multilingual if the library mixes scripts. Empty turns kb like off. kb model sets this for you; kobolib embed, or ↩ in kb model, embeds the books.</string>
+			<key>label</key>
+			<string>Embedding model (optional)</string>
+			<key>type</key>
+			<string>textfield</string>
+			<key>variable</key>
+			<string>KOBO_EMBED_MODEL</string>
+		</dict>
 	</array>
 	<key>objects</key>
 	<array>
@@ -111,7 +204,7 @@ Set the library root (and optionally other sources and the index folder) in the 
 				<key>title</key>
 				<string>Search library</string>
 				<key>subtext</key>
-				<string>words match title, author, series, path, genre, subjects, format, language, year · rnd inbox classify dups stats fix trash src update</string>
+				<string>words match title, author, series, path, genre, subjects, format, language, year · rnd inbox classify dups stats fix trash src update like model</string>
 				<key>runningsubtext</key>
 				<string>Searching…</string>
 				<key>withspace</key>
@@ -816,7 +909,7 @@ esac</string>
 		</dict>
 	</dict>
 	<key>version</key>
-	<string>0.2.0</string>
+	<string>0.3.0</string>
 	<key>webaddress</key>
 	<string>https://github.com/vlnn/kobo-alfred</string>
 </dict>

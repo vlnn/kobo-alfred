@@ -240,3 +240,18 @@ def test_import_all_head_row_reaches_the_runner_from_kb(workflow, indexed_with_s
 
     assert head["uid"] == "src:import-all", "kb src should start with the import-all row"
     assert route(workflow, head) == "RUN", "↩ on it must run the import in the background"
+
+
+ORACLE_VARIABLES = ("KOBO_ORACLE_URL", "KOBO_ORACLE_MODEL", "KOBO_EMBED_URL", "KOBO_EMBED_MODEL")
+
+
+@pytest.mark.parametrize("variable", ORACLE_VARIABLES)
+def test_the_oracle_is_configured_from_the_workflow_panel(workflow, variable):
+    assert workflow["variables"].get(variable) == "", f"{variable} should default to empty, which keeps the oracle off"
+    field = next(c for c in workflow["userconfigurationconfig"] if c["variable"] == variable)
+    assert field["config"]["required"] is False and field["type"] == "textfield", f"{variable} is an optional text field"
+
+
+def test_the_readme_mentions_the_oracle_commands(workflow):
+    for words in ("kb like", "kb model"):
+        assert words in workflow["readme"], f"the install readme should mention {words}"

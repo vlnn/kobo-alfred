@@ -59,6 +59,8 @@ kb fix         what is wrong and how to fix it · ↩ applies
 kb trash       unfinished downloads, or any book you name · ↩ moves it to _trash/
 kb src         search other sources · ↩ imports into the inbox
 kb update      rebuild the index (library, sources, PDF thumbnails) in the background
+kb like        books like one: the top match for the words, or the one KOReader opened last
+kb model       the local model server: which models it serves, which one answers, which one embeds
 ```
 
 Every command accepts search words after it: `kb fix delany` shows only fixes touching Delany, `kb trash lovecraft` lets you set aside a specific book.
@@ -131,6 +133,42 @@ kb src heinlein             books in the sources that are NOT already in the lib
 
 Books already in the library (by content fingerprint, not by name) are hidden, so `kb src` is always "what am I missing". Import *copies*; the source keeps its file. The destination is your existing inbox folder (any top-level folder whose name is `inbox` after the `NN_` prefix, e.g. `00_Inbox`), or `_inbox/` if there is none. Unreadable and `.part` files are refused.
 
+## Walkthrough 4: let a local model do the reading
+
+Everything above works with no model. If you run [llama.cpp](https://github.com/ggml-org/llama.cpp)'s `llama-server` on the Mac, the workflow can propose answers to the three chores that still need a human per book — a genre for a new book, a real title and author for a file named `7_815203.epub`, and which author folders are one person spelled differently — plus one new view, *what else do I have like this*. The model never moves a file: every proposal is a row, and only ↩ acts, through the same journaled batch as everything else.
+
+Set **Model server** in the workflow configuration to the server's URL (`http://127.0.0.1:8080`), then:
+
+```
+kb model                                      what the server serves · ✓ marks the current choices
+   ↩ on a model → Use … for the oracle        writes the choice into the workflow configuration
+kb classify                                   Ask the model about 12 inbox books and 4 unnamed files · ↩ asks in the background
+   …notification: Asked about 12 books: 9 genres suggested, 2 without an answer, 1 skipped
+kb classify                                   Dhalgren   author ? · fiction/sci-fi? · …   ← the ? is a suggestion
+   Accept 9 suggested genres                  ↩ files every listed book under its suggestion, one undoable batch
+   ↩ on Dhalgren                              the picker lists the suggestion first
+kb fix                                        Penhale, Ivor - Table Napkin Folding.pdf   move · suggested title and author · …
+                                              Merge 3 author folders into Delany, Samuel R.   ↩ moves 7 books · ⌥↩ reveals
+kb fix 7_815203                               Dismiss suggestions for this book
+```
+
+What the model sees is the book's metadata, its `dc:subject`/`dc:description` (fb2: `genre`/`annotation`), the first two thousand characters of its text and, for a genre question, the list of known genres; `kobolib ask --dry-run` prints exactly that. Every answer is constrained by a JSON schema (a genre is one of the known genres or `none`), stored in `oracle.tsv` keyed by content fingerprint and the hash of the evidence, and kept until the evidence changes, so re-indexing, renaming or moving a book costs nothing. Setting a genre, applying a suggested rename, or dismissing a book forgets its answers. `oracle.log` keeps the last 500 exchanges for *why did it say that*.
+
+Suggested operations in `kb fix` apply only when you ↩ on their row (or name the file on the command line): **Fix all**, a bare `kobolib fix` and `--dry-run` stay certain-only. A merge moves books from the alias folders into the canonical one; if a book's embedded author still reads the alias spelling, the planner may later offer to move it back, because folders are derived from metadata — give it a genre with ⇧↩ and look at the row before accepting.
+
+With an embedding model chosen too (**Use … for embeddings** in `kb model`), `↩` on *Embed N new books* in `kb model`, `kb stats` or `kb like` embeds the library in the background, and then:
+
+```
+kb like dhalgren              Like Dhalgren                 Delany, Samuel R. · 01_Fiction/02_Sci-Fi/…
+                              Nova                          91% · Delany, Samuel R. · 1968 · EPUB 400 KB · …   ↩ opens
+                              Babel-17                      88% · …
+kb like                       seed = the book KOReader opened last (history.lua), else the newest book
+```
+
+Vectors live in `vectors.db` keyed by model, so switching the embedding model keeps the old set until the new one is complete. Similarity is cosine over stored vectors, computed when a vector is stored, never while you type.
+
+Nothing in the UI mentions the model until **Model server** is set; a server that does not answer shows as *Model not reachable at …* in `kb classify`, `kb fix` and `kb model`.
+
 ## KOReader users
 
 Moves and renames also carry each book's `.sdr` sidecar along and rewrite the paths in `.adds/koreader/settings/{collection,history,bookmarks}.lua` (a `.bak` is written first) and under `.adds/koreader/docsettings/`, so highlights, progress and collections survive `kb fix`. This only works if `.adds/koreader` lives under your library root: either the root is the device itself, or your sync includes that folder.
@@ -147,7 +185,7 @@ The folder tree is what the Kobo shows, so the tool keeps it meaning exactly one
 
 ## Where things are
 
-Index (`library.db`, `sources.db`), `covers/`, `genres.tsv` and the undo journal (`journal.jsonl`) live in Alfred's workflow data folder, `~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib`, which survives workflow updates and cache clears. Override with **Index folder**.
+Index (`library.db`, `sources.db`), `covers/`, `genres.tsv`, the model's answers (`oracle.tsv`, `oracle.log`), `vectors.db` and the undo journal (`journal.jsonl`) live in Alfred's workflow data folder, `~/Library/Application Support/Alfred/Workflow Data/com.anokhin.kobolib`, which survives workflow updates and cache clears. Override with **Index folder**.
 
 The index stores paths relative to the library root, so if the same tree exists in two places (the card and a synced folder, say) you can switch **Library root** between them without rebuilding.
 
@@ -168,7 +206,14 @@ uv run kobolib trash "$KOBO_ROOT/00_Inbox/broken.epub.part"
 uv run kobolib genre "$KOBO_ROOT/00_Inbox/nova.epub" fiction/sci-fi
 uv run kobolib import ~/Downloads/babel-17.epub
 uv run kobolib undo
+uv run kobolib ask [genre|name|authors] [<words>]   # --force re-asks, --dry-run prints the evidence
+uv run kobolib dismiss <fingerprint-or-path>
+uv run kobolib embed [<words>]                      # --force re-embeds
+uv run kobolib models
+uv run kobolib choose oracle|embed <model>
 ```
+
+`KOBO_ORACLE_URL`, `KOBO_ORACLE_MODEL`, `KOBO_EMBED_URL` and `KOBO_EMBED_MODEL` configure the model from the terminal the way the workflow panel does.
 
 `KOBO_SOURCES` takes the other sources. `search` and `genres` print Alfred's JSON; everything else prints one line and, with `--notify`, posts it as a macOS notification.
 
@@ -188,6 +233,9 @@ Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index:
 | *No source is mounted* | plug in the drive named in **Other sources** |
 | *No book selected* in the genre picker | it was opened directly; use ⇧↩ on a book or ↩ in `kb classify` |
 | *Nothing to fix* | the library is clean |
+| *Model not reachable at …* | start `llama-server`, or fix **Model server**; `kb model` shows whether it answers |
+| *No embedding model* in `kb like` | ↩ on a model in `kb model`, then **Use … for embeddings** |
+| *No embeddings yet* | ↩ on that row embeds the library in the background |
 
 ## Development
 
