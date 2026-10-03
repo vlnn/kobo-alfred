@@ -36,6 +36,7 @@ AUTHORS_SCHEMA = {
     },
     "required": ["groups"],
 }
+MAX_TOKENS = {"genre": 64, "name": 256, "authors": 4096}
 NAME_SCHEMA = {
     "type": "object",
     "properties": {
@@ -55,6 +56,9 @@ def request_body(question: str, evidence: str, schema: dict) -> dict:
     body = {
         "messages": [{"role": "system", "content": PROMPTS[question]}, {"role": "user", "content": evidence}],
         "temperature": 0,
+        "max_tokens": MAX_TOKENS[question],
+        "chat_template_kwargs": {"enable_thinking": False},
+        "reasoning_effort": "low",
         "response_format": {"type": "json_schema", "json_schema": {"name": question, "schema": schema}},
     }
     return {**body, "model": oracle_model()} if oracle_model() else body

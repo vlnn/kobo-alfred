@@ -198,3 +198,14 @@ def test_ask_sends_no_authorization_without_a_key(answering):
     oracle.ask("genre", "x", {})
 
     assert answering.call_args.args[0].get_header("Authorization") is None, "without a key the request carries no token"
+
+
+@pytest.mark.parametrize("question, budget", [("genre", 64), ("name", 256), ("authors", 4096)])
+def test_ask_caps_the_answer_and_turns_thinking_off(answering, question, budget):
+    oracle.ask(question, "x", {})
+
+    body = sent(answering)
+    assert body["max_tokens"] == budget, "a runaway answer stops short of the timeout"
+    assert body["chat_template_kwargs"] == {"enable_thinking": False} and body["reasoning_effort"] == "low", (
+        "a thinking model is asked to answer, not to reason first"
+    )

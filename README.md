@@ -246,6 +246,7 @@ Set `KOBO_DATA` as above if you want the terminal and Alfred to share one index:
 | *Nothing to fix* | the library is clean |
 | *Model not reachable at …* | start `llama-server`, or fix **Model server**; `kb model` shows whether it answers |
 | every request skipped, `oracle.log` says *401* | the server wants a key: set **Model server API key** (`--api-key` or `LLAMA_API_KEY` on the server side) |
+| `oracle.log` full of *timed out* | the oracle is a thinking model spending the minute on reasoning; choose a plain instruct model in `kb model` |
 | `kobolib embed` skips every book | the embedding server answers 501: it was started without `--embeddings`, or with a chat model; see the walkthrough |
 | *No embedding model* in `kb like` | ↩ on a model in `kb model`, then **Use … for embeddings** |
 | *No embeddings yet* | ↩ on that row embeds the library in the background |
