@@ -221,9 +221,9 @@ def test_unclassified_lists_books_without_genre_oldest_first(index: Index, libra
     with_genre = index.by_fingerprint(classified.fingerprint)
     index.write_genres({with_genre.fingerprint: "nonfiction"})
 
-    listed = titles(index.unclassified())
-    assert listed[0] == "Napkin" and set(listed) == {"Napkin", "Оперантное поведение", "Nova"}, "books with no genre, oldest first"
-    assert titles(index.unclassified("napk")) == ["Napkin"], "the query narrows by title, author or path, case-insensitively"
+    listed = titles(index.unclassified([]))
+    assert listed == ["Napkin", "Оперантное поведение"], "complete books with no genre, oldest first; unfinished downloads left out"
+    assert titles(index.unclassified(["NAPK"])) == ["Napkin"], "the words narrow the list like a search"
 
 
 def test_genres_and_folders_are_distinct_columns(index: Index):

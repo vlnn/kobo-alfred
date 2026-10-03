@@ -56,6 +56,7 @@ from kobolib.library import (
 )
 from kobolib.model import Book, Row, Tag
 from kobolib.plan import read_plan, write_plan
+from kobolib.query import query_words
 from kobolib.tags import GenreStore
 
 NOTIFY_SCRIPT = ("on run argv", 'display notification (item 1 of argv) with title "Kobo Library"', "end run")
@@ -110,19 +111,19 @@ def cmd_dups(args) -> int:
 
 @requires_index
 def cmd_random(args) -> int:
-    print(alfred.render(random_items(args.query)))
+    print(alfred.render(random_items(query_words(args.query))))
     return 0
 
 
 @requires_index
 def cmd_inbox(args) -> int:
-    print(alfred.render(inbox_items(args.query)))
+    print(alfred.render(inbox_items(query_words(args.query))))
     return 0
 
 
 @requires_index
 def cmd_classify(args) -> int:
-    print(alfred.render(classify_items(args.query)))
+    print(alfred.render(classify_items(query_words(args.query))))
     return 0
 
 
@@ -153,7 +154,7 @@ def refuse(message: str, should_notify: bool) -> int:
 
 def not_writable() -> str:
     if problem := index_problem():
-        return f"{problem}: run kb:index"
+        return f"{problem}: run kb update"
     if index_busy(db_path()):
         return "Indexing is running, try again later"
     return ""
@@ -264,7 +265,7 @@ def cmd_index_sources(args) -> int:
 
 
 def cmd_sources(args) -> int:
-    print(alfred.render(sources_items(args.query)))
+    print(alfred.render(sources_items(query_words(args.query))))
     return 0
 
 

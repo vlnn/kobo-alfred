@@ -251,8 +251,8 @@ class Index:
     def one(self, condition: str, value: str) -> Row | None:
         return next(iter(self.rows(f"{SELECT_ROWS} WHERE {condition}", (value,))), None)
 
-    def unclassified(self, query: str = "") -> list[Row]:
-        return [r for r in self.rows(f"{SELECT_ROWS} WHERE genre = '' ORDER BY mtime") if matches(r, query)]
+    def unclassified(self, words: list[str], limit: int = 1000) -> list[Row]:
+        return self.matching(words, "partial = 0 AND genre = ''", "mtime", limit)
 
     def genres(self) -> list[str]:
         return self.distinct("genre")
@@ -302,7 +302,3 @@ def carry_cover(cover: str, dst: str) -> str:
 
 def set_aside(rel_path: str) -> bool:
     return bool(SKIP_FOLDERS & set(Path(rel_path).parts))
-
-
-def matches(row: Row, query: str) -> bool:
-    return query.lower() in f"{row.title} {row.authors} {row.rel_path}".lower()

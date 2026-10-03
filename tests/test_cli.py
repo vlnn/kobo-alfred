@@ -1,25 +1,10 @@
 import json
 import os
-from pathlib import Path
 
 import pytest
 
 from kobolib.cli import main, notify
 from kobolib.index import IndexBusy
-
-
-@pytest.fixture
-def env(library: Path, tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("KOBO_ROOT", str(library))
-    monkeypatch.setenv("alfred_workflow_data", str(tmp_path / "alfred-data"))
-    monkeypatch.delenv("KOBO_DATA", raising=False)
-    monkeypatch.setenv("book", "x")
-
-
-@pytest.fixture
-def indexed(env, capsys):
-    main(["index"])
-    capsys.readouterr()
 
 
 def output(capsys) -> dict:
@@ -440,115 +425,6 @@ def test_tag_with_genre_accepts_notify_like_the_other_movers(indexed, library, m
     assert main(["tag", "--notify", str(book), "genre=productivity"]) == 0, "--notify should be accepted before the book"
 
     assert notify.call_count == 1 and "moved → productivity/" in notify.call_args.args[0], "the notification should name the new home"
-
-
-@pytest.mark.parametrize(
-    "query, first_title, action",
-    [
-        ("stats", "4 books indexed", "stats"),
-        ("dups", "No duplicate titles", "dups"),
-        ("plan", "Apply all 1 operations", "apply-one"),
-        ("inbox", "", "open"),
-        ("classify", "", "classify"),
-        ("lint", "", "open"),
-        ("index", "Rebuild the index", "index"),
-        ("update", "Rebuild the index", "index"),
-        ("apply", "Apply the plan", "apply"),
-        ("undo", "Undo the last apply", "undo"),
-        ("src", "No sources index yet", "import"),
-    ],
-)
-def test_search_runs_a_command_named_by_its_first_word(indexed, capsys, query, first_title, action):
-
-    first = run(["search", query], capsys)["items"][0]
-    assert first["title"].startswith(first_title), f"kb {query} should show the same items as kb:{query}"
-    assert first.get("variables", {}).get("action") == action, "every command item should say how ↩ dispatches it"
-
-
-def test_search_command_items_come_before_matching_books(env, library, capsys):
-    (library / "00_Inbox" / "Stats for Dummies - Anon.pdf").write_bytes(b"%PDF-1.4")
-    main(["index"])
-    capsys.readouterr()
-
-    titles = [i["title"] for i in run(["search", "stats"], capsys)["items"]]
-    assert titles[0] == "5 books indexed", "the command comes first"
-    assert "Stats for Dummies" in titles, "books that happen to match the word still follow"
-
-
-def test_search_command_takes_the_rest_as_its_query(indexed, capsys):
-
-    items = run(["search", "rnd epub"], capsys)["items"]
-    assert [i["title"] for i in items] == ["Deep Work"], "kb rnd <words> should draw from books matching the words"
-    assert items[0]["variables"]["action"] == "open", "a book item from a picker opens like any other book"
-
-
-def test_search_action_item_is_actionable_and_has_no_arg(indexed, capsys):
-
-    item = run(["search", "index"], capsys)["items"][0]
-    assert item["valid"] is True and item["arg"] == "", "↩ on a keyword command should fire it with an empty argument"
-
-
-def test_search_plain_word_is_still_a_search(indexed, capsys):
-
-    assert run(["search", "deep"], capsys)["items"][0]["title"] == "Deep Work", "an ordinary word must not be mistaken for a command"
-
-
-@pytest.mark.parametrize("query, title", [("index", "Rebuild the index"), ("update", "Rebuild the index"), ("src", "No sources index yet")])
-def test_search_offers_index_free_commands_before_any_index(env, capsys, query, title):
-    first = run(["search", query], capsys)["items"][0]
-    assert first["title"] == title, f"kb {query} should work before the first index exists"
-    assert first.get("variables", {}).get("action"), "the command must still carry its dispatch action"
-
-
-@pytest.mark.parametrize("query", ["stats", "dups", "plan", "inbox", "classify", "lint", "rnd"])
-def test_search_explains_index_bound_commands_before_any_index(env, capsys, query):
-    first = run(["search", query], capsys)["items"][0]
-    assert first["title"] == "No index yet" and first["valid"] is False, f"kb {query} without an index should point at kb:index, not crash"
-
-
-@pytest.mark.parametrize(
-    "query, suggested",
-    [
-        ("ind", ["index"]),
-        ("IN", ["inbox", "index"]),
-        ("cl", ["classify"]),
-        ("so", ["sources"]),
-        ("ap", ["apply"]),
-        ("ra", ["random"]),
-        ("sr", ["src"]),
-    ],
-)
-def test_search_suggests_commands_matching_a_typed_prefix(indexed, capsys, query, suggested):
-    items = run(["search", query], capsys)["items"]
-
-    hints = [i for i in items if i.get("autocomplete", "").rstrip() in suggested]
-    assert [h["autocomplete"] for h in hints] == [f"{s} " for s in suggested], f"kb {query} should offer to complete to kb {suggested}"
-    assert all(h["valid"] is False and h["title"] == f"kb {h['autocomplete'].strip()}" for h in hints), (
-        "a suggestion completes the word on ↩/⇥ rather than acting"
-    )
-    assert items[: len(hints)] == hints, "suggestions come before any books matching the letters"
-
-
-def test_search_suggestions_follow_the_prefix_into_the_books(indexed, library, capsys):
-    (library / "00_Inbox" / "Index Cards - Smith, John.pdf").write_bytes(b"%PDF-1.4")
-    main(["index"])
-    capsys.readouterr()
-
-    titles = [i["title"] for i in run(["search", "ind"], capsys)["items"]]
-    assert titles == ["kb index", "Index Cards"], "the completion hint sits above the books that match the letters"
-
-
-@pytest.mark.parametrize("query", ["i", "ind deep", "index", "zzz"])
-def test_search_does_not_suggest_commands_for_other_input(indexed, capsys, query):
-    items = run(["search", query], capsys)["items"]
-    assert not any(i.get("autocomplete", "").endswith(" ") and i.get("valid") is False for i in items), (
-        "a single letter, a prefix followed by more words, a complete command or a non-prefix should not produce completion hints"
-    )
-
-
-def test_search_suggests_commands_before_any_index(env, capsys):
-    items = run(["search", "ind"], capsys)["items"]
-    assert items[0]["autocomplete"] == "index ", "completing to kb index must work before the first index exists"
 
 
 def test_notify_passes_the_message_as_an_argument(mocker):

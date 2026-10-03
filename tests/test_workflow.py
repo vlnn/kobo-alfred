@@ -56,7 +56,7 @@ def test_plan_row_action_tells_apart_one_row_from_apply_all(workflow):
 
 
 ROUTES = {
-    "index": "INDEX_RUN",
+    "update": "INDEX_RUN",
     "apply": "APPLY_RUN",
     "undo": "UNDO_RUN",
     "apply-one": "APPLY_ONE",
@@ -135,7 +135,6 @@ def route(workflow: dict, item: dict) -> str:
 @pytest.mark.parametrize(
     "query, destination, arg",
     [
-        ("index", "INDEX_RUN", ""),
         ("update", "INDEX_RUN", ""),
         ("apply", "APPLY_RUN", ""),
         ("undo", "UNDO_RUN", ""),
@@ -156,12 +155,15 @@ def test_enter_on_a_kb_row_reaches_the_same_object_as_the_keyword(workflow, inde
     assert first["arg"].startswith(arg), f"kb {query} should hand {arg!r}… to {destination}"
 
 
+KEYWORD_ACTIONS = {"kb:index": "update"}
+
+
 def test_keyword_entry_points_and_kb_words_share_their_targets(workflow):
     by_keyword = {o["config"].get("keyword"): o["uid"] for o in workflow["objects"] if o["config"].get("keyword")}
     for keyword, uid in by_keyword.items():
         if keyword in ("kb:index", "kb:apply", "kb:undo"):
             target = workflow["connections"][uid][0]["destinationuid"]
-            assert target == ROUTES[keyword.removeprefix("kb:")], (
+            assert target == ROUTES[KEYWORD_ACTIONS.get(keyword, keyword.removeprefix("kb:"))], (
                 f"{keyword} and kb {keyword.removeprefix('kb:')} should run the same script"
             )
 
@@ -211,11 +213,11 @@ def indexed_with_sources(library: Path, tmp_path: Path, tmp_path_factory, monkey
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("src slow")),
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("lint")),
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("plan")),
-        ("SOURCES", lambda: __import__("kobolib.commands", fromlist=["sources_items"]).sources_items("slow")),
-        ("INBOX", lambda: __import__("kobolib.commands", fromlist=["inbox_items"]).inbox_items("")),
+        ("SOURCES", lambda: __import__("kobolib.commands", fromlist=["sources_items"]).sources_items(["slow"])),
+        ("INBOX", lambda: __import__("kobolib.commands", fromlist=["inbox_items"]).inbox_items([])),
         ("LINT", lambda: __import__("kobolib.commands", fromlist=["lint_items"]).lint_items()),
-        ("RANDOM", lambda: __import__("kobolib.commands", fromlist=["random_items"]).random_items("")),
-        ("CLASSIFY", lambda: __import__("kobolib.commands", fromlist=["classify_items"]).classify_items("")),
+        ("RANDOM", lambda: __import__("kobolib.commands", fromlist=["random_items"]).random_items([])),
+        ("CLASSIFY", lambda: __import__("kobolib.commands", fromlist=["classify_items"]).classify_items([])),
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("classify")),
         ("SEARCH", lambda: __import__("kobolib.commands", fromlist=["search_items"]).search_items("inbox")),
         ("PLAN", lambda: __import__("kobolib.commands", fromlist=["written_plan_items"]).written_plan_items()),

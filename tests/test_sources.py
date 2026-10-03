@@ -83,7 +83,7 @@ def test_index_sources_skips_unmounted_source(env, tmp_path, capsys, monkeypatch
 @pytest.mark.parametrize(
     "query, expected",
     [
-        ("downloads", ["No books match “downloads”"]),
+        ("downloads", ["No books match ‘downloads’"]),
         ("calibre slow", ["Slow Productivity"]),
         ("epub newport", ["A World Without Email", "Slow Productivity"]),
     ],

@@ -102,8 +102,8 @@ def text_report(findings) -> str:
     return "\n".join(f"{f.rule}\t{f.detail}\t{' | '.join(f.rel_paths)}" for f in findings)
 
 
-def unclassified_rows(query: str = "") -> list[Row]:
-    return Index(db_path()).unclassified(query)
+def unclassified_rows(words: list[str]) -> list[Row]:
+    return Index(db_path()).unclassified(words)
 
 
 def current_plan():

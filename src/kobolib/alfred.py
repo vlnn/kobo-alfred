@@ -200,14 +200,22 @@ def duplicate_item(group: DuplicateGroup) -> dict:
 
 def empty_item(query: str) -> dict:
     return {
-        "title": f"No books match “{query}”",
-        "subtitle": "Words match title, author, series, path, genre, format, language and year — or kb update to rebuild",
+        "title": f"No books match ‘{query}’",
+        "subtitle": "Words match title, author, series, path, genre, format, language and year",
         "valid": False,
     }
 
 
+def navigation_item(title: str, subtitle: str, completion: str) -> dict:
+    return {"title": title, "subtitle": subtitle, "autocomplete": completion, "valid": False}
+
+
+def action_item(title: str, subtitle: str, action: str, arg: str = "") -> dict:
+    return {"title": title, "subtitle": subtitle, "arg": arg, "valid": True, "variables": {"action": action}}
+
+
 def suggestion_item(command: str, help: str) -> dict:
-    return {"uid": f"kb:{command}", "title": f"kb {command}", "subtitle": help, "autocomplete": f"{command} ", "valid": False}
+    return {"uid": f"kb:{command}", **navigation_item(f"kb {command}", help, f"{command} ")}
 
 
 def message_item(title: str, subtitle: str = "") -> dict:

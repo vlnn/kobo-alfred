@@ -6,14 +6,14 @@ Alfred workflow for searching an ebook library (the Kobo SD card) by metadata, w
 kb deep work                 every word must match, by prefix, ignoring case and diacritics
 kb delany epub 1975          words match title, authors, series, folder, path, genre, format, language, year
 kb inbox ukrainian           language matches by code or English name (uk, ukrainian)
-kb                           empty query → most recently added books
-kb:index                     rebuild the library index and, if sources are configured, the sources index (also `kb update`)
+kb                           empty query → books without a genre (↩ completes to kb inbox), then the most recently added
+kb update                    rebuild the library index and, if sources are configured, the sources index (also kb:index)
 kb:dups                      same title in several files or formats
 kb:rnd epub                  five random books, drawn from those matching the words
 kb:stats                     counts: books, incomplete downloads, duplicate titles
 kb:lint                      problems: junk files, partial downloads, noisy/opaque names, duplicates, misfiled series, unclassified
 kb:inbox                     books without a genre yet, oldest first
-kb stats · kb plan · kb index…   every kb:x also works as `kb x [query]`: its rows come first, then books matching the word
+kb stats · kb plan · kb update…  every kb:x also works as `kb x [words]`: its rows come first, then books matching all words
 kb:plan                      proposed moves/renames/trash, written to plan.tsv — ↩ on a row applies that line, ↩ on the head row applies all
 kb:apply                     apply plan.tsv, then rebuild the index
 kb:undo                      move the last batch back
@@ -24,11 +24,13 @@ kb:src eur                   two or more results start with "Import all N books"
 ```
 
 Inside plain `kb`, a first word that names a command (`stats`, `dups`, `rnd`, `lint`, `inbox`, `classify`, `plan`,
-`src`, `index`/`update`, `apply`, `undo`) runs it: `kb plan` lists the plan and ↩ on a row applies that row;
-`kb src delany` searches the sources and ↩ imports; `kb index` shows one row that rebuilds the index on ↩. Books whose
-title, author or path contain the word are listed after. Only ↩ changes meaning per row; ⌥↩ (reveal), ⌘↩ (copy
-path) and ⌃↩ (browse folder) do the same thing in every list. Typing the start of a command (`kb ind`, `kb cl`)
-shows `kb index`, `kb classify`… rows above the books; ↩ or ⇥ completes the word.
+`src`, `update`, `apply`, `undo`) runs it: `kb plan` lists the plan and ↩ on a row applies that row;
+`kb src delany` searches the sources and ↩ imports; `kb update` shows one row that rebuilds the index on ↩. Books
+matching the whole input are listed after, once each, so a command word never hides a book (`kb stats` also finds
+"Stats for Dummies"). Only ↩ changes meaning per row; ⌥↩ (reveal), ⌘↩ (copy path) and ⌃↩ (browse folder) do the
+same thing in every list. Typing the start of a command (`kb up`, `kb cl`) shows `kb update`, `kb classify`… rows
+above the books; ↩ or ⇥ completes the word. Without an index, or with one from an older version, a single row
+says so and ↩ on it rebuilds.
 
 Each result shows: title · authors · series #n · year · FORMAT size · path relative to the library root.
 Covers are used as icons (embedded epub/fb2 cover, otherwise a Quick Look thumbnail via `qlmanage`).

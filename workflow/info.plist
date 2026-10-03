@@ -842,9 +842,9 @@ case "$1" in *$'\n'*) echo "Importing several books… you will get a notificati
 						<key>matchmode</key>
 						<integer>0</integer>
 						<key>matchstring</key>
-						<string>index</string>
+						<string>update</string>
 						<key>outputlabel</key>
-						<string>index</string>
+						<string>update</string>
 						<key>uid</key>
 						<string>D2BB2AA4-9769-43F6-A150-1C28D648FDB6</string>
 					</dict>
